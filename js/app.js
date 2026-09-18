@@ -42,6 +42,9 @@
   var $viewConvertFiles = $(); // populated once views/convert-files.html is fetched and mounted
   var $viewTextGen = $(); // populated once views/text-gen.html is fetched and mounted
   var $viewTestFile = $(); // populated once views/test-file.html is fetched and mounted
+  var $viewVideoConvert = $(); // populated once views/video-convert.html is fetched and mounted
+  var $viewFileResize = $(); // populated once views/file-resize.html is fetched and mounted
+  var $viewFileEncrypt = $(); // populated once views/file-encrypt.html is fetched and mounted
   function openView($view) {
     $viewHome.attr('hidden', true);
     $viewPdf.attr('hidden', true);
@@ -50,6 +53,9 @@
     $viewConvertFiles.attr('hidden', true);
     $viewTextGen.attr('hidden', true);
     $viewTestFile.attr('hidden', true);
+    $viewVideoConvert.attr('hidden', true);
+    $viewFileResize.attr('hidden', true);
+    $viewFileEncrypt.attr('hidden', true);
     $view.removeAttr('hidden');
   }
   $('#btn-back').on('click', function () {
@@ -129,6 +135,48 @@
     console.error('ไม่สามารถโหลด views/test-file.html ได้');
   });
 
+  // Same fetch-and-mount pattern for the "video convert" view
+  // (views/video-convert.html).
+  var videoConvertViewReady = $.get('views/video-convert.html').done(function (html) {
+    $('#view-video-convert-mount').replaceWith(html);
+    $viewVideoConvert = $('#view-video-convert');
+    $('#btn-video-convert-back').on('click', function () {
+      $viewVideoConvert.attr('hidden', true);
+      $viewHome.removeAttr('hidden');
+    });
+    initVideoConvertView();
+  }).fail(function () {
+    console.error('ไม่สามารถโหลด views/video-convert.html ได้');
+  });
+
+  // Same fetch-and-mount pattern for the "file resize" view
+  // (views/file-resize.html).
+  var fileResizeViewReady = $.get('views/file-resize.html').done(function (html) {
+    $('#view-file-resize-mount').replaceWith(html);
+    $viewFileResize = $('#view-file-resize');
+    $('#btn-file-resize-back').on('click', function () {
+      $viewFileResize.attr('hidden', true);
+      $viewHome.removeAttr('hidden');
+    });
+    initFileResizeView();
+  }).fail(function () {
+    console.error('ไม่สามารถโหลด views/file-resize.html ได้');
+  });
+
+  // Same fetch-and-mount pattern for the "file encrypt" view
+  // (views/file-encrypt.html).
+  var fileEncryptViewReady = $.get('views/file-encrypt.html').done(function (html) {
+    $('#view-file-encrypt-mount').replaceWith(html);
+    $viewFileEncrypt = $('#view-file-encrypt');
+    $('#btn-file-encrypt-back').on('click', function () {
+      $viewFileEncrypt.attr('hidden', true);
+      $viewHome.removeAttr('hidden');
+    });
+    initFileEncryptView();
+  }).fail(function () {
+    console.error('ไม่สามารถโหลด views/file-encrypt.html ได้');
+  });
+
   // ---------- Category tiles ----------
   // Each tool's home tile now carries only an icon + short bold label (no
   // description, no status tag) — disabled tools are still distinguished
@@ -138,18 +186,30 @@
     { id: 'split', label: 'แยกไฟล์ PDF', desc: 'แยกหน้า PDF เป็นหลายไฟล์', enabled: true, img: 'assets/split-pdf.png', color: 'yellow' },
     { id: 'merge', label: 'รวมไฟล์ PDF', desc: 'รวมหลายไฟล์เป็นไฟล์เดียว', enabled: true, img: 'assets/merge-pdf.png', color: 'blue' },
     { id: 'convert-files', label: 'แปลงไฟล์', desc: 'แปลงไฟล์ได้หลากหลายรูปแบบ', enabled: true, img: 'assets/convert-file.png', color: 'green' },
-    { id: 'text-gen', label: 'สร้างข้อความ', desc: 'สร้างและแก้ไขข้อความออนไลน์', enabled: true, img: 'assets/create-text.png', color: 'pink' },
-    { id: 'test-file', label: 'สร้างไฟล์ทดสอบ', desc: 'สร้างไฟล์ตัวอย่างสำหรับทดสอบ', enabled: true, img: 'assets/create-test.png', color: 'pink' },
-    { id: 'compress', label: 'บีบอัดรูปภาพ', desc: 'ลดขนาดไฟล์รูปภาพ แบบไม่เสียคุณภาพ', enabled: false, img: 'assets/compress-image.png', color: 'green' },
-    { id: 'ocr', label: 'อ่านข้อความจากภาพ', desc: 'ดึงข้อความจากรูปภาพ (OCR)', enabled: false, img: 'assets/ocr.png', color: 'blue' }
+    { id: 'video-convert', label: 'แปลงวิดีโอ', desc: 'แปลงวิดีโอไปมาระหว่างฟอร์แมต', enabled: true, img: 'assets/video-convert.svg', color: 'orange' },
+    { id: 'text-gen', label: 'สร้างข้อความ', desc: 'สร้างและแก้ไขข้อความออนไลน์', enabled: true, img: 'assets/create-text.png', color: 'teal' },
+    { id: 'test-file', label: 'สร้างไฟล์ทดสอบ', desc: 'สร้างไฟล์ตัวอย่างสำหรับทดสอบ', enabled: true, img: 'assets/create-test.png', color: 'rose' },
+    { id: 'file-resize', label: 'ปรับขนาดไฟล์', desc: 'เพิ่มหรือลดขนาดไฟล์ตามที่กำหนด', enabled: true, img: 'assets/file-resize.svg', color: 'indigo' },
+    { id: 'file-encrypt', label: 'เข้ารหัสไฟล์', desc: 'ใส่รหัสผ่านป้องกันไฟล์', enabled: true, img: 'assets/file-encrypt.svg', color: 'cyan' },
+    { id: 'compress', label: 'บีบอัดรูปภาพ', desc: 'ลดขนาดไฟล์รูปภาพ แบบไม่เสียคุณภาพ', enabled: false, img: 'assets/compress-image.png', color: 'gray' },
+    { id: 'ocr', label: 'อ่านข้อความจากภาพ', desc: 'ดึงข้อความจากรูปภาพ (OCR)', enabled: false, img: 'assets/ocr.png', color: 'gray' }
   ];
   // Pastel background/icon/arrow theme per card color, mapped to the
   // --card-* CSS variables in css/styles.css (light + dark mode aware).
+  // Every enabled tool gets its own distinct color (see TOOLS below) so
+  // tiles are distinguishable at a glance; "gray" is reserved for disabled
+  // ("เร็วๆ นี้") tiles, which all share it instead of getting their own hue.
   var CARD_THEMES = {
     pink: { bg: 'bg-cardpink', icon: 'bg-cardpinkdeep', arrow: 'text-cardpinkdeep' },
     yellow: { bg: 'bg-cardyellow', icon: 'bg-cardyellowdeep', arrow: 'text-cardyellowdeep' },
     blue: { bg: 'bg-cardblue', icon: 'bg-cardbluedeep', arrow: 'text-cardbluedeep' },
-    green: { bg: 'bg-cardgreen', icon: 'bg-cardgreendeep', arrow: 'text-cardgreendeep' }
+    green: { bg: 'bg-cardgreen', icon: 'bg-cardgreendeep', arrow: 'text-cardgreendeep' },
+    orange: { bg: 'bg-cardorange', icon: 'bg-cardorangedeep', arrow: 'text-cardorangedeep' },
+    teal: { bg: 'bg-cardteal', icon: 'bg-cardtealdeep', arrow: 'text-cardtealdeep' },
+    rose: { bg: 'bg-cardrose', icon: 'bg-cardrosedeep', arrow: 'text-cardrosedeep' },
+    indigo: { bg: 'bg-cardindigo', icon: 'bg-cardindigodeep', arrow: 'text-cardindigodeep' },
+    cyan: { bg: 'bg-cardcyan', icon: 'bg-cardcyandeep', arrow: 'text-cardcyandeep' },
+    gray: { bg: 'bg-cardgray', icon: 'bg-cardgraydeep', arrow: 'text-cardgraydeep' }
   };
   var $categoryGrid = $('#category-grid');
   var $toolSearch = $('#tool-search');
@@ -205,6 +265,10 @@
           openView($viewConvertFiles);
         });
       });
+    } else if (tool.id === 'video-convert') {
+      $el.on('click', function () {
+        $.when(videoConvertViewReady).done(function () { openView($viewVideoConvert); });
+      });
     } else if (tool.id === 'text-gen') {
       $el.on('click', function () {
         $.when(textGenViewReady).done(function () { openView($viewTextGen); });
@@ -212,6 +276,14 @@
     } else if (tool.id === 'test-file') {
       $el.on('click', function () {
         $.when(testFileViewReady).done(function () { openView($viewTestFile); });
+      });
+    } else if (tool.id === 'file-resize') {
+      $el.on('click', function () {
+        $.when(fileResizeViewReady).done(function () { openView($viewFileResize); });
+      });
+    } else if (tool.id === 'file-encrypt') {
+      $el.on('click', function () {
+        $.when(fileEncryptViewReady).done(function () { openView($viewFileEncrypt); });
       });
     }
     return $el;
@@ -2461,6 +2533,644 @@
         var res = await deliverFiles([{ name: fileName, blob: blob }], baseName);
         setStatus((res.status === 'saved' ? 'สร้างไฟล์และบันทึกสำเร็จ (' : 'สร้างไฟล์และส่งเรียบร้อย (') + sizeNote + ')', 'good');
       } catch (err) {
+        setStatus(describeDownloadError(err), err && err.code === 'declined' ? 'neutral' : 'bad');
+      } finally {
+        setBusy(false);
+      }
+    });
+  }
+
+  // ---------- Video convert (ffmpeg.wasm) ----------
+  // Unlike every other library in this app, @ffmpeg/ffmpeg 0.12 ships ESM
+  // only, so it's loaded with dynamic import() (valid in a classic script,
+  // just not a static `import` statement) instead of a <script src> tag in
+  // index.html — and only once the user actually opens this view, since the
+  // core is a ~30MB WASM download nobody should pay for on every page load.
+  // The single-thread core (dist/esm) is used deliberately: the multi-thread
+  // core needs cross-origin-isolation (COOP/COEP) response headers, which a
+  // plain static file host (see .claude/launch.json, GitHub Pages, etc.)
+  // does not guarantee.
+  //
+  // FFmpeg's own worker (dist/esm/worker.js) does `new Worker(cdnURL)`
+  // internally, which every browser blocks with a SecurityError because
+  // worker scripts must be same-origin — same underlying restriction noted
+  // for pdf.worker above, just enforced for a different API. The fix is the
+  // same shape as toBlobURL() already does for the core: fetch the worker
+  // script's text ourselves, rewrite its two relative imports (./const.js,
+  // ./errors.js) to absolute CDN URLs, and hand FFmpeg a blob: URL of that
+  // (via classWorkerURL) — blob: URLs share this page's origin, so the
+  // Worker constructor allows it. Must be the dist/esm core build too (not
+  // dist/umd): FFmpeg's module-worker fallback path does
+  // `(await import(coreURL)).default`, which is `undefined` for a UMD
+  // script, silently failing core init ("failed to import ffmpeg-core.js").
+  var FFMPEG_BASE = 'https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.10/dist/esm/';
+  var FFMPEG_JS_URL = 'https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.10/+esm';
+  var FFMPEG_UTIL_URL = 'https://cdn.jsdelivr.net/npm/@ffmpeg/util@0.12.2/+esm';
+  var FFMPEG_CORE_BASE = 'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.6/dist/esm';
+
+  var VIDEO_FORMATS = {
+    mp4: { label: 'MP4', ext: 'mp4', mime: 'video/mp4', fromExts: ['mp4'] },
+    mkv: { label: 'MKV (Matroska)', ext: 'mkv', mime: 'video/x-matroska', fromExts: ['mkv'] },
+    avi: { label: 'AVI', ext: 'avi', mime: 'video/x-msvideo', fromExts: ['avi'] },
+    mov: { label: 'MOV (QuickTime)', ext: 'mov', mime: 'video/quicktime', fromExts: ['mov'] },
+    wmv: { label: 'WMV', ext: 'wmv', mime: 'video/x-ms-wmv', fromExts: ['wmv'] },
+    flv: { label: 'FLV', ext: 'flv', mime: 'video/x-flv', fromExts: ['flv'] },
+    webm: { label: 'WebM', ext: 'webm', mime: 'video/webm', fromExts: ['webm'] },
+    mpeg: { label: 'MPEG / MPG', ext: 'mpg', mime: 'video/mpeg', fromExts: ['mpeg', 'mpg'] },
+    '3gp': { label: '3GP', ext: '3gp', mime: 'video/3gpp', fromExts: ['3gp'] },
+    vob: { label: 'VOB', ext: 'vob', mime: 'video/dvd', fromExts: ['vob'] },
+    m4v: { label: 'M4V', ext: 'm4v', mime: 'video/x-m4v', fromExts: ['m4v'] },
+    ts: { label: 'TS / MTS / M2TS', ext: 'ts', mime: 'video/mp2t', fromExts: ['ts', 'mts', 'm2ts'] },
+    gif: { label: 'GIF (เคลื่อนไหว)', ext: 'gif', mime: 'image/gif', fromExts: ['gif'] }
+  };
+  var VIDEO_FORMAT_ORDER = ['mp4', 'mkv', 'avi', 'mov', 'wmv', 'flv', 'webm', 'mpeg', '3gp', 'vob', 'm4v', 'ts', 'gif'];
+  // Every encoder below needs even width/height (chroma subsampling), so
+  // every non-GIF, non-3GP target scales down to the nearest even pixel
+  // instead of failing outright on odd-dimensioned source video.
+  var EVEN_SCALE_FILTER = 'scale=trunc(iw/2)*2:trunc(ih/2)*2';
+
+  function buildFfmpegArgs(inputName, outFmt, opts) {
+    var fmt = VIDEO_FORMATS[outFmt];
+    var outName = 'output.' + fmt.ext;
+    var args = ['-i', inputName];
+    switch (outFmt) {
+      case 'mp4':
+        args = args.concat(['-vf', EVEN_SCALE_FILTER, '-c:v', 'libx264', '-preset', 'veryfast', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-movflags', '+faststart', outName]);
+        break;
+      case 'm4v':
+        args = args.concat(['-vf', EVEN_SCALE_FILTER, '-c:v', 'libx264', '-preset', 'veryfast', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-f', 'mp4', outName]);
+        break;
+      case 'mkv':
+        args = args.concat(['-vf', EVEN_SCALE_FILTER, '-c:v', 'libx264', '-preset', 'veryfast', '-pix_fmt', 'yuv420p', '-c:a', 'aac', outName]);
+        break;
+      case 'mov':
+        args = args.concat(['-vf', EVEN_SCALE_FILTER, '-c:v', 'libx264', '-preset', 'veryfast', '-pix_fmt', 'yuv420p', '-c:a', 'aac', outName]);
+        break;
+      case 'ts':
+        args = args.concat(['-vf', EVEN_SCALE_FILTER, '-c:v', 'libx264', '-preset', 'veryfast', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-f', 'mpegts', outName]);
+        break;
+      case 'webm':
+        // -pix_fmt yuv420p matters more here than for the other targets:
+        // libvpx's auto_alt_ref refuses to init on a source with an alpha
+        // channel (common for GIF input) unless the alpha is stripped first.
+        args = args.concat(['-vf', EVEN_SCALE_FILTER, '-pix_fmt', 'yuv420p', '-c:v', 'libvpx', '-b:v', '1500k', '-c:a', 'libvorbis', outName]);
+        break;
+      case 'avi':
+        args = args.concat(['-vf', EVEN_SCALE_FILTER, '-c:v', 'mpeg4', '-vtag', 'xvid', '-qscale:v', '4', '-c:a', 'libmp3lame', outName]);
+        break;
+      case 'wmv':
+        args = args.concat(['-vf', EVEN_SCALE_FILTER, '-c:v', 'wmv2', '-b:v', '2000k', '-c:a', 'wmav2', outName]);
+        break;
+      case 'flv':
+        args = args.concat(['-vf', EVEN_SCALE_FILTER, '-c:v', 'flv', '-b:v', '1500k', '-c:a', 'libmp3lame', outName]);
+        break;
+      case 'mpeg':
+        args = args.concat(['-vf', EVEN_SCALE_FILTER, '-c:v', 'mpeg2video', '-b:v', '3000k', '-c:a', 'mp2', '-f', 'mpeg', outName]);
+        break;
+      case 'vob':
+        args = args.concat(['-vf', EVEN_SCALE_FILTER, '-c:v', 'mpeg2video', '-b:v', '4000k', '-c:a', 'ac3', '-f', 'mpeg', outName]);
+        break;
+      case '3gp':
+        // h263 only accepts a handful of fixed frame sizes, so this target
+        // ignores the source aspect ratio and forces QCIF instead of the
+        // generic even-dimension scale used by every other format above.
+        args = args.concat(['-vf', 'scale=176:144', '-c:v', 'h263', '-c:a', 'aac', '-ar', '8000', '-b:a', '32k', outName]);
+        break;
+      case 'gif':
+        var fps = opts.gifFps || 10;
+        var width = opts.gifWidth || 480;
+        args = args.concat(['-vf', 'fps=' + fps + ',scale=' + width + ':-1:flags=lanczos,split[s0][s1];[s0]palettegen=stats_mode=diff[p];[s1][p]paletteuse=dither=bayer', outName]);
+        break;
+    }
+    return { args: args, outName: outName };
+  }
+
+  var ffmpegLoadPromise = null;
+  var ffmpegProgressHandler = null;
+  function loadFFmpegEngine() {
+    if (!ffmpegLoadPromise) {
+      ffmpegLoadPromise = (async function () {
+        var workerRes = await fetch(FFMPEG_BASE + 'worker.js');
+        if (!workerRes.ok) throw new Error('ไม่สามารถโหลดตัวแปลงวิดีโอได้ (worker.js)');
+        var workerText = await workerRes.text();
+        workerText = workerText.replace(/from\s*(["'])\.\//g, 'from $1' + FFMPEG_BASE);
+        var workerBlobUrl = URL.createObjectURL(new Blob([workerText], { type: 'text/javascript' }));
+
+        var ffmpegMod = await import(/* webpackIgnore: true */ FFMPEG_JS_URL);
+        var utilMod = await import(/* webpackIgnore: true */ FFMPEG_UTIL_URL);
+        var ffmpeg = new ffmpegMod.FFmpeg();
+        ffmpeg.on('progress', function (e) { if (ffmpegProgressHandler) ffmpegProgressHandler(e); });
+        await ffmpeg.load({
+          classWorkerURL: workerBlobUrl,
+          coreURL: await utilMod.toBlobURL(FFMPEG_CORE_BASE + '/ffmpeg-core.js', 'text/javascript'),
+          wasmURL: await utilMod.toBlobURL(FFMPEG_CORE_BASE + '/ffmpeg-core.wasm', 'application/wasm')
+        });
+        return ffmpeg;
+      })();
+    }
+    return ffmpegLoadPromise;
+  }
+
+  // Wires up the "video convert" view once its markup (views/video-convert.html)
+  // has been fetched and mounted — see videoConvertViewReady above. A "from"
+  // + "to" dropdown pair (populated from VIDEO_FORMATS, not hardcoded twice
+  // in the markup) covers every pair — unlike the explicit per-pair PAIRS
+  // map in initConvertFilesView, ffmpeg transcodes any supported input to
+  // any supported output through the same one-argument-array pipeline built
+  // by buildFfmpegArgs above, so "from" only drives the dropzone's accepted
+  // extension/validation, not a different code path.
+  function initVideoConvertView() {
+    var state = { file: null };
+
+    var $dropzone = $('#video-dropzone');
+    var $dropzoneTitle = $('#video-dropzone-title');
+    var $fileInput = $('#video-file-input');
+    var $uploadError = $('#video-upload-error');
+    var $docCard = $('#video-doc-card');
+    var $docName = $('#video-doc-name');
+    var $docMeta = $('#video-doc-meta');
+    var $panel = $('#video-panel');
+    var $formatFrom = $('#video-format-from');
+    var $formatSelect = $('#video-format');
+    var $gifOptions = $('#video-gif-options');
+    var $gifHint = $('#video-gif-hint');
+    var $gifFps = $('#video-gif-fps');
+    var $gifWidth = $('#video-gif-width');
+    var $btnConvert = $('#btn-video-convert');
+    var $progress = $('#video-progress');
+    var $statusEl = $('#video-status');
+
+    VIDEO_FORMAT_ORDER.forEach(function (key) {
+      var opt = '<option value="' + key + '">' + VIDEO_FORMATS[key].label + '</option>';
+      $formatFrom.append(opt);
+      $formatSelect.append(opt);
+    });
+    $formatFrom.val('mp4');
+    $formatSelect.val('mkv');
+
+    function setStatus(msg, kind) {
+      $statusEl.text(msg || '');
+      $statusEl.removeClass('text-good text-bad text-inksoft');
+      if (kind === 'good') $statusEl.addClass('text-good');
+      else if (kind === 'bad') $statusEl.addClass('text-bad');
+      else $statusEl.addClass('text-inksoft');
+    }
+    function setBusy(busy) {
+      $btnConvert.prop('disabled', busy);
+      $btnConvert.toggleClass('busy', busy);
+      $btnConvert.find('.spinner').toggleClass('hidden', !busy).toggleClass('inline-block', busy);
+      $formatFrom.prop('disabled', busy);
+      $formatSelect.prop('disabled', busy);
+      $progress.toggleClass('hidden', !busy);
+      if (!busy) $progress.find('.progress-fill').css('width', '0%');
+    }
+    function updateProgress(frac) {
+      var pct = Math.max(0, Math.min(100, Math.round((frac || 0) * 100)));
+      $progress.find('.progress-fill').css('width', pct + '%');
+      setStatus('กำลังแปลงไฟล์… ' + pct + '%', 'neutral');
+    }
+    function showUploadError(msg) { $uploadError.text(msg || ''); }
+
+    function refreshDropzoneForFrom() {
+      var fmt = VIDEO_FORMATS[$formatFrom.val()];
+      $fileInput.attr('accept', fmt.fromExts.map(function (e) { return '.' + e; }).join(','));
+      $dropzoneTitle.text('ลากไฟล์ ' + fmt.label + ' มาวางที่นี่');
+      // Switching "from" invalidates whatever was already uploaded under
+      // the previous format, same as switching pairs in initConvertFilesView.
+      if (state.file) {
+        state.file = null;
+        $docCard.css('display', 'none');
+        $panel.css('display', 'none');
+      }
+      showUploadError('');
+      setStatus('', 'neutral');
+    }
+    $formatFrom.on('change', function () {
+      if ($formatFrom.val() === $formatSelect.val()) {
+        var idx = VIDEO_FORMAT_ORDER.indexOf($formatFrom.val());
+        $formatSelect.val(VIDEO_FORMAT_ORDER[(idx + 1) % VIDEO_FORMAT_ORDER.length]);
+      }
+      refreshDropzoneForFrom();
+    });
+    refreshDropzoneForFrom();
+
+    $formatSelect.on('change', function () {
+      if ($formatSelect.val() === $formatFrom.val()) {
+        var idx = VIDEO_FORMAT_ORDER.indexOf($formatSelect.val());
+        $formatFrom.val(VIDEO_FORMAT_ORDER[(idx + 1) % VIDEO_FORMAT_ORDER.length]);
+      }
+      var isGif = $formatSelect.val() === 'gif';
+      $gifOptions.css('display', isGif ? 'grid' : 'none');
+      $gifHint.css('display', isGif ? 'block' : 'none');
+    });
+
+    function handleFile(file) {
+      var fromFmt = VIDEO_FORMATS[$formatFrom.val()];
+      var ext = (file.name.split('.').pop() || '').toLowerCase();
+      if (fromFmt.fromExts.indexOf(ext) === -1) {
+        showUploadError('ไฟล์นี้ไม่ใช่ ' + fromFmt.label + ' — เลือกฟอร์แมตต้นทางให้ตรงกับไฟล์ในช่อง "จากไฟล์" ก่อน หรืออัปโหลดไฟล์ ' + fromFmt.label);
+        return;
+      }
+      showUploadError('');
+      state.file = file;
+      $docName.text(file.name);
+      $docMeta.text(ext.toUpperCase() + ' · ' + formatSize(file.size));
+      $docCard.css('display', 'flex');
+      $panel.css('display', 'block');
+      setStatus('', 'neutral');
+    }
+
+    $dropzone.on('click', function () { $fileInput.trigger('click'); });
+    $dropzone.on('keydown', function (e) {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); $fileInput.trigger('click'); }
+    });
+    $dropzone.on('dragenter dragover', function (e) {
+      e.preventDefault();
+      $dropzone.removeClass('border-line').addClass('border-accent bg-accentsoft');
+    });
+    $dropzone.on('dragleave drop', function (e) {
+      e.preventDefault();
+      $dropzone.removeClass('border-accent bg-accentsoft').addClass('border-line');
+    });
+    $dropzone.on('drop', function (e) {
+      var dt = e.originalEvent.dataTransfer;
+      var f = dt && dt.files && dt.files[0];
+      if (f) handleFile(f);
+    });
+    $fileInput.on('change', function () {
+      if ($fileInput[0].files[0]) handleFile($fileInput[0].files[0]);
+      $fileInput.val('');
+    });
+    $docCard.find('#video-doc-clear').on('click', function () {
+      state.file = null;
+      $docCard.css('display', 'none');
+      $panel.css('display', 'none');
+      setStatus('', 'neutral');
+    });
+
+    $btnConvert.on('click', async function () {
+      if (!state.file) return;
+      var outFmt = $formatSelect.val();
+      var opts = { gifFps: parseInt($gifFps.val(), 10) || 10, gifWidth: parseInt($gifWidth.val(), 10) || 480 };
+
+      setBusy(true);
+      setStatus('กำลังโหลดตัวแปลงวิดีโอ (ครั้งแรกใช้เวลาสักครู่ ~30MB)…', 'neutral');
+      var inputName = null;
+      var outputName = null;
+      var ffmpeg = null;
+      try {
+        ffmpeg = await loadFFmpegEngine();
+        ffmpegProgressHandler = updateProgress;
+
+        var inputExt = (state.file.name.split('.').pop() || 'bin').toLowerCase();
+        inputName = 'input.' + inputExt;
+        var data = new Uint8Array(await state.file.arrayBuffer());
+        await ffmpeg.writeFile(inputName, data);
+
+        setStatus('กำลังแปลงไฟล์…', 'neutral');
+        var built = buildFfmpegArgs(inputName, outFmt, opts);
+        outputName = built.outName;
+        // ffmpeg.exec() resolves with ffmpeg's own process exit code instead
+        // of rejecting on failure — a non-zero code (e.g. an encoder that
+        // refuses this input, like libvpx on a source with an alpha
+        // channel) still resolves, so it has to be checked explicitly or a
+        // broken/empty file would silently reach deliverFiles below.
+        var exitCode = await ffmpeg.exec(built.args);
+        if (exitCode !== 0) throw new Error('แปลงไฟล์ไม่สำเร็จ — ไฟล์ต้นฉบับหรือฟอร์แมตปลายทางนี้อาจไม่รองรับ (ffmpeg exit code ' + exitCode + ')');
+
+        var outData = await ffmpeg.readFile(outputName);
+        if (!outData || !outData.length) throw new Error('แปลงไฟล์ไม่สำเร็จ — ได้ไฟล์ผลลัพธ์ว่างเปล่า');
+        var fmt = VIDEO_FORMATS[outFmt];
+        var outBlob = new Blob([outData], { type: fmt.mime });
+        var baseName = state.file.name.replace(/\.[^.]+$/, '') || 'video';
+        var outFileName = baseName + '.' + fmt.ext;
+
+        var res = await deliverFiles([{ name: outFileName, blob: outBlob }], baseName + '-converted');
+        setStatus(res.status === 'saved' ? 'แปลงและบันทึกไฟล์สำเร็จ' : 'ส่งไฟล์เรียบร้อย', 'good');
+      } catch (err) {
+        console.error(err);
+        setStatus(describeDownloadError(err), err && err.code === 'declined' ? 'neutral' : 'bad');
+      } finally {
+        ffmpegProgressHandler = null;
+        if (ffmpeg && inputName) { try { await ffmpeg.deleteFile(inputName); } catch (e) { /* best-effort cleanup */ } }
+        if (ffmpeg && outputName) { try { await ffmpeg.deleteFile(outputName); } catch (e) { /* best-effort cleanup */ } }
+        setBusy(false);
+      }
+    });
+  }
+
+  // ---------- File resize ----------
+  // Pads or truncates an uploaded file's raw bytes to hit an exact target
+  // size — not a real compressor/upscaler. Growing is done by appending a
+  // zero-filled tail (Blob concatenation, so the original bytes are never
+  // read into JS memory — works fine even for large files), which most
+  // formats that store their critical structure near the start (JPEG/PNG
+  // trailing bytes, PDF trailing %%EOF, plain text) tolerate; shrinking
+  // truncates the tail outright, which is destructive for nearly every
+  // structured format (ZIP's central directory, Office, video containers
+  // all keep essential structure at the end) — the view's copy and the
+  // in-panel note both say so, this isn't a real "compress" feature.
+  function initFileResizeView() {
+    var state = { file: null };
+    var MAX_BYTES = 2 * 1024 * 1024 * 1024; // 2 GB safety cap, same as initTestFileView
+    var UNIT_BYTES = { b: 1, kb: 1024, mb: 1024 * 1024, gb: 1024 * 1024 * 1024 };
+
+    var $dropzone = $('#fileresize-dropzone');
+    var $fileInput = $('#fileresize-file-input');
+    var $uploadError = $('#fileresize-upload-error');
+    var $docCard = $('#fileresize-doc-card');
+    var $docName = $('#fileresize-doc-name');
+    var $docMeta = $('#fileresize-doc-meta');
+    var $panel = $('#fileresize-panel');
+    var $sizeInput = $('#fileresize-size');
+    var $unitSelect = $('#fileresize-unit');
+    var $directionNote = $('#fileresize-direction-note');
+    var $btnRun = $('#btn-fileresize-run');
+    var $progress = $('#fileresize-progress');
+    var $statusEl = $('#fileresize-status');
+
+    function setStatus(msg, kind) {
+      $statusEl.text(msg || '');
+      $statusEl.removeClass('text-good text-bad text-inksoft');
+      if (kind === 'good') $statusEl.addClass('text-good');
+      else if (kind === 'bad') $statusEl.addClass('text-bad');
+      else $statusEl.addClass('text-inksoft');
+    }
+    function setBusy(busy) {
+      $btnRun.prop('disabled', busy);
+      $btnRun.toggleClass('busy', busy);
+      $btnRun.find('.spinner').toggleClass('hidden', !busy).toggleClass('inline-block', busy);
+      $progress.toggleClass('hidden', !busy);
+      if (!busy) $progress.find('.progress-fill').css('width', '100%');
+    }
+    function showUploadError(msg) { $uploadError.text(msg || ''); }
+
+    function bestUnitFor(bytes) {
+      if (bytes >= UNIT_BYTES.gb) return 'gb';
+      if (bytes >= UNIT_BYTES.mb) return 'mb';
+      if (bytes >= UNIT_BYTES.kb) return 'kb';
+      return 'b';
+    }
+
+    function updateDirectionNote() {
+      if (!state.file) { $directionNote.text(''); return; }
+      var targetBytes = Math.round((parseFloat($sizeInput.val()) || 0) * (UNIT_BYTES[$unitSelect.val()] || 1));
+      if (targetBytes > state.file.size) {
+        $directionNote.removeClass('text-bad').addClass('text-good').text('จะเพิ่มขนาด (เติม ' + formatSize(targetBytes - state.file.size) + ' ต่อท้ายไฟล์)');
+      } else if (targetBytes < state.file.size) {
+        $directionNote.removeClass('text-good').addClass('text-bad').text('จะลดขนาด (ตัดท้ายไฟล์ทิ้ง ' + formatSize(state.file.size - targetBytes) + ' — ไฟล์มีโอกาสสูงที่จะเปิดไม่ได้)');
+      } else {
+        $directionNote.removeClass('text-good text-bad').text('ขนาดเป้าหมายเท่ากับไฟล์เดิมอยู่แล้ว');
+      }
+    }
+    $sizeInput.on('input', updateDirectionNote);
+    $unitSelect.on('change', updateDirectionNote);
+
+    function handleFile(file) {
+      showUploadError('');
+      state.file = file;
+      $docName.text(file.name);
+      $docMeta.text(formatSize(file.size));
+      $docCard.css('display', 'flex');
+      $panel.css('display', 'block');
+      setStatus('', 'neutral');
+      var unit = bestUnitFor(file.size);
+      $unitSelect.val(unit);
+      $sizeInput.val(unit === 'b' ? file.size : Math.round((file.size / UNIT_BYTES[unit]) * 100) / 100);
+      updateDirectionNote();
+    }
+
+    $dropzone.on('click', function () { $fileInput.trigger('click'); });
+    $dropzone.on('keydown', function (e) {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); $fileInput.trigger('click'); }
+    });
+    $dropzone.on('dragenter dragover', function (e) {
+      e.preventDefault();
+      $dropzone.removeClass('border-line').addClass('border-accent bg-accentsoft');
+    });
+    $dropzone.on('dragleave drop', function (e) {
+      e.preventDefault();
+      $dropzone.removeClass('border-accent bg-accentsoft').addClass('border-line');
+    });
+    $dropzone.on('drop', function (e) {
+      var dt = e.originalEvent.dataTransfer;
+      var f = dt && dt.files && dt.files[0];
+      if (f) handleFile(f);
+    });
+    $fileInput.on('change', function () {
+      if ($fileInput[0].files[0]) handleFile($fileInput[0].files[0]);
+      $fileInput.val('');
+    });
+    $docCard.find('#fileresize-doc-clear').on('click', function () {
+      state.file = null;
+      $docCard.css('display', 'none');
+      $panel.css('display', 'none');
+      setStatus('', 'neutral');
+    });
+
+    $btnRun.on('click', async function () {
+      if (!state.file) return;
+      var targetBytes = Math.round((parseFloat($sizeInput.val()) || 0) * (UNIT_BYTES[$unitSelect.val()] || 1));
+      if (targetBytes <= 0) { setStatus('กรุณาระบุขนาดเป้าหมายที่มากกว่า 0', 'bad'); return; }
+      if (targetBytes > MAX_BYTES) { setStatus('ขนาดไฟล์เกินขีดจำกัด 2 GB', 'bad'); return; }
+      if (targetBytes === state.file.size) { setStatus('ขนาดเป้าหมายเท่ากับไฟล์เดิมอยู่แล้ว ไม่ต้องปรับ', 'neutral'); return; }
+
+      setBusy(true);
+      try {
+        var file = state.file;
+        var blob = targetBytes > file.size
+          ? new Blob([file, new Uint8Array(targetBytes - file.size)], { type: file.type || 'application/octet-stream' })
+          : file.slice(0, targetBytes, file.type || 'application/octet-stream');
+
+        var dotIdx = file.name.lastIndexOf('.');
+        var baseName = dotIdx > 0 ? file.name.slice(0, dotIdx) : file.name;
+        var ext = dotIdx > 0 ? file.name.slice(dotIdx) : '';
+        var outFileName = baseName + '-resized' + ext;
+
+        var res = await deliverFiles([{ name: outFileName, blob: blob }], baseName + '-resized');
+        setStatus(res.status === 'saved' ? 'ปรับขนาดและบันทึกไฟล์สำเร็จ' : 'ส่งไฟล์เรียบร้อย', 'good');
+      } catch (err) {
+        setStatus(describeDownloadError(err), err && err.code === 'declined' ? 'neutral' : 'bad');
+      } finally {
+        setBusy(false);
+      }
+    });
+  }
+
+  // ---------- File encrypt ----------
+  // PDF and ZIP are the only formats with a real, verified-working
+  // browser-side encryption library (see CLAUDE.md) — both are lazy-loaded
+  // via dynamic import() only when this view is used, same reasoning as
+  // ffmpeg.wasm above. Word/Excel/PowerPoint/WinRAR are intentionally not
+  // wired up here; the view's own copy explains why for each.
+  var PDF_ENCRYPT_URL = 'https://cdn.jsdelivr.net/npm/pdf-lib-plus-encrypt@1.1.0/dist/pdf-lib-plus-encrypt.esm.js';
+  var ZIP_ENCRYPT_URL = 'https://cdn.jsdelivr.net/npm/@zip.js/zip.js@2.15.0/+esm';
+
+  var pdfEncryptModPromise = null;
+  // A separate module namespace from window.PDFLib (@cantoo/pdf-lib, used by
+  // the convert/split/merge views) on purpose — this is an independent fork
+  // (github.com/brennanmcquerry/pdf-lib-plus-encrypt) that happens to also
+  // expose a global named `PDFLib` when loaded via <script src>, which would
+  // silently clobber the app's existing one; importing it as an ES module
+  // instead keeps its exports local to this closure only.
+  function loadPdfEncryptModule() {
+    if (!pdfEncryptModPromise) pdfEncryptModPromise = import(/* webpackIgnore: true */ PDF_ENCRYPT_URL);
+    return pdfEncryptModPromise;
+  }
+  var zipEncryptModPromise = null;
+  function loadZipEncryptModule() {
+    if (!zipEncryptModPromise) zipEncryptModPromise = import(/* webpackIgnore: true */ ZIP_ENCRYPT_URL);
+    return zipEncryptModPromise;
+  }
+
+  async function encryptPdfFile(file, password) {
+    var mod = await loadPdfEncryptModule();
+    var bytes = new Uint8Array(await file.arrayBuffer());
+    var doc;
+    try {
+      doc = await mod.PDFDocument.load(bytes);
+    } catch (err) {
+      if (err && err.name === 'EncryptedPDFError') {
+        throw new Error('ไฟล์นี้มีรหัสผ่านป้องกันอยู่แล้ว กรุณาปลดล็อกก่อน แล้วค่อยเข้ารหัสใหม่ด้วยรหัสผ่านนี้');
+      }
+      throw err;
+    }
+    await doc.encrypt({ userPassword: password, ownerPassword: password });
+    var outBytes = await doc.save();
+    return new Blob([outBytes], { type: 'application/pdf' });
+  }
+
+  async function encryptZipFile(file, password) {
+    var mod = await loadZipEncryptModule();
+    var reader = new mod.ZipReader(new mod.BlobReader(file));
+    var entries;
+    try {
+      entries = await reader.getEntries();
+    } catch (err) {
+      await reader.close();
+      throw new Error('ไม่สามารถอ่านไฟล์ ZIP นี้ได้ — ไฟล์อาจเสียหาย หรือมีรหัสผ่านป้องกันอยู่แล้ว');
+    }
+    var outWriter = new mod.BlobWriter('application/zip');
+    // AES-256 (encryptionStrength 3) is the library's default whenever a
+    // password is set and zipCrypto isn't forced on — left unset here on
+    // purpose rather than pinned, so a future zip.js upgrade keeping its own
+    // default stays in effect instead of silently going stale in this file.
+    var writer = new mod.ZipWriter(outWriter, { password: password });
+    for (var i = 0; i < entries.length; i++) {
+      var entry = entries[i];
+      if (entry.directory) {
+        await writer.add(entry.filename, null, { directory: true });
+        continue;
+      }
+      var entryBlob = await entry.getData(new mod.BlobWriter());
+      await writer.add(entry.filename, new mod.BlobReader(entryBlob), { password: password });
+    }
+    await reader.close();
+    return await writer.close();
+  }
+
+  function initFileEncryptView() {
+    var state = { file: null, kind: null };
+
+    var $dropzone = $('#fileencrypt-dropzone');
+    var $fileInput = $('#fileencrypt-file-input');
+    var $uploadError = $('#fileencrypt-upload-error');
+    var $docCard = $('#fileencrypt-doc-card');
+    var $docIcon = $('#fileencrypt-doc-icon');
+    var $docName = $('#fileencrypt-doc-name');
+    var $docMeta = $('#fileencrypt-doc-meta');
+    var $panel = $('#fileencrypt-panel');
+    var $password = $('#fileencrypt-password');
+    var $passwordConfirm = $('#fileencrypt-password-confirm');
+    var $btnRun = $('#btn-fileencrypt-run');
+    var $progress = $('#fileencrypt-progress');
+    var $statusEl = $('#fileencrypt-status');
+
+    function setStatus(msg, kind) {
+      $statusEl.text(msg || '');
+      $statusEl.removeClass('text-good text-bad text-inksoft');
+      if (kind === 'good') $statusEl.addClass('text-good');
+      else if (kind === 'bad') $statusEl.addClass('text-bad');
+      else $statusEl.addClass('text-inksoft');
+    }
+    function setBusy(busy) {
+      $btnRun.prop('disabled', busy);
+      $btnRun.toggleClass('busy', busy);
+      $btnRun.find('.spinner').toggleClass('hidden', !busy).toggleClass('inline-block', busy);
+      $progress.toggleClass('hidden', !busy);
+      if (!busy) $progress.find('.progress-fill').css('width', '100%');
+    }
+    function showUploadError(msg) { $uploadError.text(msg || ''); }
+
+    function handleFile(file) {
+      var isPdf = /\.pdf$/i.test(file.name);
+      var isZip = /\.zip$/i.test(file.name);
+      if (!isPdf && !isZip) {
+        showUploadError('รองรับเฉพาะไฟล์ .pdf หรือ .zip เท่านั้น — ดูฟอร์แมตที่ยังไม่รองรับด้านล่าง');
+        return;
+      }
+      showUploadError('');
+      state.file = file;
+      state.kind = isPdf ? 'pdf' : 'zip';
+      $docIcon.attr('class', (isPdf ? 'bi bi-file-earmark-pdf' : 'bi bi-file-earmark-zip') + ' text-xl leading-none');
+      $docName.text(file.name);
+      $docMeta.text((isPdf ? 'PDF' : 'ZIP') + ' · ' + formatSize(file.size));
+      $docCard.css('display', 'flex');
+      $panel.css('display', 'block');
+      $password.val('');
+      $passwordConfirm.val('');
+      setStatus('', 'neutral');
+    }
+
+    $dropzone.on('click', function () { $fileInput.trigger('click'); });
+    $dropzone.on('keydown', function (e) {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); $fileInput.trigger('click'); }
+    });
+    $dropzone.on('dragenter dragover', function (e) {
+      e.preventDefault();
+      $dropzone.removeClass('border-line').addClass('border-accent bg-accentsoft');
+    });
+    $dropzone.on('dragleave drop', function (e) {
+      e.preventDefault();
+      $dropzone.removeClass('border-accent bg-accentsoft').addClass('border-line');
+    });
+    $dropzone.on('drop', function (e) {
+      var dt = e.originalEvent.dataTransfer;
+      var f = dt && dt.files && dt.files[0];
+      if (f) handleFile(f);
+    });
+    $fileInput.on('change', function () {
+      if ($fileInput[0].files[0]) handleFile($fileInput[0].files[0]);
+      $fileInput.val('');
+    });
+    $docCard.find('#fileencrypt-doc-clear').on('click', function () {
+      state.file = null;
+      state.kind = null;
+      $docCard.css('display', 'none');
+      $panel.css('display', 'none');
+      setStatus('', 'neutral');
+    });
+
+    $btnRun.on('click', async function () {
+      if (!state.file) return;
+      var pw = $password.val();
+      if (!pw) { setStatus('กรุณาตั้งรหัสผ่าน', 'bad'); return; }
+      if (pw !== $passwordConfirm.val()) { setStatus('รหัสผ่านทั้งสองช่องไม่ตรงกัน', 'bad'); return; }
+
+      setBusy(true);
+      setStatus(state.kind === 'pdf' ? 'กำลังเข้ารหัส PDF…' : 'กำลังโหลดตัวเข้ารหัส ZIP (ครั้งแรกใช้เวลาสักครู่)…', 'neutral');
+      try {
+        var file = state.file;
+        var blob = state.kind === 'pdf' ? await encryptPdfFile(file, pw) : await encryptZipFile(file, pw);
+        var dotIdx = file.name.lastIndexOf('.');
+        var baseName = dotIdx > 0 ? file.name.slice(0, dotIdx) : file.name;
+        var ext = dotIdx > 0 ? file.name.slice(dotIdx) : (state.kind === 'pdf' ? '.pdf' : '.zip');
+        var outFileName = baseName + '-encrypted' + ext;
+
+        var res = await deliverFiles([{ name: outFileName, blob: blob }], baseName + '-encrypted');
+        setStatus(res.status === 'saved' ? 'เข้ารหัสและบันทึกไฟล์สำเร็จ' : 'ส่งไฟล์เรียบร้อย', 'good');
+      } catch (err) {
+        console.error(err);
         setStatus(describeDownloadError(err), err && err.code === 'declined' ? 'neutral' : 'bad');
       } finally {
         setBusy(false);
