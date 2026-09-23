@@ -1362,15 +1362,110 @@
     // ----- run handlers: each takes plain File[] (+ onProgress) and
     // resolves to an array of { name, blob } handed to deliverFiles -----
 
-    async function runWordToPdf(files) {
+    // docx-preview "123.4pt" style value -> CSS px.
+    function cssPtToPx(value, fallbackPx) {
+      var m = /^([\d.]+)pt$/.exec(value || '');
+      return m ? parseFloat(m[1]) / 0.75 : fallbackPx;
+    }
+
+    function isCanvasRowBlank(data, width, row) {
+      for (var x = 0; x < width; x += 3) {
+        var i = (row * width + x) * 4;
+        if (data[i] < 235 || data[i + 1] < 235 || data[i + 2] < 235) return false;
+      }
+      return true;
+    }
+
+    // Walks up from `to` looking for an all-white row so page cuts fall
+    // between text lines instead of through them.
+    function findBlankRowCut(ctx, width, from, to) {
+      if (to - from <= 0) return to;
+      var data = ctx.getImageData(0, from, width, to - from).data;
+      for (var r = to - from - 1; r >= 0; r--) {
+        if (isCanvasRowBlank(data, width, r)) return from + r;
+      }
+      return to;
+    }
+
+    function isCanvasRegionBlank(ctx, width, from, height) {
+      var data = ctx.getImageData(0, from, width, height).data;
+      for (var r = 0; r < height; r += 4) {
+        if (!isCanvasRowBlank(data, width, r)) return false;
+      }
+      return true;
+    }
+
+    // Each docx-preview <section> is one Word page (or a whole section when
+    // the file has no saved page-break hints); overflow is split onto extra
+    // pages, repeating the top margin on continuation pages.
+    async function addDocxSectionToPdf(state, section) {
+      var cs = window.getComputedStyle(section);
+      var widthPx = section.offsetWidth;
+      var pageHpx = cssPtToPx(section.style.minHeight, widthPx * Math.SQRT2);
+      var padTop = parseFloat(cs.paddingTop) || 0;
+      var padBottom = parseFloat(cs.paddingBottom) || 0;
+      var canvas = await window.html2canvas(section, { scale: 2, useCORS: true, backgroundColor: '#ffffff' });
+      var ctx = canvas.getContext('2d');
+      var s = canvas.width / widthPx;
+      var pageW = widthPx * 0.75, pageH = pageHpx * 0.75;
+      var orientation = pageW > pageH ? 'landscape' : 'portrait';
+      var y = 0;
+      while (y < canvas.height - 1) {
+        var offset = y === 0 ? 0 : Math.round(padTop * s);
+        var remaining = canvas.height - y;
+        var room = Math.floor(pageHpx * s) - offset;
+        var len;
+        if (remaining <= room) {
+          if (y > 0 && isCanvasRegionBlank(ctx, canvas.width, y, remaining)) break;
+          len = remaining;
+        } else {
+          var target = Math.max(Math.floor(room - padBottom * s), Math.floor(room * 0.5));
+          len = findBlankRowCut(ctx, canvas.width, y + Math.floor(target * 0.8), y + target) - y;
+          if (len < 1) len = target;
+        }
+        var slice = document.createElement('canvas');
+        slice.width = canvas.width;
+        slice.height = len;
+        var sctx = slice.getContext('2d');
+        sctx.fillStyle = '#ffffff';
+        sctx.fillRect(0, 0, slice.width, len);
+        sctx.drawImage(canvas, 0, y, canvas.width, len, 0, 0, canvas.width, len);
+        if (!state.pdf) state.pdf = new window.jspdf.jsPDF({ unit: 'pt', format: [pageW, pageH], orientation: orientation });
+        else state.pdf.addPage([pageW, pageH], orientation);
+        state.pdf.addImage(slice.toDataURL('image/jpeg', 0.92), 'JPEG', 0, (offset / s) * 0.75, pageW, (len / s) * 0.75);
+        y += len;
+      }
+    }
+
+    async function runWordToPdf(files, onProgress) {
       if (!window.docx || !window.docx.renderAsync) throw new Error('ไม่สามารถโหลดไลบรารีแปลงไฟล์ Word ได้ ลองรีเฟรชหน้านี้');
       if (!window.jspdf || !window.jspdf.jsPDF || !window.html2canvas) throw new Error('ไม่สามารถโหลดไลบรารีสร้าง PDF ได้ ลองรีเฟรชหน้านี้');
       var file = files[0];
       var buf = await file.arrayBuffer();
-      $render.empty();
-      await window.docx.renderAsync(buf, $render[0], $render[0], { inWrapper: true, breakPages: true });
-      var blob = await renderElementToPdf($render[0]);
-      $render.empty();
+      var prevWidth = $render[0].style.width;
+      var state = { pdf: null };
+      try {
+        $render.empty();
+        // Pages carry their own width (landscape pages exceed the 794px default).
+        $render[0].style.width = 'auto';
+        await window.docx.renderAsync(buf, $render[0], $render[0], {
+          inWrapper: false, breakPages: true, ignoreLastRenderedPageBreak: false,
+          experimental: true, useBase64URL: true
+        });
+        if (document.fonts && document.fonts.ready) await document.fonts.ready;
+        var sections = $render.children('section').toArray();
+        if (!sections.length) throw new Error('ไม่พบเนื้อหาในไฟล์ Word');
+        for (var i = 0; i < sections.length; i++) {
+          onProgress(i, sections.length);
+          await addDocxSectionToPdf(state, sections[i]);
+        }
+        onProgress(sections.length, sections.length);
+      } finally {
+        $render.empty();
+        $render[0].style.width = prevWidth;
+      }
+      if (!state.pdf) throw new Error('ไม่พบเนื้อหาในไฟล์ Word');
+      var blob = new Blob([state.pdf.output('arraybuffer')], { type: 'application/pdf' });
       var baseName = file.name.replace(/\.docx$/i, '') || 'document';
       return [{ name: baseName + '.pdf', blob: blob }];
     }
@@ -1569,72 +1664,589 @@
       return out;
     }
 
-    async function extractPdfPagesText(file) {
-      if (!window.pdfjsLib) throw new Error('ไม่สามารถโหลดไลบรารีอ่าน PDF ได้ ลองรีเฟรชหน้านี้');
-      var buf = await file.arrayBuffer();
-      var doc = await pdfjsLib.getDocument({ data: new Uint8Array(buf) }).promise;
-      var pages = [];
-      for (var p = 1; p <= doc.numPages; p++) {
-        var page = await doc.getPage(p);
-        var content = await page.getTextContent();
-        var lines = [];
-        var lastY = null;
-        var currentLine = [];
-        content.items.forEach(function (item) {
-          var y = item.transform[5];
-          if (lastY !== null && Math.abs(y - lastY) > 2) {
-            lines.push(currentLine.join(' '));
-            currentLine = [];
-          }
-          currentLine.push(item.str);
-          lastY = y;
-        });
-        if (currentLine.length) lines.push(currentLine.join(' '));
-        pages.push(lines.join('\n'));
-      }
-      return pages;
+    // ----- PDF -> Word -----
+    // Rebuilds each PDF page as flowing Word paragraphs (one Word section per
+    // PDF page, same page size). Runs keep font/size/bold/italic/colour, lines
+    // are re-joined into paragraphs, and images are placed in reading order;
+    // large page-covering images are anchored behind text at their exact spot.
+    // Hand-rolled OOXML via JSZip, so no docx-authoring library is needed.
+
+    var DOCX_MIME = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+    var THAI_CHAR_RE = /[฀-๿]/;
+
+    // Keys are PostScript names lowercased with subset tag, style suffix and
+    // "PSMT"/"MT" already stripped.
+    var PDF_FONT_NAMES = {
+      arial: 'Arial', helvetica: 'Arial', timesnewroman: 'Times New Roman', times: 'Times New Roman',
+      couriernew: 'Courier New', courier: 'Courier New', calibri: 'Calibri', cambria: 'Cambria',
+      tahoma: 'Tahoma', verdana: 'Verdana', georgia: 'Georgia', garamond: 'Garamond',
+      segoeui: 'Segoe UI', trebuchetms: 'Trebuchet MS', comicsansms: 'Comic Sans MS',
+      microsoftsansserif: 'Microsoft Sans Serif', bookantiqua: 'Book Antiqua', centurygothic: 'Century Gothic',
+      consolas: 'Consolas', symbol: 'Symbol', wingdings: 'Wingdings',
+      thsarabunnew: 'TH Sarabun New', thsarabunpsk: 'TH SarabunPSK', thsarabunit9: 'TH SarabunIT๙',
+      sarabun: 'Sarabun', angsananew: 'Angsana New', angsanaupc: 'AngsanaUPC', cordianew: 'Cordia New',
+      cordiaupc: 'CordiaUPC', browallianew: 'Browallia New', leelawadee: 'Leelawadee', leelawadeeui: 'Leelawadee UI'
+    };
+
+    function sanitizeXmlText(s) {
+      return String(s).replace(/[\t\n\r]/g, ' ').replace(/[\u0000-\u001F￾￿]/g, '');
+    }
+    function ptToTwip(pt) { return Math.round(pt * 20); }
+    function ptToEmu(pt) { return Math.round(pt * 12700); }
+    function clampNum(v, lo, hi) { return Math.min(hi, Math.max(lo, v)); }
+
+    function cleanPdfFontName(raw) {
+      if (!raw) return null;
+      var name = sanitizeXmlText(raw).replace(/^[A-Z]{6}\+/, '').split(/[,-]/)[0];
+      var stripped = name.replace(/(Bold|Italic|Oblique|Regular|Roman|Medium|Light|Black|SemiBold|Semibold|Demi)+$/, '');
+      if (stripped) name = stripped;
+      name = name.replace(/(PSMT|MT)$/, '');
+      var key = name.toLowerCase().replace(/[^a-z0-9]/g, '');
+      if (PDF_FONT_NAMES[key]) return PDF_FONT_NAMES[key];
+      name = name.replace(/_/g, ' ').replace(/([a-z])([A-Z])/g, '$1 $2').replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2').trim();
+      return name ? name.slice(0, 31) : null;
     }
 
-    // Hand-rolled minimal OOXML .docx (plain paragraphs only, page break
-    // between source pages) built with JSZip, which the project already
-    // loads for PDF split/merge zipping — avoids pulling in a whole
-    // docx-authoring library just for this one-directional plain-text case.
-    function buildSimpleDocx(pagesText) {
-      var body = pagesText.map(function (pageText, idx) {
-        var paras = pageText.split('\n').map(function (line) {
-          return '<w:p><w:r><w:t xml:space="preserve">' + escapeXml(line) + '</w:t></w:r></w:p>';
-        }).join('');
-        if (idx < pagesText.length - 1) paras += '<w:p><w:r><w:br w:type="page"/></w:r></w:p>';
-        return paras;
-      }).join('');
+    // Font objects only reach commonObjs after getOperatorList(), which
+    // runPdfToWord always calls before reading text content.
+    function getPdfFontInfo(page, styles, fontName, cache) {
+      if (cache[fontName]) return cache[fontName];
+      var font = null;
+      try { if (page.commonObjs.has(fontName)) font = page.commonObjs.get(fontName); } catch (e) { font = null; }
+      var rawName = (font && font.name) || '';
+      var generic = styles && styles[fontName] ? styles[fontName].fontFamily : '';
+      var family = cleanPdfFontName(rawName);
+      if (!family) family = generic === 'serif' ? 'Times New Roman' : generic === 'monospace' ? 'Courier New' : null;
+      var info = {
+        family: family,
+        bold: !!(font && (font.bold || font.black)) || /bold|black|heavy|semibold|demi/i.test(rawName),
+        italic: !!(font && font.italic) || /italic|oblique/i.test(rawName)
+      };
+      cache[fontName] = info;
+      return info;
+    }
 
-      var documentXml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
-        '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">' +
-        '<w:body>' + body +
-        '<w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1417" w:right="1417" w:bottom="1417" w:left="1417"/></w:sectPr>' +
-        '</w:body></w:document>';
-      var contentTypesXml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+    function pdfColorToHex(args) {
+      if (typeof args[0] === 'string') return args[0].replace('#', '').toUpperCase();
+      var hex = '';
+      for (var i = 0; i < 3; i++) hex += ('0' + clampNum(Math.round(args[i] || 0), 0, 255).toString(16)).slice(-2);
+      return hex.toUpperCase();
+    }
+
+    function unitSquareBox(m) {
+      var xs = [m[4], m[0] + m[4], m[2] + m[4], m[0] + m[2] + m[4]];
+      var ys = [m[5], m[1] + m[5], m[3] + m[5], m[1] + m[3] + m[5]];
+      var x = Math.min.apply(null, xs), y = Math.min.apply(null, ys);
+      return { x: x, y: y, w: Math.max.apply(null, xs) - x, h: Math.max.apply(null, ys) - y };
+    }
+
+    // Replays the operator list to recover what getTextContent() drops:
+    // fill colour and invisible-text mode per glyph, and image placements.
+    function walkPdfOperators(opList, baseTransform) {
+      var OPS = pdfjsLib.OPS;
+      var Util = pdfjsLib.Util;
+      var state = { ctm: baseTransform.slice(), color: '000000', hidden: false };
+      var stack = [];
+      var chars = [];
+      var images = [];
+      function pushState() { stack.push({ ctm: state.ctm.slice(), color: state.color, hidden: state.hidden }); }
+      for (var i = 0; i < opList.fnArray.length; i++) {
+        var fn = opList.fnArray[i];
+        var args = opList.argsArray[i] || [];
+        if (fn === OPS.save) pushState();
+        else if (fn === OPS.restore || fn === OPS.paintFormXObjectEnd) { if (stack.length) state = stack.pop(); }
+        else if (fn === OPS.paintFormXObjectBegin) { pushState(); if (args[0]) state.ctm = Util.transform(state.ctm, args[0]); }
+        else if (fn === OPS.transform) state.ctm = Util.transform(state.ctm, args);
+        else if (fn === OPS.setFillRGBColor) state.color = pdfColorToHex(args);
+        else if (fn === OPS.setTextRenderingMode) state.hidden = args[0] === 3 || args[0] === 7;
+        else if (fn === OPS.showText || fn === OPS.showSpacedText) {
+          var glyphs = args[0] || [];
+          for (var g = 0; g < glyphs.length; g++) {
+            var uni = glyphs[g] && glyphs[g].unicode;
+            if (!uni) continue;
+            Array.from(uni).forEach(function (ch) {
+              if (!/\s/.test(ch)) chars.push({ ch: ch, color: state.color, hidden: state.hidden });
+            });
+          }
+        }
+        else if (fn === OPS.paintImageXObject) images.push({ objId: args[0], box: unitSquareBox(state.ctm) });
+        else if (fn === OPS.paintInlineImageXObject) images.push({ data: args[0], box: unitSquareBox(state.ctm) });
+      }
+      return { chars: chars, images: images };
+    }
+
+    // Text items and showText glyphs come out in the same content-stream
+    // order, so a forward-only cursor with a small look-ahead aligns them.
+    function matchPdfTextStyle(str, chars, cursor) {
+      var first = null, total = 0, hidden = 0;
+      Array.from(str).forEach(function (ch) {
+        if (/\s/.test(ch)) return;
+        total++;
+        var end = Math.min(chars.length, cursor.i + 40);
+        for (var k = cursor.i; k < end; k++) {
+          if (chars[k].ch === ch) {
+            cursor.i = k + 1;
+            if (!first) first = chars[k];
+            if (chars[k].hidden) hidden++;
+            return;
+          }
+        }
+      });
+      return { color: first ? first.color : '000000', hidden: total > 0 && hidden === total };
+    }
+
+    function getPdfObject(page, objId) {
+      var store = /^g_/.test(objId) ? page.commonObjs : page.objs;
+      return new Promise(function (resolve) {
+        var timer = setTimeout(function () { resolve(null); }, 15000);
+        try {
+          store.get(objId, function (data) { clearTimeout(timer); resolve(data); });
+        } catch (e) { clearTimeout(timer); resolve(null); }
+      });
+    }
+
+    async function pdfImageToPng(img) {
+      if (!img || !img.width || !img.height) return null;
+      var canvas = document.createElement('canvas');
+      canvas.width = img.width;
+      canvas.height = img.height;
+      var ctx = canvas.getContext('2d');
+      if (img.bitmap) {
+        ctx.drawImage(img.bitmap, 0, 0);
+      } else if (img.data) {
+        var out = ctx.createImageData(img.width, img.height);
+        var d = out.data, src = img.data, K = pdfjsLib.ImageKind;
+        if (img.kind === K.RGBA_32BPP) {
+          d.set(src.length > d.length ? src.subarray(0, d.length) : src);
+        } else if (img.kind === K.RGB_24BPP) {
+          for (var i = 0, j = 0; j < d.length && i + 2 < src.length; i += 3, j += 4) {
+            d[j] = src[i]; d[j + 1] = src[i + 1]; d[j + 2] = src[i + 2]; d[j + 3] = 255;
+          }
+        } else if (img.kind === K.GRAYSCALE_1BPP) {
+          var rowBytes = (img.width + 7) >> 3;
+          for (var y = 0; y < img.height; y++) {
+            for (var x = 0; x < img.width; x++) {
+              var v = (src[y * rowBytes + (x >> 3)] & (128 >> (x & 7))) ? 255 : 0;
+              var o = (y * img.width + x) * 4;
+              d[o] = d[o + 1] = d[o + 2] = v; d[o + 3] = 255;
+            }
+          }
+        } else {
+          return null;
+        }
+        ctx.putImageData(out, 0, 0);
+      } else {
+        return null;
+      }
+      var blob = await new Promise(function (resolve) { canvas.toBlob(resolve, 'image/png'); });
+      return blob ? new Uint8Array(await blob.arrayBuffer()) : null;
+    }
+
+    function pdfLineStartsListItem(text) {
+      return /^\s*([•●○◦■□▪▫►▸➢✓✔*\-–—]|\(?[0-9๐-๙]{1,3}[.)]|\(?[a-zA-Zก-ฮ][.)])\s/.test(text);
+    }
+
+    function finalizePdfLine(line) {
+      line.items.sort(function (a, b) { return a.x - b.x; });
+      var weights = {}, best = -1, prev = null;
+      line.segs = [];
+      line.tabStops = [];
+      line.text = '';
+      line.maxSize = 0;
+      line.right = -Infinity;
+      line.items.forEach(function (it) {
+        var key = Math.round(it.size * 2);
+        weights[key] = (weights[key] || 0) + it.str.length;
+        if (weights[key] > best) { best = weights[key]; line.size = it.size; }
+        line.maxSize = Math.max(line.maxSize, it.size);
+        line.right = Math.max(line.right, it.x + it.w);
+        if (prev) {
+          var gap = it.x - (prev.x + prev.w);
+          var unit = Math.min(prev.size, it.size);
+          if (gap > unit * 1.5) {
+            line.segs.push({ tab: true, style: prev });
+            line.tabStops.push(it.x);
+            line.text += '\t';
+          } else if (gap > unit * 0.15 && !/\s$/.test(prev.str) && !/^\s/.test(it.str)) {
+            line.segs.push({ text: ' ', style: prev });
+            line.text += ' ';
+          }
+        }
+        line.segs.push({ text: it.str, style: it });
+        line.text += it.str;
+        prev = it;
+      });
+      line.x = line.items[0].x;
+      return line;
+    }
+
+    function groupPdfLines(items) {
+      var sorted = items.slice().sort(function (a, b) { return a.y - b.y || a.x - b.x; });
+      var lines = [];
+      sorted.forEach(function (it) {
+        var line = lines[lines.length - 1];
+        if (line && Math.abs(it.y - line.y) <= Math.max(1.5, Math.min(it.size, line.items[0].size) * 0.45)) line.items.push(it);
+        else lines.push({ y: it.y, items: [it] });
+      });
+      return lines.map(finalizePdfLine);
+    }
+
+    function pdfLineContinuesParagraph(para, line, textRight) {
+      var last = para.lines[para.lines.length - 1];
+      var size = last.size;
+      if (last.tabStops.length || line.tabStops.length) return false;
+      if (Math.abs(line.size - size) > size * 0.15) return false;
+      var pitch = line.y - last.y;
+      if (pitch < size * 0.9 || pitch > size * 2) return false;
+      if (para.lines.length > 1) {
+        var prevPitch = last.y - para.lines[para.lines.length - 2].y;
+        if (Math.abs(pitch - prevPitch) > size * 0.25) return false;
+        if (Math.abs(line.x - last.x) > size * 0.8) return false;
+      } else if (Math.abs(line.x - last.x) > size * 4) {
+        return false;
+      }
+      // A line that stops well short of the column edge ended its paragraph.
+      if (last.right < textRight - size * 3) return false;
+      return !pdfLineStartsListItem(line.text);
+    }
+
+    function groupPdfParagraphs(lines) {
+      var textRight = -Infinity;
+      lines.forEach(function (l) { textRight = Math.max(textRight, l.right); });
+      var paras = [];
+      lines.forEach(function (line) {
+        var para = paras[paras.length - 1];
+        if (para && pdfLineContinuesParagraph(para, line, textRight)) para.lines.push(line);
+        else paras.push({ lines: [line] });
+      });
+      return paras;
+    }
+
+    async function readPdfPageLayout(page, fontCache, imageCache, media) {
+      var viewport = page.getViewport({ scale: 1 });
+      var opList = await page.getOperatorList();
+      var content = await page.getTextContent();
+      var walked = walkPdfOperators(opList, viewport.transform);
+      var cursor = { i: 0 };
+      var items = [];
+      content.items.forEach(function (item) {
+        if (!item.str || !item.str.trim()) return;
+        var tx = pdfjsLib.Util.transform(viewport.transform, item.transform);
+        var size = Math.hypot(tx[2], tx[3]);
+        var matched = matchPdfTextStyle(item.str, walked.chars, cursor);
+        if (!size || matched.hidden) return;
+        var str = sanitizeXmlText(item.str);
+        if (!str) return;
+        items.push({
+          str: str, x: tx[4], y: tx[5], w: item.width || 0, size: size,
+          font: getPdfFontInfo(page, content.styles, item.fontName, fontCache), color: matched.color
+        });
+      });
+
+      var pageArea = viewport.width * viewport.height;
+      var images = [];
+      for (var i = 0; i < walked.images.length; i++) {
+        var im = walked.images[i];
+        if (im.box.w < 4 || im.box.h < 4) continue;
+        var entry;
+        if (im.objId && Object.prototype.hasOwnProperty.call(imageCache, im.objId)) {
+          entry = imageCache[im.objId];
+        } else {
+          var bytes = await pdfImageToPng(im.data || (im.objId ? await getPdfObject(page, im.objId) : null));
+          entry = null;
+          if (bytes) {
+            var n = media.length + 1;
+            entry = { rid: 'rIdImg' + n, name: 'image' + n + '.png', bytes: bytes };
+            media.push(entry);
+          }
+          if (im.objId) imageCache[im.objId] = entry;
+        }
+        if (entry) {
+          images.push({
+            media: entry, x: im.box.x, y: im.box.y, w: im.box.w, h: im.box.h,
+            behind: im.box.w * im.box.h >= pageArea * 0.4
+          });
+        }
+      }
+
+      var lines = groupPdfLines(items);
+      return { width: viewport.width, height: viewport.height, lines: lines, paras: groupPdfParagraphs(lines), images: images };
+    }
+
+    function detectPdfAlignment(para, area) {
+      var lines = para.lines;
+      var size = lines[0].size;
+      var tol = Math.max(size, 6);
+      var centered = lines.every(function (l) {
+        return Math.abs((l.x + l.right) / 2 - area.mid) <= tol && l.x - area.left > size * 2;
+      });
+      if (centered) return 'center';
+      var rightAligned = lines.every(function (l) {
+        return Math.abs(l.right - area.right) <= tol && l.x > area.mid;
+      });
+      if (rightAligned) return 'right';
+      if (lines.length > 2) {
+        var rights = lines.slice(0, -1).map(function (l) { return l.right; });
+        if (Math.max.apply(null, rights) - Math.min.apply(null, rights) <= size * 0.4) return 'both';
+      }
+      return 'left';
+    }
+
+    function pdfRunXml(seg) {
+      var s = seg.style;
+      var rPr = '';
+      if (s.font.family) {
+        var f = escapeXml(s.font.family);
+        rPr += '<w:rFonts w:ascii="' + f + '" w:hAnsi="' + f + '" w:eastAsia="' + f + '" w:cs="' + f + '"/>';
+      }
+      if (s.font.bold) rPr += '<w:b/><w:bCs/>';
+      if (s.font.italic) rPr += '<w:i/><w:iCs/>';
+      if (s.color && s.color !== '000000') rPr += '<w:color w:val="' + s.color + '"/>';
+      var hp = Math.max(2, Math.round(s.size * 2));
+      rPr += '<w:sz w:val="' + hp + '"/><w:szCs w:val="' + hp + '"/>';
+      var body = seg.tab ? '<w:tab/>' : '<w:t xml:space="preserve">' + escapeXml(seg.text) + '</w:t>';
+      return '<w:r><w:rPr>' + rPr + '</w:rPr>' + body + '</w:r>';
+    }
+
+    function pdfStyleKey(s) {
+      return [s.font.family, s.font.bold, s.font.italic, s.color, Math.round(s.size * 2)].join('|');
+    }
+
+    function pdfParagraphRunsXml(para) {
+      var segs = [];
+      para.lines.forEach(function (line, idx) {
+        if (idx > 0 && segs.length) {
+          var a = para.lines[idx - 1].text.slice(-1), b = line.text.charAt(0);
+          var noSpace = /[\s\-]/.test(a) || /\s/.test(b) || (THAI_CHAR_RE.test(a) && THAI_CHAR_RE.test(b));
+          if (!noSpace) segs.push({ text: ' ', style: segs[segs.length - 1].style });
+        }
+        segs = segs.concat(line.segs);
+      });
+      var merged = [];
+      segs.forEach(function (seg) {
+        var last = merged[merged.length - 1];
+        if (last && !last.tab && !seg.tab && pdfStyleKey(last.style) === pdfStyleKey(seg.style)) last.text += seg.text;
+        else merged.push({ tab: seg.tab, text: seg.text, style: seg.style });
+      });
+      return merged.map(pdfRunXml).join('');
+    }
+
+    function docxDrawingXml(entry, wPt, hPt, id, anchor) {
+      var cx = ptToEmu(wPt), cy = ptToEmu(hPt);
+      var docPr = '<wp:docPr id="' + id + '" name="Picture ' + id + '"/>' +
+        '<wp:cNvGraphicFramePr><a:graphicFrameLocks noChangeAspect="1"/></wp:cNvGraphicFramePr>';
+      var graphic = '<a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture">' +
+        '<pic:pic><pic:nvPicPr><pic:cNvPr id="' + id + '" name="' + entry.name + '"/><pic:cNvPicPr/></pic:nvPicPr>' +
+        '<pic:blipFill><a:blip r:embed="' + entry.rid + '"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill>' +
+        '<pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="' + cx + '" cy="' + cy + '"/></a:xfrm>' +
+        '<a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr></pic:pic></a:graphicData></a:graphic>';
+      if (anchor) {
+        return '<w:r><w:drawing><wp:anchor distT="0" distB="0" distL="0" distR="0" simplePos="0" relativeHeight="' + id +
+          '" behindDoc="1" locked="0" layoutInCell="1" allowOverlap="1"><wp:simplePos x="0" y="0"/>' +
+          '<wp:positionH relativeFrom="page"><wp:posOffset>' + ptToEmu(anchor.x) + '</wp:posOffset></wp:positionH>' +
+          '<wp:positionV relativeFrom="page"><wp:posOffset>' + ptToEmu(anchor.y) + '</wp:posOffset></wp:positionV>' +
+          '<wp:extent cx="' + cx + '" cy="' + cy + '"/><wp:effectExtent l="0" t="0" r="0" b="0"/><wp:wrapNone/>' +
+          docPr + graphic + '</wp:anchor></w:drawing></w:r>';
+      }
+      return '<w:r><w:drawing><wp:inline distT="0" distB="0" distL="0" distR="0">' +
+        '<wp:extent cx="' + cx + '" cy="' + cy + '"/><wp:effectExtent l="0" t="0" r="0" b="0"/>' +
+        docPr + graphic + '</wp:inline></w:drawing></w:r>';
+    }
+
+    function pdfPageMargins(pages) {
+      var ext = { left: Infinity, right: Infinity, top: Infinity, bottom: Infinity };
+      pages.forEach(function (pg) {
+        pg.lines.forEach(function (l) {
+          ext.left = Math.min(ext.left, l.x);
+          ext.right = Math.min(ext.right, pg.width - l.right);
+          ext.top = Math.min(ext.top, l.y - l.maxSize);
+          ext.bottom = Math.min(ext.bottom, pg.height - (l.y + l.maxSize * 0.3));
+        });
+        pg.images.forEach(function (im) {
+          if (im.behind) return;
+          ext.left = Math.min(ext.left, im.x);
+          ext.right = Math.min(ext.right, pg.width - (im.x + im.w));
+          ext.top = Math.min(ext.top, im.y);
+          ext.bottom = Math.min(ext.bottom, pg.height - (im.y + im.h));
+        });
+      });
+      function pick(v, hi) { return clampNum(isFinite(v) ? v : hi, 14, hi); }
+      // Small bottom margin leaves slack for Word font metrics running longer than the PDF.
+      return { left: pick(ext.left, 90), right: pick(ext.right, 90), top: pick(ext.top, 90), bottom: pick(ext.bottom, 36) };
+    }
+
+    // Typical baseline pitch / font size ratio, used for single-line paragraphs.
+    function pdfPitchRatio(pages) {
+      var ratios = [];
+      pages.forEach(function (pg) {
+        pg.paras.forEach(function (para) {
+          for (var i = 1; i < para.lines.length; i++) ratios.push((para.lines[i].y - para.lines[i - 1].y) / para.lines[i].size);
+        });
+      });
+      if (!ratios.length) return 1.2;
+      ratios.sort(function (a, b) { return a - b; });
+      return clampNum(ratios[Math.floor(ratios.length / 2)], 1.05, 2);
+    }
+
+    function pdfSectPrXml(pg, m) {
+      var w = clampNum(ptToTwip(pg.width), 1440, 31680), h = clampNum(ptToTwip(pg.height), 1440, 31680);
+      return '<w:sectPr><w:pgSz w:w="' + w + '" w:h="' + h + '"' + (w > h ? ' w:orient="landscape"' : '') + '/>' +
+        '<w:pgMar w:top="' + ptToTwip(m.top) + '" w:right="' + ptToTwip(m.right) + '" w:bottom="' + ptToTwip(m.bottom) +
+        '" w:left="' + ptToTwip(m.left) + '" w:header="0" w:footer="0" w:gutter="0"/></w:sectPr>';
+    }
+
+    function buildPdfPageBody(pg, m, ratio, isLast, ids) {
+      var area = { left: m.left, right: pg.width - m.right };
+      area.mid = (area.left + area.right) / 2;
+      var maxW = Math.max(36, area.right - area.left);
+      var maxH = Math.max(36, pg.height - m.top - m.bottom);
+
+      var blocks = pg.paras.map(function (para) {
+        return { top: para.lines[0].y - para.lines[0].size, para: para };
+      });
+      var inline = pg.images.filter(function (im) { return !im.behind; }).sort(function (a, b) { return a.y - b.y; });
+      inline.forEach(function (im) {
+        var group = blocks.length && blocks[blocks.length - 1].images ? blocks[blocks.length - 1] : null;
+        if (group && im.y < group.bottom - 2) {
+          group.images.push(im);
+          group.bottom = Math.max(group.bottom, im.y + im.h);
+        } else {
+          blocks.push({ top: im.y, bottom: im.y + im.h, images: [im] });
+        }
+      });
+      blocks.sort(function (a, b) { return a.top - b.top; });
+
+      var paragraphs = [];
+      var cursor = m.top;
+      blocks.forEach(function (block) {
+        var pPr, runs;
+        if (block.para) {
+          var lines = block.para.lines;
+          var first = lines[0], last = lines[lines.length - 1];
+          var pitch = lines.length > 1 ? (last.y - first.y) / (lines.length - 1) : first.size * ratio;
+          lines.forEach(function (l) { pitch = Math.max(pitch, l.maxSize * 1.05); });
+          var before = Math.max(0, first.y - pitch * 0.8 - cursor);
+          cursor = last.y + pitch * 0.2;
+          var align = detectPdfAlignment(block.para, area);
+          pPr = '';
+          if (first.tabStops.length) {
+            pPr += '<w:tabs>' + first.tabStops.map(function (x) {
+              return '<w:tab w:val="left" w:pos="' + Math.max(0, ptToTwip(x - area.left)) + '"/>';
+            }).join('') + '</w:tabs>';
+          }
+          pPr += '<w:spacing w:before="' + ptToTwip(before) + '" w:after="0" w:line="' + ptToTwip(pitch) + '" w:lineRule="exact"/>';
+          if (align === 'left' || align === 'both') {
+            var bodyX = lines.length > 1 ? lines[1].x : first.x;
+            var indent = first.x - bodyX;
+            pPr += '<w:ind w:left="' + Math.max(0, ptToTwip(bodyX - area.left)) + '"' +
+              (indent > 0.5 ? ' w:firstLine="' + ptToTwip(indent) + '"' : indent < -0.5 ? ' w:hanging="' + ptToTwip(-indent) + '"' : '') + '/>';
+          }
+          if (align !== 'left') pPr += '<w:jc w:val="' + align + '"/>';
+          runs = pdfParagraphRunsXml(block.para);
+        } else {
+          var imgs = block.images.sort(function (a, b) { return a.x - b.x; });
+          var totalW = 0, maxImgH = 0;
+          imgs.forEach(function (im) { totalW += im.w; maxImgH = Math.max(maxImgH, im.h); });
+          var scale = Math.min(1, maxW / totalW, maxH / maxImgH);
+          var gapBefore = Math.max(0, block.top - cursor);
+          cursor = block.bottom;
+          var left = imgs[0].x, right = imgs[imgs.length - 1].x + imgs[imgs.length - 1].w;
+          pPr = '<w:spacing w:before="' + ptToTwip(gapBefore) + '" w:after="0" w:line="240" w:lineRule="auto"/>';
+          if (Math.abs((left + right) / 2 - area.mid) <= 6 && left - area.left > 12) pPr += '<w:jc w:val="center"/>';
+          else pPr += '<w:ind w:left="' + Math.max(0, ptToTwip(Math.min(left - area.left, maxW - totalW * scale))) + '"/>';
+          runs = imgs.map(function (im) { return docxDrawingXml(im.media, im.w * scale, im.h * scale, ++ids.n); }).join('');
+        }
+        paragraphs.push({ pPr: pPr, runs: runs });
+      });
+
+      var behind = pg.images.filter(function (im) { return im.behind; }).map(function (im) {
+        return docxDrawingXml(im.media, im.w, im.h, ++ids.n, { x: im.x, y: im.y });
+      }).join('');
+      if (!paragraphs.length) paragraphs.push({ pPr: '<w:spacing w:before="0" w:after="0"/>', runs: '' });
+      paragraphs[0].runs = behind + paragraphs[0].runs;
+
+      var sectPr = pdfSectPrXml(pg, m);
+      var xml = paragraphs.map(function (p, idx) {
+        var extra = !isLast && idx === paragraphs.length - 1 ? sectPr : '';
+        return '<w:p><w:pPr>' + p.pPr + extra + '</w:pPr>' + p.runs + '</w:p>';
+      }).join('');
+      return { xml: xml, sectPr: sectPr };
+    }
+
+    function buildPdfDocx(pages, media) {
+      var margins = pdfPageMargins(pages);
+      var ratio = pdfPitchRatio(pages);
+      var ids = { n: 0 };
+      var body = '', finalSectPr = '';
+      pages.forEach(function (pg, idx) {
+        var out = buildPdfPageBody(pg, margins, ratio, idx === pages.length - 1, ids);
+        body += out.xml;
+        finalSectPr = out.sectPr;
+      });
+
+      var xmlHead = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>';
+      var documentXml = xmlHead +
+        '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"' +
+        ' xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"' +
+        ' xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"' +
+        ' xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"' +
+        ' xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">' +
+        '<w:body>' + body + finalSectPr + '</w:body></w:document>';
+      var stylesXml = xmlHead +
+        '<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">' +
+        '<w:docDefaults><w:rPrDefault><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:eastAsia="Arial" w:cs="Tahoma"/>' +
+        '<w:sz w:val="22"/><w:szCs w:val="22"/><w:lang w:val="en-US" w:bidi="th-TH"/></w:rPr></w:rPrDefault>' +
+        '<w:pPrDefault><w:pPr><w:spacing w:after="0" w:line="240" w:lineRule="auto"/></w:pPr></w:pPrDefault></w:docDefaults>' +
+        '<w:style w:type="paragraph" w:default="1" w:styleId="Normal"><w:name w:val="Normal"/></w:style></w:styles>';
+      var contentTypesXml = xmlHead +
         '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">' +
         '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>' +
         '<Default Extension="xml" ContentType="application/xml"/>' +
+        '<Default Extension="png" ContentType="image/png"/>' +
         '<Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>' +
+        '<Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>' +
         '</Types>';
-      var relsXml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+      var relsXml = xmlHead +
         '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
         '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>' +
+        '</Relationships>';
+      var docRelsXml = xmlHead +
+        '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
+        '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>' +
+        media.map(function (e) {
+          return '<Relationship Id="' + e.rid + '" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/' + e.name + '"/>';
+        }).join('') +
         '</Relationships>';
 
       var zip = new JSZip();
       zip.file('[Content_Types].xml', contentTypesXml);
-      zip.folder('_rels').file('.rels', relsXml);
-      zip.folder('word').file('document.xml', documentXml);
-      return zip.generateAsync({ type: 'blob', mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
+      zip.file('_rels/.rels', relsXml);
+      zip.file('word/document.xml', documentXml);
+      zip.file('word/styles.xml', stylesXml);
+      zip.file('word/_rels/document.xml.rels', docRelsXml);
+      media.forEach(function (e) { zip.file('word/media/' + e.name, e.bytes); });
+      return zip.generateAsync({ type: 'blob', compression: 'DEFLATE', mimeType: DOCX_MIME });
     }
 
-    async function runPdfToWord(files) {
+    async function runPdfToWord(files, onProgress) {
+      if (!window.pdfjsLib) throw new Error('ไม่สามารถโหลดไลบรารีอ่าน PDF ได้ ลองรีเฟรชหน้านี้');
+      if (!window.JSZip) throw new Error('ไม่สามารถโหลดไลบรารีสร้างไฟล์ Word ได้ ลองรีเฟรชหน้านี้');
       var file = files[0];
-      var pages = await extractPdfPagesText(file);
-      var blob = await buildSimpleDocx(pages);
+      var buf = await file.arrayBuffer();
+      var doc = await pdfjsLib.getDocument({ data: new Uint8Array(buf) }).promise;
+      var pages = [], media = [], fontCache = {}, imageCache = {};
+      try {
+        for (var p = 1; p <= doc.numPages; p++) {
+          onProgress(p - 1, doc.numPages);
+          var page = await doc.getPage(p);
+          pages.push(await readPdfPageLayout(page, fontCache, imageCache, media));
+          page.cleanup();
+        }
+        onProgress(doc.numPages, doc.numPages);
+      } finally {
+        doc.destroy();
+      }
+      var blob = await buildPdfDocx(pages, media);
       var baseName = file.name.replace(/\.pdf$/i, '') || 'document';
       return [{ name: baseName + '.docx', blob: blob }];
     }
@@ -1777,7 +2389,7 @@
       'pdf|word': {
         accept: '.pdf,application/pdf', multiple: false, icon: 'bi-file-earmark-pdf',
         title: 'ลากไฟล์ PDF มาวางที่นี่', hint: '',
-        note: 'ดึงเฉพาะข้อความ ไม่รวมตาราง รูปภาพ หรือเลย์เอาต์เดิม — เหมาะกับ PDF ที่เป็นข้อความล้วน',
+        note: 'คงฟอนต์ ขนาด ตัวหนา/เอียง สี ย่อหน้า การจัดแนว ขนาดหน้า และรูปภาพไว้ใกล้เคียงต้นฉบับ — ตารางจะออกมาเป็นข้อความจัดด้วย Tab, ขีดเส้นใต้/เส้นกรอบไม่ถูกดึงมา และ PDF ที่สแกนจะได้เป็นรูปภาพ',
         runLabel: 'แปลงเป็น Word', zipBaseName: 'pdf-to-word',
         validate: validatePdfFile, run: runPdfToWord
       },
