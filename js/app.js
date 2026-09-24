@@ -51,6 +51,7 @@
   var $viewImageCompress = $(); // populated once views/image-compress.html is fetched and mounted
   var $viewHtmlPreview = $(); // populated once views/html-preview.html is fetched and mounted
   var $viewConvertCase = $(); // populated once views/convert-case.html is fetched and mounted
+  var $viewCodeFormat = $(); // populated once views/code-format.html is fetched and mounted
   function openView($view) {
     $viewHome.attr('hidden', true);
     $viewPdf.attr('hidden', true);
@@ -68,9 +69,10 @@
     $viewImageCompress.attr('hidden', true);
     $viewHtmlPreview.attr('hidden', true);
     $viewConvertCase.attr('hidden', true);
+    $viewCodeFormat.attr('hidden', true);
     // Side-by-side views need more width than the 640px tool column.
-    $('.app').toggleClass('app-wide', $view.is($viewTextCompare) || $view.is($viewConvertCase))
-      .toggleClass('app-full', $view.is($viewHtmlPreview));
+    $('.app').toggleClass('app-wide', $view.is($viewConvertCase))
+      .toggleClass('app-full', $view.is($viewHtmlPreview) || $view.is($viewCodeFormat) || $view.is($viewTextCompare));
     $view.removeAttr('hidden');
   }
   $('#btn-back').on('click', function () {
@@ -275,6 +277,20 @@
     console.error('ไม่สามารถโหลด views/convert-case.html ได้');
   });
 
+  // Same fetch-and-mount pattern for the "code format" view
+  // (views/code-format.html).
+  var codeFormatViewReady = $.get('views/code-format.html').done(function (html) {
+    $('#view-code-format-mount').replaceWith(html);
+    $viewCodeFormat = $('#view-code-format');
+    $('#btn-code-format-back').on('click', function () {
+      $viewCodeFormat.attr('hidden', true);
+      $viewHome.removeAttr('hidden');
+    });
+    initCodeFormatView();
+  }).fail(function () {
+    console.error('ไม่สามารถโหลด views/code-format.html ได้');
+  });
+
   // ---------- Category tiles ----------
   // Each tool's home tile now carries only an icon + short bold label (no
   // description, no status tag) — disabled tools are still distinguished
@@ -288,6 +304,7 @@
     { id: 'text-gen', label: 'สร้างข้อความ', desc: 'สร้างและแก้ไขข้อความออนไลน์', enabled: true, img: 'assets/create-text.png', cats: ['text'] },
     { id: 'convert-case', label: 'แปลงตัวพิมพ์', desc: 'เปลี่ยนตัวพิมพ์เล็ก/ใหญ่ เช่น UPPER, Title Case', enabled: true, img: 'assets/convert-case.png', cats: ['text'] },
     { id: 'html-preview', label: 'พรีวิว HTML', desc: 'ดูผลลัพธ์ HTML ทันที พร้อมจัดรูปแบบโค้ด', enabled: true, img: 'assets/html-preview.png', cats: ['text'] },
+    { id: 'code-format', label: 'จัดรูปแบบโค้ด', desc: 'Beautify HTML, CSS, JavaScript, JSON และจัดรูปแบบ SQL', enabled: true, img: 'assets/html-preview.png', cats: ['text'] },
     { id: 'text-compare', label: 'เปรียบเทียบข้อความ', desc: 'หาจุดที่ต่างกันระหว่างข้อความสองชุด', enabled: true, img: 'assets/compare-text.png', cats: ['text'] },
     { id: 'test-file', label: 'สร้างไฟล์ทดสอบ', desc: 'สร้างไฟล์ตัวอย่างสำหรับทดสอบ', enabled: true, img: 'assets/create-test.png', cats: ['file'] },
     { id: 'file-resize', label: 'ปรับขนาดไฟล์', desc: 'เพิ่มหรือลดขนาดไฟล์ตามที่กำหนด', enabled: true, img: 'assets/resize-file.png', cats: ['file'] },
@@ -514,6 +531,10 @@
     } else if (tool.id === 'html-preview') {
       $el.on('click', function () {
         $.when(htmlPreviewViewReady).done(function () { openView($viewHtmlPreview); });
+      });
+    } else if (tool.id === 'code-format') {
+      $el.on('click', function () {
+        $.when(codeFormatViewReady).done(function () { openView($viewCodeFormat); });
       });
     } else if (tool.id === 'compress') {
       $el.on('click', function () {
@@ -885,7 +906,7 @@
       var buf = await file.arrayBuffer();
       var doc;
       try {
-        doc = await pdfjsLib.getDocument({ data: new Uint8Array(buf) }).promise;
+        doc = await pdfjsLib.getDocument({ data: new Uint8Array(buf), isEvalSupported: false }).promise;
       } catch (err) {
         if (isPasswordException(err)) {
           pendingFile = file;
@@ -930,7 +951,7 @@
     $passwordError.text('');
     try {
       var buf = await pendingFile.arrayBuffer();
-      var doc = await pdfjsLib.getDocument({ data: new Uint8Array(buf), password: pw }).promise;
+      var doc = await pdfjsLib.getDocument({ data: new Uint8Array(buf), password: pw, isEvalSupported: false }).promise;
       var file = pendingFile;
       pendingFile = null;
       hidePasswordPrompt();
@@ -1278,7 +1299,7 @@
         var buf = await file.arrayBuffer();
         var doc;
         try {
-          doc = await pdfjsLib.getDocument({ data: new Uint8Array(buf) }).promise;
+          doc = await pdfjsLib.getDocument({ data: new Uint8Array(buf), isEvalSupported: false }).promise;
         } catch (err) {
           if (isPasswordExceptionLocal(err)) {
             pendingSplitFile = file;
@@ -1304,7 +1325,7 @@
       $passwordError.text('');
       try {
         var buf = await pendingSplitFile.arrayBuffer();
-        var doc = await pdfjsLib.getDocument({ data: new Uint8Array(buf), password: pw }).promise;
+        var doc = await pdfjsLib.getDocument({ data: new Uint8Array(buf), password: pw, isEvalSupported: false }).promise;
         var file = pendingSplitFile;
         pendingSplitFile = null;
         hidePasswordPrompt();
@@ -1548,7 +1569,7 @@
       if (!pw) { item.error = 'กรุณากรอกรหัสผ่าน'; renderMergeList(); return; }
       try {
         var buf = await item.file.arrayBuffer();
-        var doc = await pdfjsLib.getDocument({ data: new Uint8Array(buf), password: pw }).promise;
+        var doc = await pdfjsLib.getDocument({ data: new Uint8Array(buf), password: pw, isEvalSupported: false }).promise;
         item.pageCount = doc.numPages;
         item.password = pw;
         item.locked = false;
@@ -1571,7 +1592,7 @@
         var item = { file: file, pageCount: null, password: null, locked: false, error: null };
         try {
           var buf = await file.arrayBuffer();
-          var doc = await pdfjsLib.getDocument({ data: new Uint8Array(buf) }).promise;
+          var doc = await pdfjsLib.getDocument({ data: new Uint8Array(buf), isEvalSupported: false }).promise;
           item.pageCount = doc.numPages;
         } catch (err) {
           if (isPasswordExceptionLocal(err)) {
@@ -1703,7 +1724,7 @@
       return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&apos;');
     }
     function escapeHtml(s) {
-      return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
     }
 
     function loadImageEl(url) {
@@ -1940,14 +1961,33 @@
       };
     }
 
+    // The uploaded HTML is rendered inside this page (html2canvas needs a live
+    // DOM), so drop anything that can run script, navigate, or embed content.
+    var HTML_PDF_DROP_SELECTOR = 'script,iframe,frame,frameset,object,embed,applet,meta,link,base,form,template,portal,animate,set,animateMotion,animateTransform,use,foreignObject';
+    var HTML_PDF_URL_ATTRS = { href: 1, src: 1, srcset: 1, action: 1, formaction: 1, poster: 1, background: 1, 'xlink:href': 1, ping: 1, data: 1, codebase: 1 };
+    function sanitizeHtmlForPdf(doc) {
+      Array.prototype.forEach.call(doc.querySelectorAll(HTML_PDF_DROP_SELECTOR), function (el) { el.remove(); });
+      Array.prototype.forEach.call(doc.querySelectorAll('*'), function (el) {
+        Array.prototype.slice.call(el.attributes).forEach(function (attr) {
+          var name = attr.name.toLowerCase();
+          if (name.indexOf('on') === 0 || name === 'srcdoc') { el.removeAttribute(attr.name); return; }
+          if (!HTML_PDF_URL_ATTRS[name]) return;
+          // Browsers ignore control chars and whitespace inside a URL scheme.
+          var v = attr.value.replace(/[\u0000- \u007f-\u009f]/g, '').toLowerCase();
+          if (/^(javascript|vbscript|data):/.test(v) && !/^data:image\//.test(v)) el.removeAttribute(attr.name);
+        });
+      });
+    }
+
     async function runHtmlToPdf(files) {
       if (!window.jspdf || !window.jspdf.jsPDF || !window.html2canvas) throw new Error('ไม่สามารถโหลดไลบรารีสร้าง PDF ได้ ลองรีเฟรชหน้านี้');
       var file = files[0];
       var text = await file.text();
       var parsed = new DOMParser().parseFromString(text, 'text/html');
-      Array.prototype.forEach.call(parsed.querySelectorAll('script'), function (s) { s.remove(); });
+      sanitizeHtmlForPdf(parsed);
       $render.empty();
-      $render[0].innerHTML = parsed.body ? parsed.body.innerHTML : text;
+      // Import the sanitized nodes directly; re-serializing through innerHTML can re-parse into different markup.
+      Array.prototype.forEach.call(parsed.body.childNodes, function (n) { $render[0].appendChild(document.importNode(n, true)); });
       var blob = await renderElementToPdf($render[0]);
       $render.empty();
       var baseName = file.name.replace(/\.html?$/i, '') || 'page';
@@ -2743,7 +2783,7 @@
       if (!window.JSZip) throw new Error('ไม่สามารถโหลดไลบรารีสร้างไฟล์ Word ได้ ลองรีเฟรชหน้านี้');
       var file = files[0];
       var buf = await file.arrayBuffer();
-      var doc = await pdfjsLib.getDocument({ data: new Uint8Array(buf) }).promise;
+      var doc = await pdfjsLib.getDocument({ data: new Uint8Array(buf), isEvalSupported: false }).promise;
       var pages = [], media = [], fontCache = {}, imageCache = {};
       try {
         for (var p = 1; p <= doc.numPages; p++) {
@@ -2798,7 +2838,7 @@
       if (!window.XLSX) throw new Error('ไม่สามารถโหลดไลบรารีสร้างไฟล์ Excel ได้ ลองรีเฟรชหน้านี้');
       var file = files[0];
       var buf = await file.arrayBuffer();
-      var doc = await pdfjsLib.getDocument({ data: new Uint8Array(buf) }).promise;
+      var doc = await pdfjsLib.getDocument({ data: new Uint8Array(buf), isEvalSupported: false }).promise;
       var wb = XLSX.utils.book_new();
       for (var p = 1; p <= doc.numPages; p++) {
         var page = await doc.getPage(p);
@@ -4481,7 +4521,7 @@
   }
   // pdf.js may detach the buffer it is given, so every call reads a fresh copy.
   async function openPdfWithPassword(file, password) {
-    var opts = { data: new Uint8Array(await file.arrayBuffer()) };
+    var opts = { data: new Uint8Array(await file.arrayBuffer()), isEvalSupported: false };
     if (password !== undefined) opts.password = password;
     var task = pdfjsLib.getDocument(opts);
     try {
@@ -5966,6 +6006,27 @@
     var fileName = null;
     var timer = null;
     var escPressed = false;
+    var $btnOriginal = $('#btn-htmlpv-original');
+    // Pasted/imported code is beautified automatically; skip huge input so the tab stays responsive.
+    var AUTO_BEAUTIFY_MAX_CHARS = 500000;
+    // Snapshot of the last beautify so the user can flip back to the unformatted code.
+    var original = null;
+    var formatted = null;
+    var showingOriginal = false;
+    // Set while the editor is updated programmatically so its input event is not treated as a user edit.
+    var applying = false;
+
+    function updateOriginalButton() {
+      var available = original !== null && original !== formatted;
+      $btnOriginal.css('display', available ? 'flex' : 'none').attr('aria-pressed', showingOriginal ? 'true' : 'false');
+      $btnOriginal.find('.btn-label').text(showingOriginal ? 'แสดงแบบจัดรูปแบบ' : 'แสดงต้นฉบับ');
+    }
+    function resetOriginal() {
+      original = null;
+      formatted = null;
+      showingOriginal = false;
+      updateOriginalButton();
+    }
 
     function setStatus(msg, kind) {
       $statusEl.text(msg || '');
@@ -5979,9 +6040,18 @@
       var lines = text ? text.split('\n').length : 0;
       $meta.text('บรรทัด ' + lines.toLocaleString() + ' · ตัวอักษร ' + text.length.toLocaleString());
     }
+    // srcdoc on this iframe would inherit the app's CSP and block the previewed
+    // page's own scripts, so the code is handed to views/html-preview-frame.html
+    // (no CSP), which renders it in a nested sandboxed srcdoc frame.
+    var frameReady = false;
+    $frame.on('load', function () {
+      frameReady = true;
+      renderPreview();
+    });
     function renderPreview() {
       timer = null;
-      $frame.attr('srcdoc', $code.val());
+      // The frame has an opaque origin, so '*' is the only usable targetOrigin.
+      if (frameReady && $frame[0].contentWindow) $frame[0].contentWindow.postMessage($code.val(), '*');
     }
     function schedulePreview() {
       updateMeta();
@@ -5992,12 +6062,21 @@
       $code.val(text);
       schedulePreview();
     }
-    async function beautify() {
+    async function beautify(auto, doneMsg) {
       var src = $code.val();
-      if (!src.trim()) { setStatus('ยังไม่มีโค้ดให้จัดรูปแบบ', 'bad'); return; }
+      if (!src.trim()) {
+        if (!auto) setStatus('ยังไม่มีโค้ดให้จัดรูปแบบ', 'bad');
+        return;
+      }
+      if (auto && src.length > AUTO_BEAUTIFY_MAX_CHARS) {
+        setStatus((doneMsg ? doneMsg + ' — ' : '') + 'โค้ดยาวเกินกว่าจะจัดรูปแบบอัตโนมัติ กด Beautify เองได้', 'neutral');
+        return;
+      }
       $btnBeautify.prop('disabled', true).find('.spinner').removeClass('hidden').addClass('inline-block');
       try {
         var fmt = await loadBeautify();
+        // The formatter loads lazily; don't overwrite edits made while it was downloading.
+        if ($code.val() !== src) return;
         var out = fmt(src, {
           indent_size: INDENT.length,
           indent_char: ' ',
@@ -6009,15 +6088,27 @@
           // true also leaves a blank line before </script> and </style>
           end_with_newline: false
         });
-        var el = $code[0];
-        // Replace through the editing API when possible so Ctrl+Z can undo it.
-        el.focus();
-        el.select();
-        if (!document.execCommand || !document.execCommand('insertText', false, out)) el.value = out;
-        el.setSelectionRange(0, 0);
-        el.scrollTop = 0;
-        schedulePreview();
-        setStatus('จัดรูปแบบโค้ดแล้ว (กด Ctrl+Z เพื่อย้อนกลับ)', 'good');
+        original = src;
+        formatted = out;
+        showingOriginal = false;
+        if (out !== src) {
+          var el = $code[0];
+          // Replace through the editing API when possible so Ctrl+Z can undo it.
+          applying = true;
+          try {
+            el.focus();
+            el.select();
+            if (!document.execCommand || !document.execCommand('insertText', false, out)) el.value = out;
+          } finally {
+            applying = false;
+          }
+          el.setSelectionRange(0, 0);
+          el.scrollTop = 0;
+          schedulePreview();
+        }
+        updateOriginalButton();
+        if (auto) setStatus((doneMsg ? doneMsg + ' และ' : '') + 'จัดรูปแบบอัตโนมัติแล้ว (กด "แสดงต้นฉบับ" เพื่อดูโค้ดเดิม)', 'good');
+        else setStatus('จัดรูปแบบโค้ดแล้ว (กด Ctrl+Z หรือ "แสดงต้นฉบับ" เพื่อย้อนกลับ)', 'good');
       } catch (err) {
         console.error(err);
         setStatus((err && err.message) || 'จัดรูปแบบไม่สำเร็จ', 'bad');
@@ -6026,7 +6117,14 @@
       }
     }
 
-    $code.on('input', function () { setStatus('', 'neutral'); schedulePreview(); });
+    $code.on('input', function (e) {
+      if (applying) return;
+      var type = e.originalEvent && e.originalEvent.inputType;
+      setStatus('', 'neutral');
+      schedulePreview();
+      if (type === 'insertFromPaste' || type === 'insertFromDrop') beautify(true);
+      else resetOriginal(); // a manual edit makes the stored original stale
+    });
     // Tab indents; press Esc first to let Tab move focus out of the editor.
     $code.on('keydown', function (e) {
       if (e.key === 'Escape') { escPressed = true; return; }
@@ -6042,7 +6140,14 @@
       if (e.altKey && e.shiftKey && (e.key === 'F' || e.key === 'f')) { e.preventDefault(); beautify(); }
     });
     $code.on('blur', function () { escPressed = false; });
-    $btnBeautify.on('click', beautify);
+    $btnBeautify.on('click', function () { beautify(false); });
+    $btnOriginal.on('click', function () {
+      if (original === null) return;
+      showingOriginal = !showingOriginal;
+      setCode(showingOriginal ? original : formatted);
+      updateOriginalButton();
+      setStatus(showingOriginal ? 'กำลังแสดงโค้ดต้นฉบับ' : 'กำลังแสดงโค้ดที่จัดรูปแบบแล้ว', 'neutral');
+    });
 
     $('#btn-htmlpv-open').on('click', function () { $fileInput.trigger('click'); });
     $fileInput.on('change', function () {
@@ -6053,8 +6158,10 @@
       var reader = new FileReader();
       reader.onload = function () {
         fileName = file.name;
+        resetOriginal();
         setCode(String(reader.result || ''));
         setStatus('เปิดไฟล์ ' + file.name + ' แล้ว', 'good');
+        beautify(true, 'เปิดไฟล์ ' + file.name + ' แล้ว');
       };
       reader.onerror = function () { setStatus('อ่านไฟล์ไม่สำเร็จ', 'bad'); };
       reader.readAsText(file);
@@ -6084,12 +6191,231 @@
     });
     $('#btn-htmlpv-clear').on('click', function () {
       fileName = null;
+      resetOriginal();
       setCode('');
       setStatus('', 'neutral');
       $code.trigger('focus');
     });
 
     updateMeta();
+  }
+
+  // ---------- Code format ----------
+  // HTML/CSS/JS/JSON reuse js-beautify (loadBeautify above); SQL uses
+  // sql-formatter, lazy-loaded the same way only when SQL is formatted.
+  var SQL_FORMATTER_URL = 'https://cdn.jsdelivr.net/npm/sql-formatter@15.4.0/dist/sql-formatter.min.js';
+  var CODEFMT_MAX_BYTES = 2 * 1024 * 1024;
+  var CODEFMT_AUTO_MAX_CHARS = 500000;
+  var CODE_FORMAT_LANGS = {
+    html: { label: 'HTML', ext: 'html', mime: 'text/html' },
+    css: { label: 'CSS', ext: 'css', mime: 'text/css' },
+    javascript: { label: 'JavaScript', ext: 'js', mime: 'text/javascript' },
+    json: { label: 'JSON', ext: 'json', mime: 'application/json' },
+    sql: { label: 'SQL', ext: 'sql', mime: 'application/sql' }
+  };
+  var CODE_FORMAT_EXTS = { html: 'html', htm: 'html', css: 'css', js: 'javascript', mjs: 'javascript', cjs: 'javascript', json: 'json', sql: 'sql' };
+  var SQL_DIALECTS = ['sql', 'transactsql', 'mysql', 'mariadb', 'postgresql', 'plsql', 'sqlite', 'bigquery'];
+  var SQL_KEYWORD_CASES = ['upper', 'lower', 'preserve'];
+  var SQL_START_RE = /^(select|insert|update|delete|merge|with|create|alter|drop|truncate|grant|revoke|declare|begin|exec|execute)\b/i;
+
+  var sqlFormatterPromise = null;
+  function loadSqlFormatter() {
+    if (window.sqlFormatter) return Promise.resolve(window.sqlFormatter);
+    if (!sqlFormatterPromise) {
+      sqlFormatterPromise = loadScriptOnce(SQL_FORMATTER_URL)
+        .then(function () {
+          if (!window.sqlFormatter || typeof window.sqlFormatter.format !== 'function') throw new Error('โหลดไลบรารีจัดรูปแบบ SQL ไม่สำเร็จ');
+          return window.sqlFormatter;
+        })
+        .catch(function (err) { sqlFormatterPromise = null; throw err; });
+    }
+    return sqlFormatterPromise;
+  }
+
+  // Cheap first-token heuristics; the language dropdown overrides this.
+  function detectCodeLang(text) {
+    var t = text.trim();
+    if (t.charAt(0) === '<') return 'html';
+    if (t.charAt(0) === '{' || t.charAt(0) === '[') {
+      try { JSON.parse(t); return 'json'; } catch (e) { /* not JSON, keep checking */ }
+    }
+    if (/^--/.test(t) || SQL_START_RE.test(t)) return 'sql';
+    if (/^@(media|import|charset|font-face|keyframes|supports|layer)\b/i.test(t)) return 'css';
+    if (/^[^{}();=]+\{[^{}]*:[^{}]*\}/.test(t) && !/\b(function|const|let|var|return)\b|=>/.test(t)) return 'css';
+    return 'javascript';
+  }
+
+  async function formatCode(text, lang, opts) {
+    if (lang === 'sql') {
+      var sf = await loadSqlFormatter();
+      try {
+        return sf.format(text, { language: opts.dialect, tabWidth: opts.indentSize, useTabs: opts.useTabs, keywordCase: opts.keywordCase, linesBetweenQueries: 1 });
+      } catch (err) {
+        throw new Error('SQL ไม่ถูกต้องหรือไม่รองรับใน dialect นี้: ' + ((err && err.message) || ''));
+      }
+    }
+    await loadBeautify();
+    var bopts = { indent_size: opts.indentSize, indent_char: opts.useTabs ? '\t' : ' ', indent_with_tabs: opts.useTabs, preserve_newlines: true, max_preserve_newlines: 2, end_with_newline: false };
+    if (lang === 'json') {
+      // Validate only: js_beautify keeps number literals as written, JSON.stringify would round big integers.
+      try { JSON.parse(text); } catch (err) { throw new Error('JSON ไม่ถูกต้อง: ' + ((err && err.message) || '')); }
+      return window.js_beautify(text, bopts);
+    }
+    if (lang === 'css') return window.css_beautify(text, bopts);
+    if (lang === 'html') return window.html_beautify(text, $.extend({ indent_inner_html: true, wrap_line_length: 0, extra_liners: [] }, bopts));
+    return window.js_beautify(text, bopts);
+  }
+
+  function initCodeFormatView() {
+    var $input = $('#codefmt-input');
+    var $output = $('#codefmt-output');
+    var $lang = $('#codefmt-lang');
+    var $indent = $('#codefmt-indent');
+    var $dialect = $('#codefmt-dialect');
+    var $keyword = $('#codefmt-keyword');
+    var $sqlOptions = $('#codefmt-sql-options');
+    var $btnFormat = $('#btn-codefmt-format');
+    var $fileInput = $('#codefmt-file-input');
+    var $inMeta = $('#codefmt-input-meta');
+    var $outMeta = $('#codefmt-output-meta');
+    var $statusEl = $('#codefmt-status');
+    var timer = null;
+    var runId = 0;
+    var outputLang = null; // language of the current output, for the download extension
+    var fileBase = null;
+
+    function setStatus(msg, kind) {
+      $statusEl.text(msg || '');
+      $statusEl.removeClass('text-good text-bad text-inksoft');
+      if (kind === 'good') $statusEl.addClass('text-good');
+      else if (kind === 'bad') $statusEl.addClass('text-bad');
+      else $statusEl.addClass('text-inksoft');
+    }
+    function metaText(text) {
+      var lines = text ? text.split('\n').length : 0;
+      return 'บรรทัด ' + lines.toLocaleString() + ' · ตัวอักษร ' + text.length.toLocaleString();
+    }
+    function setBusy(busy) {
+      $btnFormat.prop('disabled', busy).find('.spinner').toggleClass('hidden', !busy).toggleClass('inline-block', busy);
+    }
+    function setOutput(text, lang) {
+      $output.val(text);
+      outputLang = text ? lang : null;
+      $outMeta.text(metaText(text));
+    }
+    function resolveLang(text) {
+      var v = $lang.val();
+      return CODE_FORMAT_LANGS[v] ? v : detectCodeLang(text);
+    }
+    function readOpts() {
+      var indent = $indent.val();
+      return {
+        indentSize: indent === '4' ? 4 : 2,
+        useTabs: indent === 'tab',
+        dialect: SQL_DIALECTS.indexOf($dialect.val()) !== -1 ? $dialect.val() : 'sql',
+        keywordCase: SQL_KEYWORD_CASES.indexOf($keyword.val()) !== -1 ? $keyword.val() : 'upper'
+      };
+    }
+    function updateSqlOptions() {
+      var text = $input.val();
+      var show = $lang.val() === 'sql' || ($lang.val() === 'auto' && !!text.trim() && detectCodeLang(text) === 'sql');
+      $sqlOptions.css('display', show ? 'flex' : 'none');
+    }
+
+    async function run() {
+      if (timer) { clearTimeout(timer); timer = null; }
+      var id = ++runId;
+      var text = $input.val();
+      updateSqlOptions();
+      if (!text.trim()) {
+        setBusy(false);
+        setOutput('', null);
+        setStatus('', 'neutral');
+        return;
+      }
+      var lang = resolveLang(text);
+      setBusy(true);
+      try {
+        var out = await formatCode(text, lang, readOpts());
+        if (id !== runId) return; // superseded by a newer edit
+        setOutput(out, lang);
+        setStatus('จัดรูปแบบเป็น ' + CODE_FORMAT_LANGS[lang].label + ' แล้ว' + ($lang.val() === 'auto' ? ' (ตรวจจับอัตโนมัติ เปลี่ยนภาษาได้ที่ช่อง "ภาษา")' : ''), 'good');
+      } catch (err) {
+        if (id !== runId) return;
+        console.error(err);
+        setOutput('', null);
+        setStatus((err && err.message) || 'จัดรูปแบบไม่สำเร็จ', 'bad');
+      } finally {
+        if (id === runId) setBusy(false);
+      }
+    }
+    function schedule() {
+      $inMeta.text(metaText($input.val()));
+      if (timer) clearTimeout(timer);
+      timer = null;
+      if ($input.val().length > CODEFMT_AUTO_MAX_CHARS) {
+        runId++; // drop any in-flight result for the older text
+        setBusy(false);
+        updateSqlOptions();
+        setStatus('โค้ดยาวเกินกว่าจะจัดรูปแบบอัตโนมัติ กดปุ่ม "จัดรูปแบบ"', 'neutral');
+        return;
+      }
+      timer = setTimeout(run, 400);
+    }
+
+    $input.on('input', schedule);
+    $lang.add($indent).add($dialect).add($keyword).on('change', function () { if ($input.val().trim()) run(); else updateSqlOptions(); });
+    $btnFormat.on('click', function () { run(); });
+
+    $('#btn-codefmt-open').on('click', function () { $fileInput.trigger('click'); });
+    $fileInput.on('change', function () {
+      var file = $fileInput[0].files[0];
+      $fileInput.val('');
+      if (!file) return;
+      if (file.size > CODEFMT_MAX_BYTES) { setStatus('ไฟล์ใหญ่เกิน 2 MB', 'bad'); return; }
+      var reader = new FileReader();
+      reader.onload = function () {
+        var m = /\.([^.]+)$/.exec(file.name);
+        var extLang = m ? CODE_FORMAT_EXTS[m[1].toLowerCase()] : null;
+        if (extLang) $lang.val(extLang);
+        fileBase = file.name.replace(/\.[^.]+$/, '') || null;
+        $input.val(String(reader.result || ''));
+        $inMeta.text(metaText($input.val()));
+        run();
+      };
+      reader.onerror = function () { setStatus('อ่านไฟล์ไม่สำเร็จ', 'bad'); };
+      reader.readAsText(file);
+    });
+    $('#btn-codefmt-clear').on('click', function () {
+      fileBase = null;
+      $input.val('');
+      $inMeta.text(metaText(''));
+      run();
+      $input.trigger('focus');
+    });
+    $('#btn-codefmt-copy').on('click', async function () {
+      var text = $output.val();
+      if (!text) return;
+      try {
+        await navigator.clipboard.writeText(text);
+        setStatus('คัดลอกแล้ว', 'good');
+      } catch (err) {
+        $output.trigger('select');
+        setStatus('ไม่สามารถคัดลอกอัตโนมัติได้ ข้อความถูกเลือกไว้แล้ว กด Ctrl+C', 'bad');
+      }
+    });
+    $('#btn-codefmt-download').on('click', async function () {
+      var text = $output.val();
+      if (!text || !outputLang) return;
+      var spec = CODE_FORMAT_LANGS[outputLang];
+      var name = (fileBase ? fileBase + '-formatted' : 'formatted-' + fileTimestamp(new Date())) + '.' + spec.ext;
+      try {
+        var res = await deliverFiles([{ name: name, blob: new Blob([text], { type: spec.mime + ';charset=utf-8' }) }], name);
+        setStatus(res.status === 'saved' ? 'บันทึกไฟล์สำเร็จ' : 'ส่งไฟล์เรียบร้อย', 'good');
+      } catch (err) {
+        setStatus(describeDownloadError(err), err && err.code === 'declined' ? 'neutral' : 'bad');
+      }
+    });
   }
 
   // ---------- Convert case ----------

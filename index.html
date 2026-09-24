@@ -2,6 +2,11 @@
 <html lang="th">
 <head>
 <meta charset="UTF-8">
+<!-- GitHub Pages cannot send response headers, so the CSP is set here.
+     No 'unsafe-inline' for scripts: inline event handlers and injected <script> are blocked.
+     'unsafe-inline' for styles is required by the Tailwind Play CDN and style="" attributes. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.tailwindcss.com https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://cdn.sheetjs.com blob: 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://fonts.googleapis.com; font-src 'self' https://cdnjs.cloudflare.com https://fonts.gstatic.com; img-src 'self' data: blob:; media-src 'self' blob:; connect-src 'self' https://cdn.jsdelivr.net blob: data:; worker-src 'self' blob:; frame-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'">
+<meta name="referrer" content="strict-origin-when-cross-origin">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>FileFlow</title>
 <link rel="icon" href="assets/brand/favicon.ico" sizes="any">
@@ -16,16 +21,7 @@
 
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-icons/1.11.3/font/bootstrap-icons.min.css">
 <link rel="stylesheet" href="css/styles.css">
-<!-- Apply the saved theme before first paint; js/app.js keeps it in sync. -->
-<script>
-  (function () {
-    try {
-      var t = localStorage.getItem('toolbox.theme');
-      var dark = t === 'dark' || (t !== 'light' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
-      document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
-    } catch (e) { /* storage unavailable */ }
-  })();
-</script>
+<script src="js/theme-init.js"></script>
 </head>
 <body class="bg-paper text-ink font-sans leading-relaxed">
 
@@ -312,6 +308,11 @@
        runtime by js/app.js, same pattern as views/merge.html. -->
   <div id="view-html-preview-mount"></div>
 
+  <!-- ============ CODE FORMAT VIEW ============ -->
+  <!-- Markup lives in views/code-format.html — fetched and mounted at
+       runtime by js/app.js, same pattern as views/merge.html. -->
+  <div id="view-code-format-mount"></div>
+
   <!-- ============ CONVERT CASE VIEW ============ -->
   <!-- Markup lives in views/convert-case.html — fetched and mounted at
        runtime by js/app.js, same pattern as views/merge.html. -->
@@ -363,8 +364,9 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@cantoo/pdf-lib@2.11.0/dist/pdf-lib.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.2/jszip.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<!-- SheetJS stopped publishing to npm at 0.18.5; patched builds (CVE-2023-30533, CVE-2024-22363) are on cdn.sheetjs.com only. -->
+<script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf@3.0.2/dist/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script src="js/app.js"></script>
 </body>

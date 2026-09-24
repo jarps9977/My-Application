@@ -14,6 +14,10 @@
       <h2 class="text-xl font-extrabold">พรีวิว HTML</h2>
     </div>
     <div class="flex items-center gap-2 flex-wrap">
+      <!-- Shown after a beautify; toggles between the original and formatted code (js/app.js updateOriginalButton). -->
+      <button type="button" id="btn-htmlpv-original" aria-pressed="false" class="items-center gap-1.5 bg-surface border border-line text-inksoft text-[12.5px] font-bold px-3 py-1.5 rounded-lg cursor-pointer hover:border-accent hover:text-accentdeep" style="display:none;">
+        <i class="bi bi-file-earmark-code text-sm leading-none"></i> <span class="btn-label">แสดงต้นฉบับ</span>
+      </button>
       <button type="button" id="btn-htmlpv-beautify" class="flex items-center gap-1.5 bg-accent text-accentink text-[12.5px] font-bold px-3 py-1.5 rounded-lg cursor-pointer hover:bg-accentdeep disabled:opacity-60 disabled:pointer-events-none">
         <span class="spinner hidden w-[12px] h-[12px] rounded-full border-2 border-white/40 border-t-current animate-spin"></span>
         <i class="bi bi-magic text-sm leading-none"></i> Beautify
@@ -49,7 +53,7 @@
       </div>
       <div class="relative flex-1 min-h-[55vh] md:min-h-0 bg-white">
         <!-- Sandboxed: never allow-same-origin, so previewed code can't reach this page. -->
-        <iframe id="htmlpv-frame" title="ผลลัพธ์ HTML" sandbox="allow-scripts" referrerpolicy="no-referrer" class="absolute inset-0 block h-full w-full bg-white border-none"></iframe>
+        <iframe id="htmlpv-frame" src="views/html-preview-frame.html" title="ผลลัพธ์ HTML" sandbox="allow-scripts" referrerpolicy="no-referrer" class="absolute inset-0 block h-full w-full bg-white border-none"></iframe>
       </div>
     </div>
   </div>

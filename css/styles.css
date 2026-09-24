@@ -96,7 +96,7 @@ body::before {
 
 /* Text compare side-by-side diff (views/text-compare.html) */
 .app.app-wide { max-width: 72rem; }
-/* HTML preview (views/html-preview.html) uses the whole viewport */
+/* HTML preview, code format and text compare use the whole viewport */
 .app.app-full { max-width: none; padding-top: 0; padding-bottom: 1.5rem; }
 .diff-head { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
 .diff-row { display: grid; grid-template-columns: 3.4em minmax(0, 1fr) 3.4em minmax(0, 1fr); }
