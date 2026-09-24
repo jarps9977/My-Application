@@ -2602,6 +2602,32 @@
     return chars.join('');
   }
 
+  var THAI_CONSONANTS = 'กขฃคฅฆงจฉชซฌญฎฏฐฑฒณดตถทธนบปผฝพฟภมยรลวศษสหฬอฮ';
+  var THAI_SPACING_VOWELS = 'ะาเแโใไ';
+  var THAI_ABOVE_BELOW_VOWELS = 'ัิีึืุู';
+  var THAI_TONE_MARKS = '่้๊๋';
+
+  // Combining marks are attached only right after a consonant (vowel then tone) so clusters render validly; length stays exact.
+  function randomThaiAwareString(length, pool) {
+    var out = [];
+    var remaining = length;
+    while (remaining > 0) {
+      var ch = pool.charAt(Math.floor(Math.random() * pool.length));
+      out.push(ch);
+      remaining--;
+      if (THAI_CONSONANTS.indexOf(ch) === -1) continue;
+      if (remaining > 0 && Math.random() < 0.3) {
+        out.push(THAI_ABOVE_BELOW_VOWELS.charAt(Math.floor(Math.random() * THAI_ABOVE_BELOW_VOWELS.length)));
+        remaining--;
+      }
+      if (remaining > 0 && Math.random() < 0.25) {
+        out.push(THAI_TONE_MARKS.charAt(Math.floor(Math.random() * THAI_TONE_MARKS.length)));
+        remaining--;
+      }
+    }
+    return out.join('');
+  }
+
   function initTextGenView() {
     var $length = $('#textgen-length');
     var $mode = $('#textgen-mode');
@@ -2610,6 +2636,7 @@
     var $optUpper = $('#textgen-opt-upper');
     var $optLower = $('#textgen-opt-lower');
     var $optDigits = $('#textgen-opt-digits');
+    var $optThai = $('#textgen-opt-thai');
     var $optSymbols = $('#textgen-opt-symbols');
     var $repeatPattern = $('#textgen-repeat-pattern');
     var $btnGenerate = $('#btn-textgen-generate');
@@ -2660,9 +2687,11 @@
         if ($optUpper.prop('checked')) pool += 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
         if ($optLower.prop('checked')) pool += 'abcdefghijklmnopqrstuvwxyz';
         if ($optDigits.prop('checked')) pool += '0123456789';
+        var useThai = $optThai.prop('checked');
+        if (useThai) pool += THAI_CONSONANTS + THAI_SPACING_VOWELS;
         if ($optSymbols.prop('checked')) pool += '!@#$%^&*()-_=+[]{};:,.<>?';
         if (!pool) pool = 'abcdefghijklmnopqrstuvwxyz';
-        text = randomStringOfLength(length, pool);
+        text = useThai ? randomThaiAwareString(length, pool) : randomStringOfLength(length, pool);
       }
       $output.val(text);
       updateOutputCount();
