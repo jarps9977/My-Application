@@ -1259,8 +1259,6 @@
     var $progress = $('#convert-stage-progress');
     var $statusEl = $('#convert-stage-status');
     var $render = $('#convert-render');
-    var $modeWrap = $('#convert-mode-wrap');
-    var $modeSelect = $('#convert-mode');
 
     var items = []; // currently staged files for the active pair: { file, url }
 
@@ -1684,7 +1682,8 @@
       tahoma: 'Tahoma', verdana: 'Verdana', georgia: 'Georgia', garamond: 'Garamond',
       segoeui: 'Segoe UI', trebuchetms: 'Trebuchet MS', comicsansms: 'Comic Sans MS',
       microsoftsansserif: 'Microsoft Sans Serif', bookantiqua: 'Book Antiqua', centurygothic: 'Century Gothic',
-      consolas: 'Consolas', symbol: 'Symbol', wingdings: 'Wingdings',
+      consolas: 'Consolas', symbol: 'Symbol', wingdings: 'Wingdings', wingdings2: 'Wingdings 2', wingdings3: 'Wingdings 3',
+      webdings: 'Webdings',
       thsarabunnew: 'TH Sarabun New', thsarabunpsk: 'TH SarabunPSK', thsarabunit9: 'TH SarabunIT๙',
       sarabun: 'Sarabun', angsananew: 'Angsana New', angsanaupc: 'AngsanaUPC', cordianew: 'Cordia New',
       cordiaupc: 'CordiaUPC', browallianew: 'Browallia New', leelawadee: 'Leelawadee', leelawadeeui: 'Leelawadee UI'
@@ -1747,21 +1746,29 @@
     function walkPdfOperators(opList, baseTransform) {
       var OPS = pdfjsLib.OPS;
       var Util = pdfjsLib.Util;
-      var state = { ctm: baseTransform.slice(), color: '000000', stroke: '000000', lineWidth: 1, hidden: false };
+      var state = { ctm: baseTransform.slice(), color: '000000', stroke: '000000', lineWidth: 1, dash: null, fillAlpha: 1, strokeAlpha: 1, hidden: false };
       var stack = [];
       var chars = [];
       var images = [];
       var paths = [];
       var pending = [];
       function pushState() {
-        stack.push({ ctm: state.ctm.slice(), color: state.color, stroke: state.stroke, lineWidth: state.lineWidth, hidden: state.hidden });
+        stack.push({
+          ctm: state.ctm.slice(), color: state.color, stroke: state.stroke, lineWidth: state.lineWidth, dash: state.dash,
+          fillAlpha: state.fillAlpha, strokeAlpha: state.strokeAlpha, hidden: state.hidden
+        });
       }
       function paintPath(fill, stroke) {
-        if (pending.length && paths.length < PDF_MAX_PATHS_PER_PAGE) {
+        if (fill && state.fillAlpha <= 0) fill = false;
+        if (stroke && state.strokeAlpha <= 0) stroke = false;
+        if (pending.length && (fill || stroke) && paths.length < PDF_MAX_PATHS_PER_PAGE) {
           var scale = Math.sqrt(Math.abs(state.ctm[0] * state.ctm[3] - state.ctm[1] * state.ctm[2])) || 1;
           paths.push({
             cmds: pending, fill: fill ? state.color : null, stroke: stroke ? state.stroke : null,
-            lineWidth: Math.max(0.25, state.lineWidth * scale)
+            fillAlpha: state.fillAlpha, strokeAlpha: state.strokeAlpha,
+            lineWidth: Math.max(0.25, state.lineWidth * scale),
+            // Dash lengths relative to line width, the unit DrawingML custDash uses.
+            dash: state.dash ? state.dash.map(function (d) { return d / (state.lineWidth || 1); }) : null
           });
         }
         pending = [];
@@ -1772,10 +1779,27 @@
         if (fn === OPS.save) pushState();
         else if (fn === OPS.restore || fn === OPS.paintFormXObjectEnd) { if (stack.length) state = stack.pop(); }
         else if (fn === OPS.paintFormXObjectBegin) { pushState(); if (args[0]) state.ctm = Util.transform(state.ctm, args[0]); }
+        // Annotation appearances (e.g. highlight markups) are drawn in their own space: ctm x transform x matrix.
+        else if (fn === OPS.beginAnnotation) {
+          pushState();
+          if (args[2]) state.ctm = Util.transform(state.ctm, args[2]);
+          if (args[3]) state.ctm = Util.transform(state.ctm, args[3]);
+        }
+        else if (fn === OPS.endAnnotation) { if (stack.length) state = stack.pop(); }
+        else if (fn === OPS.setGState) {
+          (args[0] || []).forEach(function (entry) {
+            if (entry[0] === 'ca') state.fillAlpha = clampNum(+entry[1], 0, 1);
+            else if (entry[0] === 'CA') state.strokeAlpha = clampNum(+entry[1], 0, 1);
+          });
+        }
         else if (fn === OPS.transform) state.ctm = Util.transform(state.ctm, args);
         else if (fn === OPS.setFillRGBColor) state.color = pdfColorToHex(args);
         else if (fn === OPS.setStrokeRGBColor) state.stroke = pdfColorToHex(args);
         else if (fn === OPS.setLineWidth) state.lineWidth = args[0] || 0;
+        else if (fn === OPS.setDash) {
+          var dashArr = Array.prototype.slice.call(args[0] || []).filter(function (d) { return d >= 0; });
+          state.dash = dashArr.length && dashArr.some(function (d) { return d > 0; }) ? dashArr : null;
+        }
         else if (fn === OPS.constructPath) pending = pending.concat(pdfPathCommands(args[0] || [], args[1] || [], state.ctm));
         else if (fn === OPS.stroke || fn === OPS.closeStroke) paintPath(false, true);
         else if (fn === OPS.fill || fn === OPS.eoFill) paintPath(true, false);
@@ -1906,7 +1930,7 @@
     }
 
     function pdfLineStartsListItem(text) {
-      return /^\s*([•●○◦■□▪▫►▸➢✓✔*\-–—]|\(?[0-9๐-๙]{1,3}[.)]|\(?[a-zA-Zก-ฮ][.)])\s/.test(text);
+      return /^\s*([•●○◦■□▪▫►▸➢✓✔*\-–—-]|\(?[0-9๐-๙]{1,3}[.)]|\(?[a-zA-Zก-ฮ][.)])\s/.test(text);
     }
 
     function finalizePdfLine(line) {
@@ -1926,7 +1950,8 @@
         if (prev) {
           var gap = it.x - (prev.x + prev.w);
           var unit = Math.min(prev.size, it.size);
-          if (gap > unit * 1.5) {
+          // Gaps wider than half an em are layout (numbering, bullets, columns), not word spaces.
+          if (gap > unit * 0.5) {
             line.segs.push({ tab: true, style: prev });
             line.tabStops.push(it.x);
             line.text += '\t';
@@ -1970,7 +1995,8 @@
       }
       // A line that stops well short of the column edge ended its paragraph.
       if (last.right < textRight - size * 3) return false;
-      return !pdfLineStartsListItem(line.text);
+      // A line led by a symbol-font glyph is a bullet even when its code is a plain letter.
+      return !pdfLineStartsListItem(line.text) && !PDF_SYMBOL_FONT_RE.test(line.items[0].font.family || '');
     }
 
     function groupPdfParagraphs(lines) {
@@ -2058,20 +2084,100 @@
       return 'left';
     }
 
+    var PDF_SYMBOL_FONT_RE = /^(Wingdings|Webdings|Symbol|Zapf ?Dingbats|Dingbats)/i;
+    var PDF_DINGBATS_FONT_RE = /^(Zapf ?Dingbats|Dingbats)/i;
+    // pdf.js reports symbol-font bullets as look-alike Unicode, which a text font draws smaller;
+    // these map back to the symbol font's own code so w:sym draws the original glyph.
+    var PDF_SYMBOL_UNICODE = {
+      symbol: { '•': 0xF0B7 },
+      wingdings: {
+        '▪': 0xF0A7, '➢': 0xF0D8, '➤': 0xF0D8, '✓': 0xF0FC, '✔': 0xF0FC, '●': 0xF06C,
+        '◆': 0xF075, '❖': 0xF076, '□': 0xF0A8, '☐': 0xF0A8, '■': 0xF06E, '◼': 0xF06E,
+        '➔': 0xF0E8, '✗': 0xF0FB, '★': 0xF0AB, '○': 0xF0A1, '☑': 0xF0FE, '☒': 0xF0FD
+      }
+    };
+    // Zapf Dingbats codes that Unicode placed outside the linear U+2701 + (code - 0x21) run.
+    var ZAPF_DINGBATS_EXCEPTIONS = { 0x25: 0x260E, 0x2A: 0x261B, 0x2B: 0x261E, 0x48: 0x2605, 0x6C: 0x25CF, 0x6E: 0x25A0, 0x73: 0x25B2, 0x74: 0x25BC, 0x75: 0x25C6, 0x77: 0x25D7 };
+
+    // Word has no Zapf Dingbats font, so its 8-bit codes become the matching Unicode dingbats.
+    function zapfDingbatsToUnicode(text) {
+      return Array.from(text).map(function (ch) {
+        var code = ch.codePointAt(0);
+        if (code < 0x21 || code > 0x7E) return ch;
+        return String.fromCodePoint(ZAPF_DINGBATS_EXCEPTIONS[code] || 0x2701 + code - 0x21);
+      }).join('');
+    }
+
+    // Symbol-font glyphs (bullets, checkboxes) arrive as PUA U+F0xx or raw 8-bit codes;
+    // w:sym draws them with the symbol font, which plain text in Arial cannot.
+    function pdfRunBodyXml(seg) {
+      if (seg.tab) return '<w:tab/>';
+      if (seg.br) return '<w:br/>';
+      var family = seg.style.font.family || '';
+      var text = seg.text;
+      var symbolFont = PDF_SYMBOL_FONT_RE.test(family);
+      if (PDF_DINGBATS_FONT_RE.test(family)) {
+        text = zapfDingbatsToUnicode(text);
+        symbolFont = false;
+      }
+      var out = '', buf = '';
+      function flush() {
+        if (buf) out += '<w:t xml:space="preserve">' + escapeXml(buf) + '</w:t>';
+        buf = '';
+      }
+      Array.from(text).forEach(function (ch) {
+        var code = ch.codePointAt(0);
+        var sym = null;
+        var lookAlike = symbolFont && PDF_SYMBOL_UNICODE[family.toLowerCase()];
+        if (code >= 0xF020 && code <= 0xF0FF) sym = code;
+        else if (lookAlike && lookAlike[ch]) sym = lookAlike[ch];
+        else if (symbolFont && code > 0x20 && code <= 0xFF) sym = 0xF000 + code;
+        if (sym === null) { buf += ch; return; }
+        flush();
+        var font = symbolFont ? family : (sym === 0xF0B7 ? 'Symbol' : 'Wingdings');
+        out += '<w:sym w:font="' + escapeXml(font) + '" w:char="' + sym.toString(16).toUpperCase() + '"/>';
+      });
+      flush();
+      return out;
+    }
+
+    // Splits text into spans the speller should skip or check. Skipped: Thai (no reliable
+    // word boundaries from a PDF), capitalised words (names, product terms) and tokens with
+    // digits/underscores (codes, versions). Lower-case English stays checked for real typos.
+    function pdfProofChunks(text) {
+      var parts = text.match(/[฀-๿]+|[A-Za-z0-9][A-Za-z0-9_.'’-]*|[^฀-๿A-Za-z0-9]+/g) || [];
+      var out = [];
+      parts.forEach(function (t) {
+        var isWord = /[฀-๿A-Za-z0-9]/.test(t);
+        var skip = /[฀-๿]/.test(t) || /^[A-Z]/.test(t) || /[\d_]/.test(t);
+        var last = out[out.length - 1];
+        // Spaces and punctuation ride along with the previous span to keep runs few.
+        if (last && (!isWord || last.skip === skip)) last.text += t;
+        else out.push({ text: t, skip: isWord && skip });
+      });
+      return out;
+    }
+
     function pdfRunXml(seg) {
       var s = seg.style;
       var rPr = '';
-      if (s.font.family) {
+      // Symbols carry their own font in w:sym; any real Unicode left in the run needs a normal font.
+      if (s.font.family && !PDF_SYMBOL_FONT_RE.test(s.font.family)) {
         var f = escapeXml(s.font.family);
         rPr += '<w:rFonts w:ascii="' + f + '" w:hAnsi="' + f + '" w:eastAsia="' + f + '" w:cs="' + f + '"/>';
       }
       if (s.font.bold) rPr += '<w:b/><w:bCs/>';
       if (s.font.italic) rPr += '<w:i/><w:iCs/>';
-      if (s.color && s.color !== '000000') rPr += '<w:color w:val="' + s.color + '"/>';
+      var colorSz = '';
+      if (s.color && s.color !== '000000') colorSz += '<w:color w:val="' + s.color + '"/>';
       var hp = Math.max(2, Math.round(s.size * 2));
-      rPr += '<w:sz w:val="' + hp + '"/><w:szCs w:val="' + hp + '"/>';
-      var body = seg.tab ? '<w:tab/>' : '<w:t xml:space="preserve">' + escapeXml(seg.text) + '</w:t>';
-      return '<w:r><w:rPr>' + rPr + '</w:rPr>' + body + '</w:r>';
+      colorSz += '<w:sz w:val="' + hp + '"/><w:szCs w:val="' + hp + '"/>';
+      if (seg.tab || seg.br) return '<w:r><w:rPr>' + rPr + colorSz + '</w:rPr>' + pdfRunBodyXml(seg) + '</w:r>';
+      return pdfProofChunks(seg.text).map(function (chunk) {
+        var thai = THAI_CHAR_RE.test(chunk.text);
+        return '<w:r><w:rPr>' + rPr + (chunk.skip ? '<w:noProof/>' : '') + colorSz + (thai ? '<w:lang w:bidi="th-TH"/>' : '') + '</w:rPr>' +
+          pdfRunBodyXml({ text: chunk.text, style: s }) + '</w:r>';
+      }).join('');
     }
 
     function pdfStyleKey(s) {
@@ -2081,18 +2187,15 @@
     function pdfParagraphRunsXml(para) {
       var segs = [];
       para.lines.forEach(function (line, idx) {
-        if (idx > 0 && segs.length) {
-          var a = para.lines[idx - 1].text.slice(-1), b = line.text.charAt(0);
-          var noSpace = /[\s\-]/.test(a) || /\s/.test(b) || (THAI_CHAR_RE.test(a) && THAI_CHAR_RE.test(b));
-          if (!noSpace) segs.push({ text: ' ', style: segs[segs.length - 1].style });
-        }
+        // Keep the PDF's own line breaks; Word's wrapping never matches them exactly.
+        if (idx > 0 && segs.length) segs.push({ br: true, style: segs[segs.length - 1].style });
         segs = segs.concat(line.segs);
       });
       var merged = [];
       segs.forEach(function (seg) {
         var last = merged[merged.length - 1];
-        if (last && !last.tab && !seg.tab && pdfStyleKey(last.style) === pdfStyleKey(seg.style)) last.text += seg.text;
-        else merged.push({ tab: seg.tab, text: seg.text, style: seg.style });
+        if (last && !last.tab && !seg.tab && !last.br && !seg.br && pdfStyleKey(last.style) === pdfStyleKey(seg.style)) last.text += seg.text;
+        else merged.push({ tab: seg.tab, br: seg.br, text: seg.text, style: seg.style });
       });
       return merged.map(pdfRunXml).join('');
     }
@@ -2164,70 +2267,46 @@
     function buildPdfPageBody(pg, m, ratio, isLast, ids) {
       var area = { left: m.left, right: pg.width - m.right };
       area.mid = (area.left + area.right) / 2;
-      var maxW = Math.max(36, area.right - area.left);
-      var maxH = Math.max(36, pg.height - m.top - m.bottom);
-
-      var blocks = pg.paras.map(function (para) {
-        return { top: para.lines[0].y - para.lines[0].size, para: para };
-      });
-      var inline = pg.images.filter(function (im) { return !im.behind; }).sort(function (a, b) { return a.y - b.y; });
-      inline.forEach(function (im) {
-        var group = blocks.length && blocks[blocks.length - 1].images ? blocks[blocks.length - 1] : null;
-        if (group && im.y < group.bottom - 2) {
-          group.images.push(im);
-          group.bottom = Math.max(group.bottom, im.y + im.h);
-        } else {
-          blocks.push({ top: im.y, bottom: im.y + im.h, images: [im] });
-        }
-      });
-      blocks.sort(function (a, b) { return a.top - b.top; });
 
       var paragraphs = [];
       var cursor = m.top;
-      blocks.forEach(function (block) {
-        var pPr, runs;
-        if (block.para) {
-          var lines = block.para.lines;
-          var first = lines[0], last = lines[lines.length - 1];
-          var pitch = lines.length > 1 ? (last.y - first.y) / (lines.length - 1) : first.size * ratio;
-          lines.forEach(function (l) { pitch = Math.max(pitch, l.maxSize * 1.05); });
-          var before = Math.max(0, first.y - pitch * 0.8 - cursor);
-          cursor = last.y + pitch * 0.2;
-          var align = detectPdfAlignment(block.para, area);
-          pPr = '';
-          if (first.tabStops.length) {
-            pPr += '<w:tabs>' + first.tabStops.map(function (x) {
-              return '<w:tab w:val="left" w:pos="' + Math.max(0, ptToTwip(x - area.left)) + '"/>';
-            }).join('') + '</w:tabs>';
-          }
-          pPr += '<w:spacing w:before="' + ptToTwip(before) + '" w:after="0" w:line="' + ptToTwip(pitch) + '" w:lineRule="exact"/>';
-          if (align === 'left' || align === 'both') {
-            var bodyX = lines.length > 1 ? lines[1].x : first.x;
-            var indent = first.x - bodyX;
-            pPr += '<w:ind w:left="' + Math.max(0, ptToTwip(bodyX - area.left)) + '"' +
-              (indent > 0.5 ? ' w:firstLine="' + ptToTwip(indent) + '"' : indent < -0.5 ? ' w:hanging="' + ptToTwip(-indent) + '"' : '') + '/>';
-          }
-          if (align !== 'left') pPr += '<w:jc w:val="' + align + '"/>';
-          runs = pdfParagraphRunsXml(block.para);
-        } else {
-          var imgs = block.images.sort(function (a, b) { return a.x - b.x; });
-          var totalW = 0, maxImgH = 0;
-          imgs.forEach(function (im) { totalW += im.w; maxImgH = Math.max(maxImgH, im.h); });
-          var scale = Math.min(1, maxW / totalW, maxH / maxImgH);
-          var gapBefore = Math.max(0, block.top - cursor);
-          cursor = block.bottom;
-          var left = imgs[0].x, right = imgs[imgs.length - 1].x + imgs[imgs.length - 1].w;
-          pPr = '<w:spacing w:before="' + ptToTwip(gapBefore) + '" w:after="0" w:line="240" w:lineRule="auto"/>';
-          if (Math.abs((left + right) / 2 - area.mid) <= 6 && left - area.left > 12) pPr += '<w:jc w:val="center"/>';
-          else pPr += '<w:ind w:left="' + Math.max(0, ptToTwip(Math.min(left - area.left, maxW - totalW * scale))) + '"/>';
-          runs = imgs.map(function (im) { return docxDrawingXml(im.media, im.w * scale, im.h * scale, ++ids.n); }).join('');
+      pg.paras.forEach(function (para) {
+        var lines = para.lines;
+        var first = lines[0], last = lines[lines.length - 1];
+        var pitch = lines.length > 1 ? (last.y - first.y) / (lines.length - 1) : first.size * ratio;
+        lines.forEach(function (l) { pitch = Math.max(pitch, l.maxSize * 1.05); });
+        var top = first.y - pitch * 0.8;
+        var before = Math.max(0, top - cursor);
+        // Track where Word actually ends the paragraph so a clamped overlap is absorbed by later gaps instead of drifting.
+        cursor = Math.max(cursor, top) + pitch * lines.length;
+        var align = detectPdfAlignment(para, area);
+        var pPr = '';
+        if (first.tabStops.length) {
+          pPr += '<w:tabs>' + first.tabStops.map(function (x) {
+            return '<w:tab w:val="left" w:pos="' + Math.max(0, ptToTwip(x - area.left)) + '"/>';
+          }).join('') + '</w:tabs>';
         }
-        paragraphs.push({ pPr: pPr, runs: runs });
+        pPr += '<w:spacing w:before="' + ptToTwip(before) + '" w:after="0" w:line="' + ptToTwip(pitch) + '" w:lineRule="exact"/>';
+        if (align === 'left' || align === 'both') {
+          var bodyX = lines.length > 1 ? lines[1].x : first.x;
+          var indent = first.x - bodyX;
+          var paraRight = Math.max.apply(null, lines.map(function (l) { return l.right; }));
+          // Justified lines stretch to the paragraph's own right edge; left-aligned lines get slack
+          // into the margin so a slightly wider substitute font does not add a wrap.
+          var rightInd = align === 'both' ? Math.max(0, area.right - paraRight) : -Math.max(0, m.right - 7);
+          pPr += '<w:ind w:left="' + Math.max(0, ptToTwip(bodyX - area.left)) + '" w:right="' + ptToTwip(rightInd) + '"' +
+            (indent > 0.5 ? ' w:firstLine="' + ptToTwip(indent) + '"' : indent < -0.5 ? ' w:hanging="' + ptToTwip(-indent) + '"' : '') + '/>';
+        }
+        if (align !== 'left') pPr += '<w:jc w:val="' + align + '"/>';
+        paragraphs.push({ pPr: pPr, runs: pdfParagraphRunsXml(para) });
       });
 
-      var behind = pg.images.filter(function (im) { return im.behind; }).map(function (im) {
-        return docxDrawingXml(im.media, im.w, im.h, ++ids.n, { x: im.x, y: im.y });
-      }).join('');
+      // Images are page-anchored like the shapes, so borders drawn around them stay aligned.
+      var pageArea = pg.width * pg.height;
+      var behind = pg.paths.map(function (path) { return pdfShapeXml(path, ++ids.n, pageArea); }).join('') +
+        pg.images.map(function (im) {
+          return docxDrawingXml(im.media, im.w, im.h, ++ids.n, { x: im.x, y: im.y });
+        }).join('');
       if (!paragraphs.length) paragraphs.push({ pPr: '<w:spacing w:before="0" w:after="0"/>', runs: '' });
       paragraphs[0].runs = behind + paragraphs[0].runs;
 
@@ -2252,9 +2331,8 @@
       return packPdfDocx(body + finalSectPr, media);
     }
 
-    // ---- Exact-layout mode: every text chunk is a page-anchored frame and
-    // every vector path a DrawingML shape, so the page matches the PDF while
-    // text stays editable.
+    // Vector paths (lines, table borders, boxes) as page-anchored DrawingML
+    // shapes behind the flowing text.
     function pdfShapeXml(path, id, pageArea) {
       var minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
       path.cmds.forEach(function (c) {
@@ -2275,10 +2353,21 @@
         if (c.t === 'C') return '<a:cubicBezTo>' + p(c.p[0]) + p(c.p[1]) + p(c.p[2]) + '</a:cubicBezTo>';
         return '<a:close/>';
       }).join('');
-      var fill = path.fill ? '<a:solidFill><a:srgbClr val="' + path.fill + '"/></a:solidFill>' : '<a:noFill/>';
-      var ln = path.stroke
-        ? '<a:ln w="' + ptToEmu(path.lineWidth) + '"><a:solidFill><a:srgbClr val="' + path.stroke + '"/></a:solidFill></a:ln>'
-        : '<a:ln><a:noFill/></a:ln>';
+      function clr(hex, alpha) {
+        var a = alpha < 1 ? '<a:alpha val="' + Math.round(alpha * 100000) + '"/>' : '';
+        return '<a:solidFill><a:srgbClr val="' + hex + '">' + a + '</a:srgbClr></a:solidFill>';
+      }
+      var fill = path.fill ? clr(path.fill, path.fillAlpha) : '<a:noFill/>';
+      var dash = '';
+      if (path.dash) {
+        var arr = path.dash.length % 2 ? path.dash.concat(path.dash) : path.dash;
+        dash = '<a:custDash>';
+        for (var di = 0; di < arr.length; di += 2) {
+          dash += '<a:ds d="' + Math.max(1, Math.round(arr[di] * 100000)) + '" sp="' + Math.max(1, Math.round(arr[di + 1] * 100000)) + '"/>';
+        }
+        dash += '</a:custDash>';
+      }
+      var ln = path.stroke ? '<a:ln w="' + ptToEmu(path.lineWidth) + '">' + clr(path.stroke, path.strokeAlpha) + dash + '</a:ln>' : '<a:ln><a:noFill/></a:ln>';
       return '<w:r><w:drawing><wp:anchor distT="0" distB="0" distL="0" distR="0" simplePos="0" relativeHeight="' + id +
         '" behindDoc="1" locked="0" layoutInCell="1" allowOverlap="1"><wp:simplePos x="0" y="0"/>' +
         '<wp:positionH relativeFrom="page"><wp:posOffset>' + ptToEmu(minX) + '</wp:posOffset></wp:positionH>' +
@@ -2293,63 +2382,6 @@
         '</wps:spPr><wps:bodyPr/></wps:wsp></a:graphicData></a:graphic></wp:anchor></w:drawing></w:r>';
     }
 
-    // Splits a line at column gaps so table cells and tab-aligned text keep their own x.
-    function pdfLineChunks(line) {
-      var chunks = [], chunk = null, prev = null;
-      line.items.forEach(function (it) {
-        var gap = prev ? it.x - (prev.x + prev.w) : 0;
-        var unit = prev ? Math.min(prev.size, it.size) : 0;
-        if (!chunk || gap > unit * 1.5) {
-          chunk = { x: it.x, y: it.y, right: it.x + it.w, size: it.size, segs: [] };
-          chunks.push(chunk);
-        } else if (gap > unit * 0.15 && !/\s$/.test(prev.str) && !/^\s/.test(it.str)) {
-          chunk.segs.push({ text: ' ', style: prev });
-        }
-        chunk.segs.push({ text: it.str, style: it });
-        chunk.right = Math.max(chunk.right, it.x + it.w);
-        chunk.size = Math.max(chunk.size, it.size);
-        prev = it;
-      });
-      return chunks;
-    }
-
-    function pdfFrameParagraphXml(chunk, pageW) {
-      var size = chunk.size;
-      // Taller than the glyphs so Thai upper vowels/tone marks are not clipped.
-      var lineH = size * 1.5;
-      // Word bottom-aligns text in an exact-height line, so baseline = top + lineH - descent.
-      var top = chunk.y - lineH + size * 0.22;
-      var width = Math.min(Math.max(pageW - chunk.x, chunk.right - chunk.x), (chunk.right - chunk.x) * 1.15 + size * 2);
-      var merged = [];
-      chunk.segs.forEach(function (seg) {
-        var last = merged[merged.length - 1];
-        if (last && pdfStyleKey(last.style) === pdfStyleKey(seg.style)) last.text += seg.text;
-        else merged.push({ text: seg.text, style: seg.style });
-      });
-      return '<w:p><w:pPr><w:framePr w:w="' + Math.max(20, ptToTwip(width)) + '" w:wrap="around" w:hAnchor="page" w:vAnchor="page"' +
-        ' w:x="' + Math.max(0, ptToTwip(chunk.x)) + '" w:y="' + Math.max(0, ptToTwip(top)) + '"/>' +
-        '<w:spacing w:before="0" w:after="0" w:line="' + ptToTwip(lineH) + '" w:lineRule="exact"/></w:pPr>' +
-        merged.map(pdfRunXml).join('') + '</w:p>';
-    }
-
-    function buildPdfExactDocx(pages, media) {
-      var ids = { n: 0 };
-      var zero = { top: 0, right: 0, bottom: 0, left: 0 };
-      var body = '', finalSectPr = '';
-      pages.forEach(function (pg, idx) {
-        var pageArea = pg.width * pg.height;
-        var drawings = pg.paths.map(function (path) { return pdfShapeXml(path, ++ids.n, pageArea); }).join('') +
-          pg.images.map(function (im) { return docxDrawingXml(im.media, im.w, im.h, ++ids.n, { x: im.x, y: im.y }); }).join('');
-        var tiny = '<w:spacing w:before="0" w:after="0" w:line="20" w:lineRule="exact"/>';
-        body += '<w:p><w:pPr>' + tiny + '</w:pPr>' + drawings + '</w:p>';
-        pg.lines.forEach(function (line) {
-          pdfLineChunks(line).forEach(function (chunk) { body += pdfFrameParagraphXml(chunk, pg.width); });
-        });
-        finalSectPr = pdfSectPrXml(pg, zero);
-        if (idx < pages.length - 1) body += '<w:p><w:pPr>' + tiny + finalSectPr + '</w:pPr></w:p>';
-      });
-      return packPdfDocx(body + finalSectPr, media);
-    }
 
     function packPdfDocx(bodyXml, media) {
       var xmlHead = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>';
@@ -2397,7 +2429,7 @@
       return zip.generateAsync({ type: 'blob', compression: 'DEFLATE', mimeType: DOCX_MIME });
     }
 
-    async function runPdfToWord(files, onProgress, mode) {
+    async function runPdfToWord(files, onProgress) {
       if (!window.pdfjsLib) throw new Error('ไม่สามารถโหลดไลบรารีอ่าน PDF ได้ ลองรีเฟรชหน้านี้');
       if (!window.JSZip) throw new Error('ไม่สามารถโหลดไลบรารีสร้างไฟล์ Word ได้ ลองรีเฟรชหน้านี้');
       var file = files[0];
@@ -2415,7 +2447,7 @@
       } finally {
         doc.destroy();
       }
-      var blob = mode === 'flow' ? await buildPdfDocx(pages, media) : await buildPdfExactDocx(pages, media);
+      var blob = await buildPdfDocx(pages, media);
       var baseName = file.name.replace(/\.pdf$/i, '') || 'document';
       return [{ name: baseName + '.docx', blob: blob }];
     }
@@ -2558,16 +2590,7 @@
       'pdf|word': {
         accept: '.pdf,application/pdf', multiple: false, icon: 'bi-file-earmark-pdf',
         title: 'ลากไฟล์ PDF มาวางที่นี่', hint: '',
-        modes: [
-          {
-            value: 'exact', label: 'เหมือนต้นฉบับ (วางตามตำแหน่งเดิม)',
-            note: 'วางข้อความ เส้น ตาราง กรอบ สี และรูปภาพตามตำแหน่งเดิมบนหน้า ข้อความยังแก้ไขได้ แต่แต่ละบรรทัดเป็นกรอบแยกกัน จึงไม่เหมาะกับการพิมพ์เพิ่มยาวๆ — ถ้าเครื่องไม่มีฟอนต์ของ PDF จะใช้ฟอนต์อื่นแทน ความกว้างตัวอักษรอาจต่างเล็กน้อย'
-          },
-          {
-            value: 'flow', label: 'แก้ไขง่าย (จัดเป็นย่อหน้า)',
-            note: 'คงฟอนต์ ขนาด ตัวหนา/เอียง สี ย่อหน้า การจัดแนว ขนาดหน้า และรูปภาพไว้ใกล้เคียงต้นฉบับ — ตารางจะออกมาเป็นข้อความจัดด้วย Tab, ขีดเส้นใต้/เส้นกรอบไม่ถูกดึงมา และ PDF ที่สแกนจะได้เป็นรูปภาพ'
-          }
-        ],
+        note: 'ข้อความเป็นย่อหน้าปกติพิมพ์ต่อได้เหมือน Word คงฟอนต์ ขนาด สี ระยะบรรทัด การจัดแนว และรูปภาพ พร้อมวาดเส้น ตาราง กรอบ และพื้นสีตามตำแหน่งเดิม — ถ้าเครื่องไม่มีฟอนต์ของ PDF หรือ Word ตัดบรรทัดต่างจากต้นฉบับ ข้อความอาจเลื่อนจากเส้นตารางเล็กน้อย',
         runLabel: 'แปลงเป็น Word', zipBaseName: 'pdf-to-word',
         validate: validatePdfFile, run: runPdfToWord
       },
@@ -2583,12 +2606,6 @@
     };
 
     function currentPairKey() { return $fromSelect.val() + '|' + $toSelect.val(); }
-
-    function currentModeNote(cfg) {
-      var mode = (cfg.modes || []).filter(function (m) { return m.value === $modeSelect.val(); })[0];
-      return mode ? mode.note : (cfg.note || '');
-    }
-
     function setStageStatus(msg, kind) {
       $statusEl.text(msg || '');
       $statusEl.removeClass('text-good text-bad text-inksoft');
@@ -2687,10 +2704,7 @@
       if (!cfg) return;
       if (cfg.disabled) { $stageDisabled.removeAttr('hidden'); return; }
       if (cfg.alias) { $stageAlias.removeAttr('hidden'); return; }
-      $modeSelect.empty();
-      (cfg.modes || []).forEach(function (m) { $modeSelect.append($('<option>').val(m.value).text(m.label)); });
-      $modeWrap.attr('hidden', !cfg.modes);
-      $note.text(currentModeNote(cfg));
+      $note.text(cfg.note || '');
       $dropzoneTitle.text(cfg.title);
       $dropzoneHint.html('หรือ <span class="text-accentdeep font-semibold underline underline-offset-2">เลือกไฟล์จากเครื่อง</span>' + (cfg.hint ? ' — ' + cfg.hint : ''));
       $fileInput.attr('accept', cfg.accept);
@@ -2712,10 +2726,6 @@
 
     $fromSelect.on('change', populateToOptions);
     $toSelect.on('change', updatePairUI);
-    $modeSelect.on('change', function () {
-      var cfg = PAIRS[currentPairKey()];
-      if (cfg) $note.text(currentModeNote(cfg));
-    });
 
     $('#btn-convert-alias-pdf-image').on('click', function () {
       $viewConvertFiles.attr('hidden', true);
@@ -2752,7 +2762,7 @@
       setStageBusy(true);
       setStageStatus('', 'neutral');
       try {
-        var outFiles = await cfg.run(items.map(function (it) { return it.file; }), updateStageProgress, cfg.modes ? $modeSelect.val() : undefined);
+        var outFiles = await cfg.run(items.map(function (it) { return it.file; }), updateStageProgress);
         if (!outFiles || !outFiles.length) throw new Error('ไม่มีไฟล์ผลลัพธ์');
         var res = await deliverFiles(outFiles, cfg.zipBaseName || 'converted');
         setStageStatus(res.status === 'saved' ? 'บันทึกไฟล์สำเร็จ' : 'ส่งไฟล์เรียบร้อย', 'good');
@@ -2767,7 +2777,7 @@
 
     return {
       reset: function () {
-        $fromSelect.val('word');
+        $fromSelect.val('pdf');
         populateToOptions();
       }
     };
