@@ -316,14 +316,99 @@
   var $categoryGrid = $('#category-grid');
   var $toolSearch = $('#tool-search');
 
-  function makeToolTile(tool) {
-    var tag = tool.enabled ? 'button' : 'div';
-    var $el = $('<' + tag + '>');
+  // Favorites, history and theme live in localStorage: per-browser
+  // conveniences only, so every read tolerates missing or corrupt data.
+  var FAVORITES_KEY = 'toolbox.favorites';
+  var HISTORY_KEY = 'toolbox.history';
+  var HISTORY_ENABLED_KEY = 'toolbox.historyEnabled';
+  var THEME_KEY = 'toolbox.theme';
+  var HISTORY_MAX = 12;
+  function storeGet(key) {
+    try { return localStorage.getItem(key); } catch (e) { return null; }
+  }
+  function storeSet(key, value) {
+    try {
+      if (value === null) localStorage.removeItem(key); else localStorage.setItem(key, value);
+    } catch (e) { /* storage unavailable (private mode) */ }
+  }
+  function isToolId(id) { return TOOLS.some(function (t) { return t.id === id; }); }
+  function loadFavorites() {
+    try {
+      var list = JSON.parse(storeGet(FAVORITES_KEY) || '[]');
+      return Array.isArray(list) ? list.filter(function (id, i) { return typeof id === 'string' && isToolId(id) && list.indexOf(id) === i; }) : [];
+    } catch (e) { return []; }
+  }
+  function loadHistory() {
+    try {
+      var list = JSON.parse(storeGet(HISTORY_KEY) || '[]');
+      if (!Array.isArray(list)) return [];
+      return list.filter(function (h) { return h && typeof h.id === 'string' && isToolId(h.id) && typeof h.t === 'number' && isFinite(h.t); })
+        .slice(0, HISTORY_MAX);
+    } catch (e) { return []; }
+  }
+  var favorites = loadFavorites();
+  var historyList = loadHistory();
+  function historyEnabled() { return storeGet(HISTORY_ENABLED_KEY) !== '0'; }
+  function renderFavoriteCount() {
+    var $count = $('#fav-count');
+    $count.text(favorites.length);
+    if (favorites.length) $count.removeAttr('hidden'); else $count.attr('hidden', true);
+    // Pink filled heart once something is favorited, same as the tile badge.
+    $('#fav-nav-icon').attr('src', favorites.length ? 'assets/icons/icon-favorite-filled.svg' : 'assets/icons/icon-favorite.svg');
+  }
+  function saveFavorites() {
+    storeSet(FAVORITES_KEY, favorites.length ? JSON.stringify(favorites) : null);
+    renderFavoriteCount();
+  }
+  renderFavoriteCount();
+  function saveHistory() { storeSet(HISTORY_KEY, historyList.length ? JSON.stringify(historyList) : null); }
+  function toggleFavorite(id) {
+    var i = favorites.indexOf(id);
+    if (i === -1) favorites.push(id); else favorites.splice(i, 1);
+    saveFavorites();
+  }
+  function recordToolUse(id) {
+    if (!historyEnabled()) return;
+    historyList = historyList.filter(function (h) { return h.id !== id; });
+    historyList.unshift({ id: id, t: Date.now() });
+    historyList = historyList.slice(0, HISTORY_MAX);
+    saveHistory();
+  }
+  function timeAgo(t) {
+    var sec = Math.max(0, Math.round((Date.now() - t) / 1000));
+    if (sec < 60) return 'เมื่อสักครู่';
+    if (sec < 3600) return Math.floor(sec / 60) + ' นาทีที่แล้ว';
+    if (sec < 86400) return Math.floor(sec / 3600) + ' ชั่วโมงที่แล้ว';
+    if (sec < 86400 * 7) return Math.floor(sec / 86400) + ' วันที่แล้ว';
+    return new Date(t).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' });
+  }
+
+  // Theme: 'light' | 'dark' | 'system' (follows the OS setting live).
+  var themeMedia = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null;
+  function currentThemePref() {
+    var v = storeGet(THEME_KEY);
+    return v === 'light' || v === 'dark' ? v : 'system';
+  }
+  function applyTheme() {
+    var pref = currentThemePref();
+    var dark = pref === 'dark' || (pref === 'system' && themeMedia && themeMedia.matches);
+    document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
+  }
+  applyTheme();
+  if (themeMedia) {
+    var onSchemeChange = function () { if (currentThemePref() === 'system') applyTheme(); };
+    if (themeMedia.addEventListener) themeMedia.addEventListener('change', onSchemeChange);
+    else if (themeMedia.addListener) themeMedia.addListener(onSchemeChange);
+  }
+
+  function makeToolTile(tool, note) {
+    // A div wrapper so the favorite button isn't nested inside another button;
+    // the inner button keeps keyboard access and its click bubbles to $el.
+    var $el = $('<div>');
     // One shared lavender "glass" style (css/styles.css .tool-tile) so tiles follow the site tone.
-    $el.addClass('flex items-center gap-3.5 rounded-2xl px-4 py-4 transition duration-150 text-left w-full')
+    $el.addClass('relative flex items-center gap-3.5 rounded-2xl px-4 py-4 transition duration-150 text-left w-full')
       .addClass(tool.enabled ? 'tool-tile group' : 'tool-tile tool-tile-disabled');
     if (tool.enabled) {
-      $el.attr('type', 'button');
       $el.addClass('cursor-pointer hover:-translate-y-0.5 active:translate-y-0');
     } else {
       $el.attr({ role: 'group', 'aria-disabled': 'true' });
@@ -344,14 +429,35 @@
       );
     }
     $text.append($title, $('<span>').addClass('block text-[12px] text-inksoft mt-0.5 leading-snug line-clamp-2').text(tool.desc));
-    $el.append(
-      $('<span>').addClass('flex h-11 w-11 flex-none items-center justify-center rounded-xl overflow-hidden bg-cardicon ring-1 ring-line shadow-sm')
-        .append($('<img>').attr({ src: tool.img, alt: '' }).addClass('h-full w-full object-cover')),
-      $text,
-      $('<img>').attr({ src: 'assets/icons/icon-right-click.png', alt: '', 'aria-hidden': 'true' })
-        .addClass('h-8 w-8 flex-none object-contain drop-shadow-sm transition-transform duration-150')
-        .addClass(tool.enabled ? 'group-hover:translate-x-0.5' : 'grayscale opacity-50')
-    );
+    if (note) $text.append($('<span>').addClass('flex items-center gap-1 text-[11px] font-semibold text-accentdeep mt-0.5').append($('<i>').addClass('bi bi-clock-history leading-none'), $('<span>').text(note)));
+    var $iconBox = $('<span>').addClass('flex h-11 w-11 flex-none items-center justify-center rounded-xl overflow-hidden bg-cardicon ring-1 ring-line shadow-sm')
+      .append($('<img>').attr({ src: tool.img, alt: '' }).addClass('h-full w-full object-cover'));
+    var $arrow = $('<img>').attr({ src: 'assets/icons/icon-right-click.png', alt: '', 'aria-hidden': 'true' })
+      .addClass('h-8 w-8 flex-none object-contain drop-shadow-sm transition-transform duration-150')
+      .addClass(tool.enabled ? 'group-hover:translate-x-0.5' : 'grayscale opacity-50');
+    if (tool.enabled) {
+      var $main = $('<button>').attr('type', 'button')
+        .addClass('flex flex-1 min-w-0 items-center gap-3.5 text-left bg-transparent border-none p-0 cursor-pointer rounded-xl focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-4')
+        .append($iconBox, $text);
+      var fav = favorites.indexOf(tool.id) !== -1;
+      var favLabel = fav ? 'นำออกจากรายการโปรด' : 'เพิ่มในรายการโปรด';
+      // Badge on the icon's corner so it takes no width from the text.
+      var $fav = $('<button>').attr({ type: 'button', 'aria-pressed': fav ? 'true' : 'false', 'aria-label': favLabel, title: favLabel })
+        .addClass('fav-btn absolute left-[50px] top-[7px] flex h-6 w-6 items-center justify-center rounded-full bg-surface ring-1 ring-line shadow-sm cursor-pointer transition duration-150 hover:scale-110 focus-visible:opacity-100')
+        .addClass(fav ? 'is-fav' : 'opacity-0 group-hover:opacity-100')
+        .append($('<img>').attr({ src: fav ? 'assets/icons/icon-favorite-filled.svg' : 'assets/icons/icon-favorite.svg', alt: '' }).addClass('h-3.5 w-3.5'))
+        .on('click', function (e) {
+          e.stopPropagation();
+          toggleFavorite(tool.id);
+          renderCategories();
+          // Keep keyboard focus on the same tile's heart after the re-render.
+          $categoryGrid.find('[data-tool="' + tool.id + '"] .fav-btn').trigger('focus');
+        });
+      $el.attr('data-tool', tool.id).append($main, $fav, $arrow);
+      $el.on('click', function () { recordToolUse(tool.id); });
+    } else {
+      $el.append($iconBox, $text, $arrow);
+    }
     if (tool.id === 'convert') {
       $el.on('click', function () { openView($viewPdf); });
     } else if (tool.id === 'merge') {
@@ -445,23 +551,175 @@
     });
   }
 
+  // Home grid modes: 'home' (categories), 'favorites', 'history'.
+  var homeMode = 'home';
+  function toolById(id) { return TOOLS.filter(function (t) { return t.id === id; })[0]; }
   function renderCategories() {
     var query = $toolSearch.val().trim().toLowerCase();
+    var matches = function (t) { return !query || (t.label + ' ' + t.desc).toLowerCase().indexOf(query) !== -1; };
     $categoryGrid.empty();
-    var visible = TOOLS.filter(function (t) {
-      return inCategory(t, activeCategory) && (!query || t.label.toLowerCase().indexOf(query) !== -1);
-    });
-    if (!visible.length) {
-      $categoryGrid.append($('<p>').addClass('sm:col-span-2 text-sm text-inksoft text-center py-4')
-        .text(query ? 'ไม่พบเครื่องมือที่ค้นหาในหมวดนี้' : 'ยังไม่มีเครื่องมือในหมวดนี้'));
+    var items;
+    var empty;
+    if (homeMode === 'favorites') {
+      items = favorites.map(toolById).filter(function (t) { return t && matches(t); }).map(function (t) { return { tool: t }; });
+      empty = query ? 'ไม่พบเครื่องมือที่ค้นหาในรายการโปรด' : 'ยังไม่มีรายการโปรด กดรูปหัวใจที่มุมไอคอนเครื่องมือเพื่อเพิ่ม';
+    } else if (homeMode === 'history') {
+      items = historyList.map(function (h) { return { tool: toolById(h.id), note: 'ใช้ล่าสุด ' + timeAgo(h.t) }; })
+        .filter(function (it) { return it.tool && matches(it.tool); });
+      empty = query ? 'ไม่พบเครื่องมือที่ค้นหาในประวัติ' : (historyEnabled() ? 'ยังไม่มีประวัติการใช้งาน' : 'ปิดการบันทึกประวัติอยู่ เปิดได้ที่ ตั้งค่า');
+    } else {
+      items = TOOLS.filter(function (t) { return inCategory(t, activeCategory) && matches(t); }).map(function (t) { return { tool: t }; });
+      empty = query ? (activeCategory === 'all' ? 'ไม่พบเครื่องมือที่ค้นหา' : 'ไม่พบเครื่องมือที่ค้นหาในหมวดนี้') : 'ยังไม่มีเครื่องมือในหมวดนี้';
+    }
+    if (!items.length) {
+      $categoryGrid.append($('<p>').addClass('col-span-full text-sm text-inksoft text-center py-6').text(empty));
       return;
     }
-    visible.forEach(function (t) { $categoryGrid.append(makeToolTile(t)); });
+    items.forEach(function (it) { $categoryGrid.append(makeToolTile(it.tool, it.note)); });
   }
 
-  $toolSearch.on('input', renderCategories);
+  // Searching looks through every tool, so drop any category/favorites/history filter.
+  $toolSearch.on('input', function () {
+    if ($toolSearch.val().trim() && (homeMode !== 'home' || activeCategory !== 'all')) {
+      activeCategory = 'all';
+      try { localStorage.setItem(CATEGORY_STORAGE_KEY, 'all'); } catch (e) { /* ignore */ }
+      renderCategoryFilter();
+      setHomeMode('home');
+      return;
+    }
+    renderCategories();
+  });
   renderCategoryFilter();
   renderCategories();
+
+  var HOME_SECTION_TEXT = {
+    home: ['Category', 'เลือกหมวดหมู่ที่ต้องการใช้งาน'],
+    favorites: ['Favorites', 'เครื่องมือที่คุณกดหัวใจไว้'],
+    history: ['History', 'เครื่องมือที่ใช้ล่าสุด']
+  };
+  var $homeNavBtns = $('#home-nav [data-nav]');
+  function setHomeMode(mode) {
+    homeMode = mode;
+    $homeNavBtns.each(function () {
+      var on = $(this).data('nav') === mode;
+      $(this).attr('aria-current', on ? 'page' : null)
+        .toggleClass('bg-accentsoft text-accentdeep', on)
+        .toggleClass('text-inksoft hover:text-ink hover:bg-surface2', !on);
+    });
+    $('#home-section-title').text(HOME_SECTION_TEXT[mode][0]);
+    $('#home-section-sub').text(HOME_SECTION_TEXT[mode][1]);
+    $categoryFilter.toggle(mode === 'home');
+    $('#home-quote').toggleClass('md:block', mode === 'home');
+    $('#btn-history-clear').css('display', mode === 'history' && historyList.length ? 'inline-flex' : 'none');
+    renderCategories();
+  }
+  function clearHistory() {
+    historyList = [];
+    saveHistory();
+  }
+  $('#btn-history-clear').on('click', function () {
+    if (!window.confirm('ล้างประวัติการใช้งานทั้งหมด?')) return;
+    clearHistory();
+    setHomeMode('history');
+  });
+
+  // ----- Settings dialog -----
+  var $settings = $('#settings-dialog');
+  var $themeBtns = $('#settings-theme [data-theme-value]');
+  var $historyToggle = $('#settings-history-enabled');
+  var settingsReturnFocus = null;
+  function renderSettings() {
+    var pref = currentThemePref();
+    $themeBtns.each(function () {
+      var on = $(this).data('theme-value') === pref;
+      $(this).attr('aria-checked', on ? 'true' : 'false')
+        .toggleClass('bg-accent text-accentink shadow-sm', on)
+        .toggleClass('text-inksoft hover:text-ink', !on);
+    });
+    $historyToggle.prop('checked', historyEnabled());
+    $('#btn-settings-clear-fav').prop('disabled', !favorites.length)
+      .find('span').text('ล้างรายการโปรด' + (favorites.length ? ' (' + favorites.length + ')' : ''));
+    $('#btn-settings-clear-history').prop('disabled', !historyList.length)
+      .find('span').text('ล้างประวัติ' + (historyList.length ? ' (' + historyList.length + ')' : ''));
+  }
+  function openSettings() {
+    settingsReturnFocus = document.activeElement;
+    renderSettings();
+    $settings.removeAttr('hidden');
+    $('#btn-settings-close').trigger('focus');
+  }
+  function closeSettings() {
+    $settings.attr('hidden', true);
+    setHomeMode(homeMode);
+    // On mobile the settings entry sits in the collapsed menu; fall back to its toggle.
+    if (settingsReturnFocus && $(settingsReturnFocus).is(':visible')) settingsReturnFocus.focus();
+    else if ($navToggle.is(':visible')) $navToggle.trigger('focus');
+  }
+  // ----- Mobile menu (below md the nav is a dropdown) -----
+  var $nav = $('#home-nav');
+  var $navToggle = $('#btn-nav-toggle');
+  function setNavOpen(open) {
+    $nav.toggleClass('hidden', !open).toggleClass('flex', open);
+    $navToggle.attr({ 'aria-expanded': open ? 'true' : 'false', 'aria-label': open ? 'ปิดเมนู' : 'เปิดเมนู' })
+      .find('i').toggleClass('bi-list', !open).toggleClass('bi-x-lg', open);
+  }
+  $navToggle.on('click', function (e) {
+    e.stopPropagation();
+    setNavOpen($navToggle.attr('aria-expanded') !== 'true');
+  });
+  $(document).on('click', function (e) {
+    if ($navToggle.attr('aria-expanded') === 'true' && !$(e.target).closest('#home-nav').length) setNavOpen(false);
+  });
+  $(document).on('keydown', function (e) {
+    if (e.key === 'Escape' && $navToggle.attr('aria-expanded') === 'true') { setNavOpen(false); $navToggle.trigger('focus'); }
+  });
+  if (window.matchMedia) {
+    var mdQuery = window.matchMedia('(min-width: 768px)');
+    var onMd = function () { if (mdQuery.matches) setNavOpen(false); };
+    if (mdQuery.addEventListener) mdQuery.addEventListener('change', onMd); else if (mdQuery.addListener) mdQuery.addListener(onMd);
+  }
+
+  $homeNavBtns.on('click', function () {
+    var nav = $(this).data('nav');
+    setNavOpen(false);
+    if (nav === 'settings') openSettings(); else setHomeMode(nav);
+  });
+  $('#btn-settings-close').on('click', closeSettings);
+  $settings.on('click', function (e) { if (e.target === this) closeSettings(); });
+  $settings.on('keydown', function (e) {
+    if (e.key === 'Escape') { e.preventDefault(); closeSettings(); return; }
+    if (e.key !== 'Tab') return;
+    // Keep Tab focus inside the dialog.
+    var $f = $settings.find('button:not(:disabled), input:not(:disabled)').filter(':visible');
+    if (!$f.length) return;
+    if (e.shiftKey && document.activeElement === $f[0]) { e.preventDefault(); $f.last().trigger('focus'); }
+    else if (!e.shiftKey && document.activeElement === $f.last()[0]) { e.preventDefault(); $f.first().trigger('focus'); }
+  });
+  $themeBtns.on('click', function () {
+    var v = $(this).data('theme-value');
+    storeSet(THEME_KEY, v === 'system' ? null : v);
+    applyTheme();
+    renderSettings();
+  });
+  $historyToggle.on('change', function () {
+    var on = $historyToggle.prop('checked');
+    storeSet(HISTORY_ENABLED_KEY, on ? null : '0');
+    // Turning history off also forgets what was recorded.
+    if (!on) clearHistory();
+    renderSettings();
+  });
+  $('#btn-settings-clear-fav').on('click', function () {
+    if (!window.confirm('ล้างรายการโปรดทั้งหมด?')) return;
+    favorites = [];
+    saveFavorites();
+    renderSettings();
+  });
+  $('#btn-settings-clear-history').on('click', function () {
+    if (!window.confirm('ล้างประวัติการใช้งานทั้งหมด?')) return;
+    clearHistory();
+    renderSettings();
+  });
+  setHomeMode('home');
 
   // ---------- Helpers ----------
   function range(a, b) { var r = []; for (var i = a; i <= b; i++) r.push(i); return r; }

@@ -16,6 +16,16 @@
 
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-icons/1.11.3/font/bootstrap-icons.min.css">
 <link rel="stylesheet" href="css/styles.css">
+<!-- Apply the saved theme before first paint; js/app.js keeps it in sync. -->
+<script>
+  (function () {
+    try {
+      var t = localStorage.getItem('toolbox.theme');
+      var dark = t === 'dark' || (t !== 'light' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+      document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
+    } catch (e) { /* storage unavailable */ }
+  })();
+</script>
 </head>
 <body class="bg-paper text-ink font-sans leading-relaxed">
 
@@ -23,7 +33,7 @@
 <section id="view-home" class="animate-fade-in">
   <div class="max-w-[1500px] mx-auto px-5 sm:px-8 pt-6 pb-16">
 
-    <header class="flex items-center justify-between gap-4 flex-wrap pb-6">
+    <header class="relative flex items-center justify-between gap-4 pb-6">
       <div class="flex items-center gap-2.5">
         <img src="assets/brand/logo-toolbox-icon.svg" alt="" class="h-10 w-10 flex-none drop-shadow-sm" />
         <div class="leading-tight">
@@ -31,19 +41,25 @@
           <div class="text-[11px] text-inksoft">All the tools you need, in one place</div>
         </div>
       </div>
-      <nav class="flex items-center gap-1 text-[13px] font-semibold flex-wrap">
-        <span class="inline-flex items-center gap-1.5 rounded-xl bg-accentsoft text-accentdeep px-3 py-2">
+      <!-- Below md the nav collapses into this menu button (js/app.js setNavOpen). -->
+      <button type="button" id="btn-nav-toggle" class="md:hidden flex h-10 w-10 flex-none items-center justify-center rounded-xl bg-surface border border-line text-ink shadow-sm cursor-pointer hover:text-accentdeep" aria-controls="home-nav" aria-expanded="false" aria-label="เปิดเมนู">
+        <i class="bi bi-list text-xl leading-none"></i>
+      </button>
+      <!-- Home modes and settings, wired in js/app.js (setHomeMode) -->
+      <nav id="home-nav" class="hidden md:flex absolute md:static right-0 top-12 md:top-auto z-40 w-60 md:w-auto flex-col md:flex-row items-stretch md:items-center gap-1 p-2 md:p-0 bg-surface md:bg-transparent border border-line md:border-0 rounded-2xl md:rounded-none shadow-xl md:shadow-none text-[13px] font-semibold" aria-label="เมนูหลัก">
+        <button type="button" data-nav="home" class="home-nav-btn inline-flex items-center gap-1.5 rounded-xl px-3 py-2.5 md:py-2 cursor-pointer transition-colors duration-150 text-left">
           <img src="assets/icons/icon-home.svg" alt="" class="h-4 w-4 flex-none" />หน้าแรก
-        </span>
-        <span class="inline-flex items-center gap-1.5 rounded-xl text-inksoft px-3 py-2">
-          <img src="assets/icons/icon-favorite.svg" alt="" class="h-4 w-4 flex-none" />รายการโปรด
-        </span>
-        <span class="inline-flex items-center gap-1.5 rounded-xl text-inksoft px-3 py-2">
+        </button>
+        <button type="button" data-nav="favorites" class="home-nav-btn inline-flex items-center gap-1.5 rounded-xl px-3 py-2.5 md:py-2 cursor-pointer transition-colors duration-150 text-left">
+          <img src="assets/icons/icon-favorite.svg" alt="" class="h-4 w-4 flex-none" id="fav-nav-icon" />รายการโปรด
+          <span id="fav-count" class="rounded-full bg-accent text-accentink px-1.5 text-[11px] leading-[18px] font-bold" hidden></span>
+        </button>
+        <button type="button" data-nav="history" class="home-nav-btn inline-flex items-center gap-1.5 rounded-xl px-3 py-2.5 md:py-2 cursor-pointer transition-colors duration-150 text-left">
           <img src="assets/icons/icon-history.svg" alt="" class="h-4 w-4 flex-none" />ประวัติการใช้งาน
-        </span>
-        <span class="inline-flex items-center gap-1.5 rounded-xl text-inksoft px-3 py-2">
+        </button>
+        <button type="button" data-nav="settings" class="home-nav-btn inline-flex items-center gap-1.5 rounded-xl px-3 py-2.5 md:py-2 cursor-pointer transition-colors duration-150 text-left" aria-haspopup="dialog">
           <img src="assets/icons/icon-settings.svg" alt="" class="h-4 w-4 flex-none" />ตั้งค่า
-        </span>
+        </button>
       </nav>
     </header>
 
@@ -78,11 +94,14 @@
           <img src="assets/icons/icon-category.svg" alt="" class="h-[18px] w-[18px]" />
         </span>
         <div>
-          <h2 class="text-[13px] font-extrabold text-ink uppercase tracking-wide leading-tight">Category</h2>
-          <p class="text-[12px] text-inksoft">เลือกหมวดหมู่ที่ต้องการใช้งาน</p>
+          <h2 class="text-[13px] font-extrabold text-ink uppercase tracking-wide leading-tight" id="home-section-title">Category</h2>
+          <p class="text-[12px] text-inksoft" id="home-section-sub">เลือกหมวดหมู่ที่ต้องการใช้งาน</p>
         </div>
       </div>
-      <div class="hidden md:block rotate-2 text-[12px] font-semibold text-inksoft text-right leading-snug">
+      <button type="button" id="btn-history-clear" class="items-center gap-1.5 bg-surface border border-line text-inksoft text-[12.5px] font-bold px-3 py-1.5 rounded-lg cursor-pointer hover:border-bad hover:text-bad" style="display:none;">
+        <i class="bi bi-trash3 text-sm leading-none"></i> ล้างประวัติ
+      </button>
+      <div class="hidden md:block rotate-2 text-[12px] font-semibold text-inksoft text-right leading-snug" id="home-quote">
         “เครื่องมือดีๆ<br>ใช้งานได้ฟรีเสมอ” <i class="bi bi-heart-fill text-accent"></i>
       </div>
     </div>
@@ -94,6 +113,46 @@
 
   </div>
 </section>
+
+<!-- ============ SETTINGS DIALOG ============ -->
+<div id="settings-dialog" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="settings-title" hidden>
+  <div class="w-full max-w-md bg-surface border border-line rounded-2xl shadow-xl p-5 animate-fade-in">
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="flex items-center gap-2 text-lg font-extrabold" id="settings-title">
+        <img src="assets/icons/icon-settings.svg" alt="" class="h-5 w-5" /> ตั้งค่า
+      </h2>
+      <button type="button" id="btn-settings-close" class="flex h-8 w-8 items-center justify-center rounded-lg text-inksoft cursor-pointer hover:text-ink hover:bg-surface2" aria-label="ปิด">
+        <i class="bi bi-x-lg text-sm leading-none"></i>
+      </button>
+    </div>
+
+    <div class="text-[13px] font-bold mb-2">ธีม</div>
+    <div id="settings-theme" role="radiogroup" aria-label="ธีม" class="grid grid-cols-3 gap-1 p-1 rounded-xl bg-surface2 border border-line mb-5">
+      <button type="button" role="radio" data-theme-value="light" class="flex items-center justify-center gap-1.5 px-2 py-2 rounded-lg text-[12.5px] font-bold cursor-pointer transition-colors duration-150"><i class="bi bi-sun text-sm leading-none"></i> สว่าง</button>
+      <button type="button" role="radio" data-theme-value="dark" class="flex items-center justify-center gap-1.5 px-2 py-2 rounded-lg text-[12.5px] font-bold cursor-pointer transition-colors duration-150"><i class="bi bi-moon-stars text-sm leading-none"></i> มืด</button>
+      <button type="button" role="radio" data-theme-value="system" class="flex items-center justify-center gap-1.5 px-2 py-2 rounded-lg text-[12.5px] font-bold cursor-pointer transition-colors duration-150"><i class="bi bi-laptop text-sm leading-none"></i> ตามระบบ</button>
+    </div>
+
+    <label class="flex items-center justify-between gap-3 mb-5 cursor-pointer">
+      <span>
+        <span class="block text-[13px] font-bold">บันทึกประวัติการใช้งาน</span>
+        <span class="block text-[12px] text-inksoft">จำเครื่องมือที่เปิดล่าสุด (ไม่เก็บชื่อหรือเนื้อหาไฟล์)</span>
+      </span>
+      <input type="checkbox" id="settings-history-enabled" class="accent-accent w-[18px] h-[18px] flex-none" />
+    </label>
+
+    <div class="text-[13px] font-bold mb-2">ข้อมูลในเบราว์เซอร์นี้</div>
+    <div class="grid grid-cols-2 gap-2">
+      <button type="button" id="btn-settings-clear-fav" class="flex items-center justify-center gap-1.5 bg-surface border border-line text-ink text-[12.5px] font-bold px-3 py-2 rounded-lg cursor-pointer hover:border-bad hover:text-bad disabled:opacity-50 disabled:pointer-events-none">
+        <i class="bi bi-heart text-sm leading-none"></i> <span>ล้างรายการโปรด</span>
+      </button>
+      <button type="button" id="btn-settings-clear-history" class="flex items-center justify-center gap-1.5 bg-surface border border-line text-ink text-[12.5px] font-bold px-3 py-2 rounded-lg cursor-pointer hover:border-bad hover:text-bad disabled:opacity-50 disabled:pointer-events-none">
+        <i class="bi bi-clock-history text-sm leading-none"></i> <span>ล้างประวัติ</span>
+      </button>
+    </div>
+    <p class="text-[11.5px] text-inkfaint mt-3">การตั้งค่า รายการโปรด และประวัติ เก็บไว้ในเบราว์เซอร์เครื่องนี้เท่านั้น ไม่ได้ส่งไปที่ใด</p>
+  </div>
+</div>
 
 <div class="app max-w-[640px] mx-auto px-5 pt-10 pb-14">
 

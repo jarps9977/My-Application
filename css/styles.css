@@ -47,15 +47,32 @@
   --card-icon: #211d2e;
 }
 
-body {
+/* Artwork sits on a fixed layer instead of background-attachment: fixed,
+   which mobile browsers ignore or repaint as blank while scrolling.
+   cover keeps it filling the viewport at any width. */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
   background-image: url('../assets/main_background.png');
-  background-size: 100% auto;
-  background-position: bottom center;
+  background-size: cover;
+  background-position: center bottom;
   background-repeat: no-repeat;
-  background-attachment: fixed;
+}
+
+/* Dim the pastel artwork so dark surfaces keep their contrast. */
+:root[data-theme="dark"] body::before {
+  background-image: linear-gradient(rgba(23, 20, 31, 0.86), rgba(23, 20, 31, 0.86)), url('../assets/main_background.png');
 }
 
 [hidden] { display: none !important; }
+
+/* Favorite badge: hover-revealed on desktop, always shown on touch screens. */
+@media (hover: none) {
+  .tool-tile .fav-btn { opacity: 1; }
+}
 
 /* Home tool tiles: one translucent lavender card style that follows the
    site tone (light + dark) instead of a different pastel per tool. */

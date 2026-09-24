@@ -17,14 +17,14 @@
     <div class="flex items-center justify-between gap-2 px-4 py-2.5 border-b border-line">
       <label class="text-[13px] font-bold" for="case-text">ข้อความ</label>
       <div class="flex items-center gap-3">
-        <button type="button" id="btn-case-copy" class="flex items-center gap-1 bg-transparent border-none text-inksoft text-[12px] font-semibold cursor-pointer hover:text-accentdeep">
-          <i class="bi bi-clipboard text-sm leading-none"></i> คัดลอก
+        <button type="button" id="btn-case-copy" title="คัดลอก" aria-label="คัดลอก" class="flex items-center gap-1 bg-transparent border-none text-inksoft text-[12px] font-semibold cursor-pointer hover:text-accentdeep">
+          <i class="bi bi-clipboard text-sm leading-none"></i><span class="hidden sm:inline">คัดลอก</span>
         </button>
-        <button type="button" id="btn-case-download" class="flex items-center gap-1 bg-transparent border-none text-inksoft text-[12px] font-semibold cursor-pointer hover:text-accentdeep">
-          <i class="bi bi-download text-sm leading-none"></i> ดาวน์โหลด
+        <button type="button" id="btn-case-download" title="ดาวน์โหลด" aria-label="ดาวน์โหลด" class="flex items-center gap-1 bg-transparent border-none text-inksoft text-[12px] font-semibold cursor-pointer hover:text-accentdeep">
+          <i class="bi bi-download text-sm leading-none"></i><span class="hidden sm:inline">ดาวน์โหลด</span>
         </button>
-        <button type="button" id="btn-case-clear" class="flex items-center gap-1 bg-transparent border-none text-inksoft text-[12px] font-semibold cursor-pointer hover:text-bad">
-          <i class="bi bi-eraser text-sm leading-none"></i> ล้าง
+        <button type="button" id="btn-case-clear" title="ล้าง" aria-label="ล้าง" class="flex items-center gap-1 bg-transparent border-none text-inksoft text-[12px] font-semibold cursor-pointer hover:text-bad">
+          <i class="bi bi-eraser text-sm leading-none"></i><span class="hidden sm:inline">ล้าง</span>
         </button>
       </div>
     </div>

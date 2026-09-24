@@ -24,30 +24,30 @@
   <div class="grid grid-cols-1 md:grid-cols-2 bg-surface border border-line rounded-2xl shadow-sm overflow-hidden">
     <div class="flex flex-col min-w-0 md:border-r border-line">
       <div class="flex items-center justify-between gap-2 px-4 py-2.5 border-b border-line">
-        <label class="text-[13px] font-bold" for="htmlpv-code">โค้ด HTML</label>
+        <label class="text-[13px] font-bold whitespace-nowrap" for="htmlpv-code">โค้ด HTML</label>
         <div class="flex items-center gap-3">
-          <button type="button" id="btn-htmlpv-open" class="flex items-center gap-1 bg-transparent border-none text-inksoft text-[12px] font-semibold cursor-pointer hover:text-accentdeep" title="เปิดไฟล์ .html">
-            <i class="bi bi-folder2-open text-sm leading-none"></i> เปิดไฟล์
+          <button type="button" id="btn-htmlpv-open" class="flex items-center gap-1 bg-transparent border-none text-inksoft text-[12px] font-semibold cursor-pointer hover:text-accentdeep" title="เปิดไฟล์ .html" aria-label="เปิดไฟล์">
+            <i class="bi bi-folder2-open text-sm leading-none"></i><span class="hidden sm:inline">เปิดไฟล์</span>
           </button>
-          <button type="button" id="btn-htmlpv-copy" class="flex items-center gap-1 bg-transparent border-none text-inksoft text-[12px] font-semibold cursor-pointer hover:text-accentdeep">
-            <i class="bi bi-clipboard text-sm leading-none"></i> คัดลอก
+          <button type="button" id="btn-htmlpv-copy" title="คัดลอก" aria-label="คัดลอก" class="flex items-center gap-1 bg-transparent border-none text-inksoft text-[12px] font-semibold cursor-pointer hover:text-accentdeep">
+            <i class="bi bi-clipboard text-sm leading-none"></i><span class="hidden sm:inline">คัดลอก</span>
           </button>
-          <button type="button" id="btn-htmlpv-download" class="flex items-center gap-1 bg-transparent border-none text-inksoft text-[12px] font-semibold cursor-pointer hover:text-accentdeep">
-            <i class="bi bi-download text-sm leading-none"></i> ดาวน์โหลด
+          <button type="button" id="btn-htmlpv-download" title="ดาวน์โหลด" aria-label="ดาวน์โหลด" class="flex items-center gap-1 bg-transparent border-none text-inksoft text-[12px] font-semibold cursor-pointer hover:text-accentdeep">
+            <i class="bi bi-download text-sm leading-none"></i><span class="hidden sm:inline">ดาวน์โหลด</span>
           </button>
-          <button type="button" id="btn-htmlpv-clear" class="flex items-center gap-1 bg-transparent border-none text-inksoft text-[12px] font-semibold cursor-pointer hover:text-bad">
-            <i class="bi bi-eraser text-sm leading-none"></i> ล้าง
+          <button type="button" id="btn-htmlpv-clear" title="ล้าง" aria-label="ล้าง" class="flex items-center gap-1 bg-transparent border-none text-inksoft text-[12px] font-semibold cursor-pointer hover:text-bad">
+            <i class="bi bi-eraser text-sm leading-none"></i><span class="hidden sm:inline">ล้าง</span>
           </button>
         </div>
       </div>
-      <textarea id="htmlpv-code" spellcheck="false" wrap="off" class="w-full h-[calc(100vh-235px)] min-h-[360px] px-4 py-3 border-none bg-surface text-ink text-[12.5px] font-mono leading-relaxed resize-y outline-none" placeholder="วางหรือพิมพ์โค้ด HTML ที่นี่ แล้วดูผลทางขวาทันที..."></textarea>
+      <textarea id="htmlpv-code" spellcheck="false" wrap="off" class="w-full h-[45vh] md:h-[calc(100vh-235px)] min-h-[260px] md:min-h-[360px] px-4 py-3 border-none bg-surface text-ink text-[12.5px] font-mono leading-relaxed resize-y outline-none" placeholder="วางหรือพิมพ์โค้ด HTML ที่นี่ แล้วดูผลทางขวาทันที..."></textarea>
       <div class="px-4 py-1.5 border-t border-line text-[11.5px] text-inkfaint text-right font-mono" id="htmlpv-meta">บรรทัด 0 · ตัวอักษร 0</div>
     </div>
     <div class="flex flex-col min-w-0 border-t md:border-t-0 border-line">
       <div class="flex items-center justify-between gap-2 px-4 py-2.5 border-b border-line">
         <span class="text-[13px] font-bold">ผลลัพธ์</span>
       </div>
-      <div class="relative flex-1 min-h-[360px] md:min-h-0 bg-white">
+      <div class="relative flex-1 min-h-[55vh] md:min-h-0 bg-white">
         <!-- Sandboxed: never allow-same-origin, so previewed code can't reach this page. -->
         <iframe id="htmlpv-frame" title="ผลลัพธ์ HTML" sandbox="allow-scripts" referrerpolicy="no-referrer" class="absolute inset-0 block h-full w-full bg-white border-none"></iframe>
       </div>
