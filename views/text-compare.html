@@ -1,0 +1,68 @@
+<section id="view-text-compare" class="animate-fade-in" hidden>
+  <div class="mt-9 mb-5">
+    <button class="inline-flex items-center gap-1.5 bg-transparent border-none text-inksoft text-sm font-semibold cursor-pointer py-1.5 hover:text-ink" id="btn-text-compare-back" type="button">
+      <i class="bi bi-chevron-left text-base leading-none"></i>
+      กลับหน้าหลัก
+    </button>
+  </div>
+
+  <div class="flex items-center justify-between flex-wrap gap-3 mb-5">
+    <div class="flex items-center gap-3">
+      <span class="flex h-9 w-9 flex-none items-center justify-center rounded-full bg-accentsoft text-accent">
+        <i class="bi bi-file-diff text-lg leading-none"></i>
+      </span>
+      <h2 class="text-xl font-extrabold">เปรียบเทียบข้อความ</h2>
+    </div>
+    <div class="flex items-center gap-2 flex-wrap">
+      <label class="flex items-center gap-1.5 text-[12.5px] font-medium"><input type="checkbox" id="textcmp-opt-case" class="accent-accent w-[15px] h-[15px]" /> ไม่สนตัวพิมพ์เล็ก/ใหญ่</label>
+      <label class="flex items-center gap-1.5 text-[12.5px] font-medium ml-2"><input type="checkbox" id="textcmp-opt-space" class="accent-accent w-[15px] h-[15px]" /> ไม่สนช่องว่าง</label>
+      <button type="button" id="btn-textcmp-swap" class="flex items-center gap-1.5 bg-surface border border-line text-ink text-[12.5px] font-bold px-3 py-1.5 rounded-lg cursor-pointer hover:border-accent hover:text-accentdeep ml-2" title="สลับซ้าย-ขวา">
+        <i class="bi bi-arrow-left-right text-sm leading-none"></i> สลับ
+      </button>
+      <button type="button" id="btn-textcmp-clear" class="flex items-center gap-1.5 bg-surface border border-line text-ink text-[12.5px] font-bold px-3 py-1.5 rounded-lg cursor-pointer hover:border-bad hover:text-bad">
+        <i class="bi bi-eraser text-sm leading-none"></i> ล้าง
+      </button>
+    </div>
+  </div>
+
+  <!-- Editors: original (left) / changed (right); the diff below updates as you type. -->
+  <div class="grid grid-cols-1 md:grid-cols-2 bg-surface border border-line rounded-2xl shadow-sm overflow-hidden">
+    <div class="flex flex-col min-w-0 md:border-r border-line">
+      <div class="flex items-center justify-between px-4 py-2.5 border-b border-line">
+        <label class="text-[13px] font-bold text-bad" for="textcmp-left">ต้นฉบับ</label>
+        <button type="button" class="textcmp-open flex items-center gap-1 bg-transparent border-none text-inksoft text-[12px] font-semibold cursor-pointer hover:text-accentdeep" data-target="left" title="เปิดไฟล์ข้อความ">
+          <i class="bi bi-folder2-open text-sm leading-none"></i> เปิดไฟล์
+        </button>
+      </div>
+      <textarea id="textcmp-left" rows="12" spellcheck="false" wrap="soft" class="w-full flex-1 px-4 py-3 border-none bg-surface text-ink text-[12.5px] font-mono leading-relaxed resize-y outline-none" placeholder="วางข้อความต้นฉบับที่นี่..."></textarea>
+      <div class="px-4 py-1.5 border-t border-line text-[11.5px] text-inkfaint text-right font-mono" id="textcmp-left-meta">บรรทัด 0 · ตัวอักษร 0</div>
+    </div>
+    <div class="flex flex-col min-w-0 border-t md:border-t-0 border-line">
+      <div class="flex items-center justify-between px-4 py-2.5 border-b border-line">
+        <label class="text-[13px] font-bold text-good" for="textcmp-right">ที่แก้ไข</label>
+        <button type="button" class="textcmp-open flex items-center gap-1 bg-transparent border-none text-inksoft text-[12px] font-semibold cursor-pointer hover:text-accentdeep" data-target="right" title="เปิดไฟล์ข้อความ">
+          <i class="bi bi-folder2-open text-sm leading-none"></i> เปิดไฟล์
+        </button>
+      </div>
+      <textarea id="textcmp-right" rows="12" spellcheck="false" wrap="soft" class="w-full flex-1 px-4 py-3 border-none bg-surface text-ink text-[12.5px] font-mono leading-relaxed resize-y outline-none" placeholder="วางข้อความที่แก้ไขที่นี่..."></textarea>
+      <div class="px-4 py-1.5 border-t border-line text-[11.5px] text-inkfaint text-right font-mono" id="textcmp-right-meta">บรรทัด 0 · ตัวอักษร 0</div>
+    </div>
+  </div>
+  <input type="file" id="textcmp-file-input" accept=".txt,.md,.csv,.json,.xml,.html,.css,.js,.ts,.py,.sql,.log,.ini,.yml,.yaml,text/*" class="sr-only" />
+  <div class="status-line mt-2.5 text-[12.5px] min-h-[16px]" id="textcmp-status"></div>
+
+  <div class="bg-surface border border-line rounded-2xl shadow-sm mt-2 overflow-hidden" id="textcmp-result-panel" hidden>
+    <div class="flex items-center gap-2 px-4 py-2.5 border-b border-line">
+      <i class="bi bi-file-diff text-accent text-base leading-none"></i>
+      <span class="text-[13px] font-extrabold">ผลการเปรียบเทียบ</span>
+    </div>
+    <div class="flex items-center gap-2.5 px-4 py-3 bg-goodsoft text-good text-[13px] font-bold" id="textcmp-same" hidden>
+      <i class="bi bi-check-lg text-base leading-none"></i> ข้อความทั้งสองชุดเหมือนกันทั้งหมด
+    </div>
+    <div class="diff-head" id="textcmp-diff-head">
+      <div class="flex items-center justify-between px-4 py-2 border-b border-line"><span class="text-[12.5px] font-bold text-bad">ต้นฉบับ</span><span class="text-[12px] font-semibold text-bad" id="textcmp-removed"></span></div>
+      <div class="flex items-center justify-between px-4 py-2 border-b border-line diff-split"><span class="text-[12.5px] font-bold text-good">ที่แก้ไข</span><span class="text-[12px] font-semibold text-good" id="textcmp-added"></span></div>
+    </div>
+    <div id="textcmp-result" class="max-h-[600px] overflow-auto text-[12.5px] font-mono leading-relaxed"></div>
+  </div>
+</section>

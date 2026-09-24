@@ -45,6 +45,9 @@
   var $viewVideoConvert = $(); // populated once views/video-convert.html is fetched and mounted
   var $viewFileResize = $(); // populated once views/file-resize.html is fetched and mounted
   var $viewFileEncrypt = $(); // populated once views/file-encrypt.html is fetched and mounted
+  var $viewFileDecrypt = $(); // populated once views/file-decrypt.html is fetched and mounted
+  var $viewOcr = $(); // populated once views/ocr.html is fetched and mounted
+  var $viewTextCompare = $(); // populated once views/text-compare.html is fetched and mounted
   function openView($view) {
     $viewHome.attr('hidden', true);
     $viewPdf.attr('hidden', true);
@@ -56,6 +59,11 @@
     $viewVideoConvert.attr('hidden', true);
     $viewFileResize.attr('hidden', true);
     $viewFileEncrypt.attr('hidden', true);
+    $viewFileDecrypt.attr('hidden', true);
+    $viewOcr.attr('hidden', true);
+    $viewTextCompare.attr('hidden', true);
+    // Side-by-side diff needs more width than the 640px tool column.
+    $('.app').toggleClass('app-wide', $view.is($viewTextCompare));
     $view.removeAttr('hidden');
   }
   $('#btn-back').on('click', function () {
@@ -177,51 +185,95 @@
     console.error('ไม่สามารถโหลด views/file-encrypt.html ได้');
   });
 
+  // Same fetch-and-mount pattern for the "file decrypt" view
+  // (views/file-decrypt.html).
+  var fileDecryptViewReady = $.get('views/file-decrypt.html').done(function (html) {
+    $('#view-file-decrypt-mount').replaceWith(html);
+    $viewFileDecrypt = $('#view-file-decrypt');
+    $('#btn-file-decrypt-back').on('click', function () {
+      $viewFileDecrypt.attr('hidden', true);
+      $viewHome.removeAttr('hidden');
+    });
+    initFileDecryptView();
+  }).fail(function () {
+    console.error('ไม่สามารถโหลด views/file-decrypt.html ได้');
+  });
+
+  // Same fetch-and-mount pattern for the "OCR" view (views/ocr.html).
+  var ocrViewReady = $.get('views/ocr.html').done(function (html) {
+    $('#view-ocr-mount').replaceWith(html);
+    $viewOcr = $('#view-ocr');
+    $('#btn-ocr-back').on('click', function () {
+      $viewOcr.attr('hidden', true);
+      $viewHome.removeAttr('hidden');
+    });
+    initOcrView();
+  }).fail(function () {
+    console.error('ไม่สามารถโหลด views/ocr.html ได้');
+  });
+
+  // Same fetch-and-mount pattern for the "text compare" view
+  // (views/text-compare.html).
+  var textCompareViewReady = $.get('views/text-compare.html').done(function (html) {
+    $('#view-text-compare-mount').replaceWith(html);
+    $viewTextCompare = $('#view-text-compare');
+    $('#btn-text-compare-back').on('click', function () {
+      $viewTextCompare.attr('hidden', true);
+      $viewHome.removeAttr('hidden');
+    });
+    initTextCompareView();
+  }).fail(function () {
+    console.error('ไม่สามารถโหลด views/text-compare.html ได้');
+  });
+
   // ---------- Category tiles ----------
   // Each tool's home tile now carries only an icon + short bold label (no
   // description, no status tag) — disabled tools are still distinguished
   // visually (dimmed, non-interactive).
   var TOOLS = [
-    { id: 'convert', label: 'แปลง PDF เป็นรูปภาพ', desc: 'แยกภาพจากไฟล์ PDF อย่างง่าย', enabled: true, img: 'assets/pdf-to-image.png', color: 'pink' },
-    { id: 'split', label: 'แยกไฟล์ PDF', desc: 'แยกหน้า PDF เป็นหลายไฟล์', enabled: true, img: 'assets/split-pdf.png', color: 'yellow' },
-    { id: 'merge', label: 'รวมไฟล์ PDF', desc: 'รวมหลายไฟล์เป็นไฟล์เดียว', enabled: true, img: 'assets/merge-pdf.png', color: 'blue' },
-    { id: 'convert-files', label: 'แปลงไฟล์', desc: 'แปลงไฟล์ได้หลากหลายรูปแบบ', enabled: true, img: 'assets/convert-file.png', color: 'green' },
-    { id: 'video-convert', label: 'แปลงวิดีโอ', desc: 'แปลงวิดีโอไปมาระหว่างฟอร์แมต', enabled: true, img: 'assets/video-convert.svg', color: 'orange' },
-    { id: 'text-gen', label: 'สร้างข้อความ', desc: 'สร้างและแก้ไขข้อความออนไลน์', enabled: true, img: 'assets/create-text.png', color: 'teal' },
-    { id: 'test-file', label: 'สร้างไฟล์ทดสอบ', desc: 'สร้างไฟล์ตัวอย่างสำหรับทดสอบ', enabled: true, img: 'assets/create-test.png', color: 'rose' },
-    { id: 'file-resize', label: 'ปรับขนาดไฟล์', desc: 'เพิ่มหรือลดขนาดไฟล์ตามที่กำหนด', enabled: true, img: 'assets/file-resize.svg', color: 'indigo' },
-    { id: 'file-encrypt', label: 'เข้ารหัสไฟล์', desc: 'ใส่รหัสผ่านป้องกันไฟล์', enabled: true, img: 'assets/file-encrypt.svg', color: 'cyan' },
-    { id: 'compress', label: 'บีบอัดรูปภาพ', desc: 'ลดขนาดไฟล์รูปภาพ แบบไม่เสียคุณภาพ', enabled: false, img: 'assets/compress-image.png', color: 'gray' },
-    { id: 'ocr', label: 'อ่านข้อความจากภาพ', desc: 'ดึงข้อความจากรูปภาพ (OCR)', enabled: false, img: 'assets/ocr.png', color: 'gray' }
+    { id: 'convert', label: 'แปลง PDF เป็นรูปภาพ', desc: 'แยกภาพจากไฟล์ PDF อย่างง่าย', enabled: true, img: 'assets/pdf-to-image.png', cats: ['pdf', 'image', 'convert'] },
+    { id: 'split', label: 'แยกไฟล์ PDF', desc: 'แยกหน้า PDF เป็นหลายไฟล์', enabled: true, img: 'assets/split-pdf.png', cats: ['pdf'] },
+    { id: 'merge', label: 'รวมไฟล์ PDF', desc: 'รวมหลายไฟล์เป็นไฟล์เดียว', enabled: true, img: 'assets/merge-pdf.png', cats: ['pdf'] },
+    { id: 'convert-files', label: 'แปลงไฟล์', desc: 'แปลงไฟล์ได้หลากหลายรูปแบบ', enabled: true, img: 'assets/convert-file.png', cats: ['convert'] },
+    { id: 'video-convert', label: 'แปลงวิดีโอ', desc: 'แปลงวิดีโอไปมาระหว่างฟอร์แมต', enabled: true, img: 'assets/video-convert.svg', cats: ['convert'] },
+    { id: 'text-gen', label: 'สร้างข้อความ', desc: 'สร้างและแก้ไขข้อความออนไลน์', enabled: true, img: 'assets/create-text.png', cats: ['text'] },
+    { id: 'text-compare', label: 'เปรียบเทียบข้อความ', desc: 'หาจุดที่ต่างกันระหว่างข้อความสองชุด', enabled: true, img: 'assets/text-compare.svg', cats: ['text'] },
+    { id: 'test-file', label: 'สร้างไฟล์ทดสอบ', desc: 'สร้างไฟล์ตัวอย่างสำหรับทดสอบ', enabled: true, img: 'assets/create-test.png', cats: ['file'] },
+    { id: 'file-resize', label: 'ปรับขนาดไฟล์', desc: 'เพิ่มหรือลดขนาดไฟล์ตามที่กำหนด', enabled: true, img: 'assets/file-resize.svg', cats: ['file'] },
+    { id: 'file-encrypt', label: 'เข้ารหัสไฟล์', desc: 'ใส่รหัสผ่านป้องกันไฟล์', enabled: true, img: 'assets/file-encrypt.svg', cats: ['security'] },
+    { id: 'file-decrypt', label: 'ถอดรหัสไฟล์', desc: 'ปลดรหัสผ่านไฟล์ด้วยรหัสที่ถูกต้อง', enabled: true, img: 'assets/file-decrypt.svg', cats: ['security'] },
+    { id: 'compress', label: 'บีบอัดรูปภาพ', desc: 'ลดขนาดไฟล์รูปภาพ แบบไม่เสียคุณภาพ', enabled: false, img: 'assets/compress-image.png', cats: ['image'] },
+    { id: 'ocr', label: 'อ่านข้อความจากภาพ', desc: 'ดึงข้อความจากรูปภาพ (OCR)', enabled: true, img: 'assets/ocr.png', cats: ['image', 'text'] }
   ];
-  // Pastel background/icon/arrow theme per card color, mapped to the
-  // --card-* CSS variables in css/styles.css (light + dark mode aware).
-  // Every enabled tool gets its own distinct color (see TOOLS below) so
-  // tiles are distinguishable at a glance; "gray" is reserved for disabled
-  // ("เร็วๆ นี้") tiles, which all share it instead of getting their own hue.
-  var CARD_THEMES = {
-    pink: { bg: 'bg-cardpink', icon: 'bg-cardpinkdeep', arrow: 'text-cardpinkdeep' },
-    yellow: { bg: 'bg-cardyellow', icon: 'bg-cardyellowdeep', arrow: 'text-cardyellowdeep' },
-    blue: { bg: 'bg-cardblue', icon: 'bg-cardbluedeep', arrow: 'text-cardbluedeep' },
-    green: { bg: 'bg-cardgreen', icon: 'bg-cardgreendeep', arrow: 'text-cardgreendeep' },
-    orange: { bg: 'bg-cardorange', icon: 'bg-cardorangedeep', arrow: 'text-cardorangedeep' },
-    teal: { bg: 'bg-cardteal', icon: 'bg-cardtealdeep', arrow: 'text-cardtealdeep' },
-    rose: { bg: 'bg-cardrose', icon: 'bg-cardrosedeep', arrow: 'text-cardrosedeep' },
-    indigo: { bg: 'bg-cardindigo', icon: 'bg-cardindigodeep', arrow: 'text-cardindigodeep' },
-    cyan: { bg: 'bg-cardcyan', icon: 'bg-cardcyandeep', arrow: 'text-cardcyandeep' },
-    gray: { bg: 'bg-cardgray', icon: 'bg-cardgraydeep', arrow: 'text-cardgraydeep' }
-  };
+  // Home-page category filter; a tool can sit in more than one category.
+  var TOOL_CATEGORIES = [
+    { id: 'all', label: 'ทั้งหมด', icon: 'bi-grid' },
+    { id: 'pdf', label: 'PDF', icon: 'bi-file-earmark-pdf' },
+    { id: 'convert', label: 'แปลงไฟล์', icon: 'bi-arrow-repeat' },
+    { id: 'image', label: 'รูปภาพ', icon: 'bi-image' },
+    { id: 'text', label: 'ข้อความ', icon: 'bi-fonts' },
+    { id: 'file', label: 'จัดการไฟล์', icon: 'bi-folder2' },
+    { id: 'security', label: 'ความปลอดภัย', icon: 'bi-shield-lock' }
+  ];
+  var CATEGORY_STORAGE_KEY = 'toolbox.category';
+  var activeCategory = 'all';
+  try {
+    var savedCategory = localStorage.getItem(CATEGORY_STORAGE_KEY);
+    if (TOOL_CATEGORIES.some(function (c) { return c.id === savedCategory; })) activeCategory = savedCategory;
+  } catch (e) { /* storage unavailable (private mode) */ }
+
   var $categoryGrid = $('#category-grid');
   var $toolSearch = $('#tool-search');
 
   function makeToolTile(tool) {
-    var theme = CARD_THEMES[tool.color];
     var tag = tool.enabled ? 'button' : 'div';
     var $el = $('<' + tag + '>');
-    $el.addClass('flex items-center gap-3.5 rounded-2xl px-4 py-4 transition duration-150 text-left w-full').addClass(theme.bg);
+    // One shared lavender "glass" style (css/styles.css .tool-tile) so tiles follow the site tone.
+    $el.addClass('flex items-center gap-3.5 rounded-2xl px-4 py-4 transition duration-150 text-left w-full')
+      .addClass(tool.enabled ? 'tool-tile group' : 'tool-tile tool-tile-disabled');
     if (tool.enabled) {
       $el.attr('type', 'button');
-      $el.addClass('cursor-pointer hover:-translate-y-0.5 hover:shadow-md active:translate-y-0');
+      $el.addClass('cursor-pointer hover:-translate-y-0.5 active:translate-y-0');
     } else {
       $el.attr({ role: 'group', 'aria-disabled': 'true' });
       $el.addClass('cursor-default');
@@ -242,11 +294,14 @@
     }
     $text.append($title, $('<span>').addClass('block text-[12px] text-inksoft mt-0.5 truncate').text(tool.desc));
     $el.append(
-      $('<span>').addClass('flex h-11 w-11 flex-none items-center justify-center rounded-xl overflow-hidden bg-cardicon shadow-sm')
+      $('<span>').addClass('flex h-11 w-11 flex-none items-center justify-center rounded-xl overflow-hidden bg-cardicon ring-1 ring-line shadow-sm')
         .append($('<img>').attr({ src: tool.img, alt: '' }).addClass('h-full w-full object-cover')),
       $text,
-      $('<span>').addClass('flex h-8 w-8 flex-none items-center justify-center rounded-full bg-cardicon shadow-sm').addClass(theme.arrow)
-        .append($('<i>').addClass('bi bi-arrow-right text-sm leading-none'))
+      // Same accent fill as the search button, so it follows the theme (light/dark).
+      $('<span>').attr('aria-hidden', 'true')
+        .addClass('flex h-8 w-8 flex-none items-center justify-center rounded-full shadow-sm transition-colors duration-150')
+        .addClass(tool.enabled ? 'bg-accent text-accentink group-hover:bg-accentdeep' : 'bg-line text-inkfaint')
+        .append($('<i>').addClass('bi bi-arrow-right text-[15px] leading-none'))
     );
     if (tool.id === 'convert') {
       $el.on('click', function () { openView($viewPdf); });
@@ -285,22 +340,66 @@
       $el.on('click', function () {
         $.when(fileEncryptViewReady).done(function () { openView($viewFileEncrypt); });
       });
+    } else if (tool.id === 'file-decrypt') {
+      $el.on('click', function () {
+        $.when(fileDecryptViewReady).done(function () { openView($viewFileDecrypt); });
+      });
+    } else if (tool.id === 'ocr') {
+      $el.on('click', function () {
+        $.when(ocrViewReady).done(function () { openView($viewOcr); });
+      });
+    } else if (tool.id === 'text-compare') {
+      $el.on('click', function () {
+        $.when(textCompareViewReady).done(function () { openView($viewTextCompare); });
+      });
     }
     return $el;
+  }
+
+  var $categoryFilter = $('#category-filter');
+
+  function inCategory(tool, catId) {
+    return catId === 'all' || tool.cats.indexOf(catId) !== -1;
+  }
+  function renderCategoryFilter() {
+    $categoryFilter.empty();
+    TOOL_CATEGORIES.forEach(function (cat) {
+      var active = cat.id === activeCategory;
+      var count = TOOLS.filter(function (t) { return inCategory(t, cat.id); }).length;
+      var $chip = $('<button>').attr({ type: 'button', role: 'tab', 'aria-selected': active ? 'true' : 'false' })
+        .addClass('inline-flex flex-none items-center gap-1.5 rounded-full px-3.5 py-1.5 text-[12.5px] font-bold whitespace-nowrap border transition-colors duration-150 cursor-pointer')
+        .addClass(active ? 'bg-accent border-accent text-accentink' : 'bg-surface border-line text-inksoft hover:text-accentdeep hover:border-accent')
+        .append(
+          $('<i>').addClass('bi ' + cat.icon + ' text-[13px] leading-none'),
+          $('<span>').text(cat.label),
+          $('<span>').addClass('rounded-full px-1.5 text-[11px] leading-[18px] ' + (active ? 'bg-white/25' : 'bg-surface2')).text(count)
+        );
+      $chip.on('click', function () {
+        activeCategory = cat.id;
+        try { localStorage.setItem(CATEGORY_STORAGE_KEY, cat.id); } catch (e) { /* ignore */ }
+        renderCategoryFilter();
+        renderCategories();
+      });
+      $categoryFilter.append($chip);
+    });
   }
 
   function renderCategories() {
     var query = $toolSearch.val().trim().toLowerCase();
     $categoryGrid.empty();
-    var visible = query ? TOOLS.filter(function (t) { return t.label.toLowerCase().indexOf(query) !== -1; }) : TOOLS;
+    var visible = TOOLS.filter(function (t) {
+      return inCategory(t, activeCategory) && (!query || t.label.toLowerCase().indexOf(query) !== -1);
+    });
     if (!visible.length) {
-      $categoryGrid.append($('<p>').addClass('sm:col-span-2 text-sm text-inksoft text-center py-4').text('ไม่พบเครื่องมือที่ค้นหา'));
+      $categoryGrid.append($('<p>').addClass('sm:col-span-2 text-sm text-inksoft text-center py-4')
+        .text(query ? 'ไม่พบเครื่องมือที่ค้นหาในหมวดนี้' : 'ยังไม่มีเครื่องมือในหมวดนี้'));
       return;
     }
     visible.forEach(function (t) { $categoryGrid.append(makeToolTile(t)); });
   }
 
   $toolSearch.on('input', renderCategories);
+  renderCategoryFilter();
   renderCategories();
 
   // ---------- Helpers ----------
@@ -4046,6 +4145,911 @@
       } finally {
         setBusy(false);
       }
+    });
+  }
+
+  // ---------- File decrypt ----------
+  // Reverse of the encrypt view above. The password is always verified
+  // first (pdf.js / zip.js reject a wrong one) and no output is produced
+  // unless it is correct.
+  function wrongPasswordError() {
+    var err = new Error('รหัสผ่านไม่ถูกต้อง');
+    err.code = 'wrong_password';
+    return err;
+  }
+  function isPdfPasswordError(err) {
+    return !!err && err.name === 'PasswordException';
+  }
+  // pdf.js may detach the buffer it is given, so every call reads a fresh copy.
+  async function openPdfWithPassword(file, password) {
+    var opts = { data: new Uint8Array(await file.arrayBuffer()) };
+    if (password !== undefined) opts.password = password;
+    var task = pdfjsLib.getDocument(opts);
+    try {
+      await task.promise;
+      return true;
+    } catch (err) {
+      if (isPdfPasswordError(err)) return false;
+      throw err;
+    } finally {
+      task.destroy();
+    }
+  }
+  async function isPdfLocked(file) {
+    return !(await openPdfWithPassword(file));
+  }
+  async function decryptPdfFile(file, password) {
+    if (!(await openPdfWithPassword(file, password))) throw wrongPasswordError();
+    var src = await PDFLib.PDFDocument.load(await file.arrayBuffer(), { password: password, ignoreEncryption: true });
+    var out = await PDFLib.PDFDocument.create();
+    var pages = await out.copyPages(src, src.getPageIndices());
+    pages.forEach(function (p) { out.addPage(p); });
+    return new Blob([await out.save()], { type: 'application/pdf' });
+  }
+
+  async function readZipEntries(mod, file) {
+    var reader = new mod.ZipReader(new mod.BlobReader(file));
+    try {
+      return { reader: reader, entries: await reader.getEntries() };
+    } catch (err) {
+      await reader.close();
+      throw new Error('ไม่สามารถอ่านไฟล์ ZIP นี้ได้ — ไฟล์อาจเสียหาย');
+    }
+  }
+  async function isZipLocked(file) {
+    var mod = await loadZipEncryptModule();
+    var zr = await readZipEntries(mod, file);
+    await zr.reader.close();
+    return zr.entries.some(function (e) { return e.encrypted; });
+  }
+  async function readZipEntry(mod, entry, password) {
+    try {
+      return await entry.getData(new mod.BlobWriter(), { password: password, checkSignature: true });
+    } catch (err) {
+      var msg = err && err.message;
+      if (msg === mod.ERR_INVALID_PASSWORD || msg === mod.ERR_INVALID_SIGNATURE || msg === mod.ERR_ENCRYPTED) throw wrongPasswordError();
+      if (msg === mod.ERR_UNSUPPORTED_ENCRYPTION) throw new Error('ไม่รองรับรูปแบบการเข้ารหัสของไฟล์ ZIP นี้');
+      throw err;
+    }
+  }
+  async function decryptZipFile(file, password, onProgress) {
+    var mod = await loadZipEncryptModule();
+    var zr = await readZipEntries(mod, file);
+    try {
+      var entries = zr.entries;
+      // Check the password on the smallest encrypted entry before rewriting.
+      var locked = entries.filter(function (e) { return e.encrypted && !e.directory; });
+      locked.sort(function (a, b) { return a.compressedSize - b.compressedSize; });
+      if (locked.length) await readZipEntry(mod, locked[0], password);
+
+      var writer = new mod.ZipWriter(new mod.BlobWriter('application/zip'));
+      for (var i = 0; i < entries.length; i++) {
+        var entry = entries[i];
+        if (onProgress) onProgress(i, entries.length);
+        if (entry.directory) {
+          await writer.add(entry.filename, null, { directory: true, lastModDate: entry.lastModDate });
+          continue;
+        }
+        var data = await readZipEntry(mod, entry, entry.encrypted ? password : undefined);
+        await writer.add(entry.filename, new mod.BlobReader(data), { lastModDate: entry.lastModDate });
+      }
+      return await writer.close();
+    } finally {
+      await zr.reader.close();
+    }
+  }
+
+  function initFileDecryptView() {
+    var state = { file: null, kind: null, token: 0 };
+
+    var $dropzone = $('#filedecrypt-dropzone');
+    var $fileInput = $('#filedecrypt-file-input');
+    var $uploadError = $('#filedecrypt-upload-error');
+    var $docCard = $('#filedecrypt-doc-card');
+    var $docIcon = $('#filedecrypt-doc-icon');
+    var $docName = $('#filedecrypt-doc-name');
+    var $docMeta = $('#filedecrypt-doc-meta');
+    var $panel = $('#filedecrypt-panel');
+    var $password = $('#filedecrypt-password');
+    var $btnRun = $('#btn-filedecrypt-run');
+    var $progress = $('#filedecrypt-progress');
+    var $statusEl = $('#filedecrypt-status');
+
+    function setStatus(msg, kind) {
+      $statusEl.text(msg || '');
+      $statusEl.removeClass('text-good text-bad text-inksoft');
+      if (kind === 'good') $statusEl.addClass('text-good');
+      else if (kind === 'bad') $statusEl.addClass('text-bad');
+      else $statusEl.addClass('text-inksoft');
+    }
+    function setBusy(busy) {
+      $btnRun.prop('disabled', busy);
+      $btnRun.toggleClass('busy', busy);
+      $btnRun.find('.spinner').toggleClass('hidden', !busy).toggleClass('inline-block', busy);
+      $progress.toggleClass('hidden', !busy);
+      $progress.find('.progress-fill').css('width', busy ? '0%' : '100%');
+    }
+    function showUploadError(msg) { $uploadError.text(msg || ''); }
+    function clearFile() {
+      state.file = null;
+      state.kind = null;
+      state.token++;
+      $docCard.css('display', 'none');
+      $panel.css('display', 'none');
+      $password.val('');
+      setStatus('', 'neutral');
+    }
+
+    async function handleFile(file) {
+      var isPdf = /\.pdf$/i.test(file.name);
+      var isZip = /\.zip$/i.test(file.name);
+      clearFile();
+      if (!isPdf && !isZip) {
+        showUploadError('รองรับเฉพาะไฟล์ .pdf หรือ .zip เท่านั้น');
+        return;
+      }
+      showUploadError('');
+      var token = state.token;
+      var label = (isPdf ? 'PDF' : 'ZIP') + ' · ' + formatSize(file.size);
+      $docIcon.attr('class', (isPdf ? 'bi bi-file-earmark-pdf' : 'bi bi-file-earmark-zip') + ' text-xl leading-none');
+      $docName.text(file.name);
+      $docMeta.text(label + ' · กำลังตรวจสอบ…');
+      $docCard.css('display', 'flex');
+      var locked;
+      try {
+        locked = isPdf ? await isPdfLocked(file) : await isZipLocked(file);
+      } catch (err) {
+        if (token !== state.token) return;
+        console.error(err);
+        $docMeta.text(label);
+        showUploadError(isPdf ? 'ไม่สามารถอ่านไฟล์ PDF นี้ได้ — ไฟล์อาจเสียหาย' : (err && err.message) || 'ไม่สามารถอ่านไฟล์นี้ได้');
+        return;
+      }
+      if (token !== state.token) return;
+      if (!locked) {
+        $docMeta.text(label + ' · ไม่มีรหัสผ่าน');
+        showUploadError('ไฟล์นี้ไม่ได้ตั้งรหัสผ่านไว้ ไม่ต้องถอดรหัส');
+        return;
+      }
+      state.file = file;
+      state.kind = isPdf ? 'pdf' : 'zip';
+      $docMeta.text(label + ' · มีรหัสผ่าน');
+      $panel.css('display', 'block');
+      $password.trigger('focus');
+    }
+
+    $dropzone.on('click', function () { $fileInput.trigger('click'); });
+    $dropzone.on('keydown', function (e) {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); $fileInput.trigger('click'); }
+    });
+    $dropzone.on('dragenter dragover', function (e) {
+      e.preventDefault();
+      $dropzone.removeClass('border-line').addClass('border-accent bg-accentsoft');
+    });
+    $dropzone.on('dragleave drop', function (e) {
+      e.preventDefault();
+      $dropzone.removeClass('border-accent bg-accentsoft').addClass('border-line');
+    });
+    $dropzone.on('drop', function (e) {
+      var dt = e.originalEvent.dataTransfer;
+      var f = dt && dt.files && dt.files[0];
+      if (f) handleFile(f);
+    });
+    $fileInput.on('change', function () {
+      if ($fileInput[0].files[0]) handleFile($fileInput[0].files[0]);
+      $fileInput.val('');
+    });
+    $docCard.find('#filedecrypt-doc-clear').on('click', function () {
+      clearFile();
+      showUploadError('');
+    });
+    $password.on('keydown', function (e) {
+      if (e.key === 'Enter') { e.preventDefault(); $btnRun.trigger('click'); }
+    });
+
+    $btnRun.on('click', async function () {
+      if (!state.file || $btnRun.prop('disabled')) return;
+      var pw = $password.val();
+      if (!pw) { setStatus('กรุณากรอกรหัสผ่าน', 'bad'); return; }
+
+      setBusy(true);
+      setStatus(state.kind === 'pdf' ? 'กำลังตรวจสอบรหัสผ่าน…' : 'กำลังโหลดตัวถอดรหัส ZIP (ครั้งแรกใช้เวลาสักครู่)…', 'neutral');
+      try {
+        var file = state.file;
+        var blob = state.kind === 'pdf'
+          ? await decryptPdfFile(file, pw)
+          : await decryptZipFile(file, pw, function (done, total) {
+            $progress.find('.progress-fill').css('width', Math.round((done / total) * 100) + '%');
+            setStatus('กำลังถอดรหัส ' + done + '/' + total + '…', 'neutral');
+          });
+        var dotIdx = file.name.lastIndexOf('.');
+        var baseName = dotIdx > 0 ? file.name.slice(0, dotIdx) : file.name;
+        var ext = dotIdx > 0 ? file.name.slice(dotIdx) : (state.kind === 'pdf' ? '.pdf' : '.zip');
+        var outFileName = baseName + '-decrypted' + ext;
+
+        $password.val('');
+        var res = await deliverFiles([{ name: outFileName, blob: blob }], baseName + '-decrypted');
+        setStatus(res.status === 'saved' ? 'ถอดรหัสและบันทึกไฟล์สำเร็จ' : 'ส่งไฟล์เรียบร้อย', 'good');
+      } catch (err) {
+        if (err && err.code === 'wrong_password') {
+          setStatus('รหัสผ่านไม่ถูกต้อง กรุณาลองใหม่', 'bad');
+          $password.val('').trigger('focus');
+        } else {
+          console.error(err);
+          setStatus(describeDownloadError(err), err && err.code === 'declined' ? 'neutral' : 'bad');
+        }
+      } finally {
+        setBusy(false);
+      }
+    });
+  }
+
+  // ---------- OCR (Tesseract.js) ----------
+  // Lazy-loaded like ffmpeg.wasm above: the script, WASM core and language
+  // data (~1-3 MB per language) are only fetched once this view is used.
+  // Tesseract.js wraps its CDN worker in a blob: URL itself, so the
+  // same-origin Worker restriction noted for pdf.worker does not apply.
+  var TESSERACT_URL = 'https://cdn.jsdelivr.net/npm/tesseract.js@6.0.1/dist/tesseract.min.js';
+  var OCR_MAX_BYTES = 30 * 1024 * 1024;
+  var OCR_MIN_SIDE = 2000; // screenshot-sized text reads best at ~2.5x
+  var OCR_MAX_UPSCALE = 3;
+  var OCR_MAX_SIDE = 4000;
+
+  var tesseractPromise = null;
+  function loadTesseract() {
+    if (window.Tesseract) return Promise.resolve(window.Tesseract);
+    if (!tesseractPromise) {
+      tesseractPromise = new Promise(function (resolve, reject) {
+        var s = document.createElement('script');
+        s.src = TESSERACT_URL;
+        s.onload = function () { window.Tesseract ? resolve(window.Tesseract) : reject(new Error('โหลดตัวอ่านข้อความไม่สำเร็จ')); };
+        s.onerror = function () { tesseractPromise = null; reject(new Error('โหลดตัวอ่านข้อความไม่สำเร็จ ตรวจสอบการเชื่อมต่ออินเทอร์เน็ต')); };
+        document.head.appendChild(s);
+      });
+    }
+    return tesseractPromise;
+  }
+
+  // Thai first: with English first, Tesseract splits Thai words into single letters.
+  var OCR_LANGS = ['tha', 'eng'];
+  var ocrWorker = null;
+  var ocrProgressHandler = null;
+  async function getOcrWorker() {
+    if (ocrWorker) return ocrWorker;
+    var T = await loadTesseract();
+    ocrWorker = await T.createWorker(OCR_LANGS, 1, {
+      logger: function (m) { if (ocrProgressHandler) ocrProgressHandler(m); }
+    });
+    return ocrWorker;
+  }
+
+  async function prepareOcrImage(file) {
+    var bmp = await createImageBitmap(file);
+    var w = bmp.width;
+    var h = bmp.height;
+    var longSide = Math.max(w, h);
+    var scale = 1;
+    if (longSide < OCR_MIN_SIDE) scale = Math.min(OCR_MAX_UPSCALE, OCR_MIN_SIDE / longSide);
+    else if (longSide > OCR_MAX_SIDE) scale = OCR_MAX_SIDE / longSide;
+    var canvas = document.createElement('canvas');
+    canvas.width = Math.max(1, Math.round(w * scale));
+    canvas.height = Math.max(1, Math.round(h * scale));
+    var ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#ffffff'; // flatten transparency, otherwise it reads as black
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(bmp, 0, 0, canvas.width, canvas.height);
+    bmp.close();
+    toOcrGrayscale(ctx, canvas.width, canvas.height);
+    return canvas;
+  }
+
+  // Grayscale, inverted when the image is mostly dark (dark-mode screenshots):
+  // Tesseract is trained on dark text over a light background.
+  function toOcrGrayscale(ctx, w, h) {
+    var img = ctx.getImageData(0, 0, w, h);
+    var a = img.data;
+    var total = 0;
+    for (var i = 0; i < a.length; i += 4) {
+      var l = 0.299 * a[i] + 0.587 * a[i + 1] + 0.114 * a[i + 2];
+      a[i] = l;
+      total += l;
+    }
+    var invert = total / (a.length / 4) < 110;
+    for (var j = 0; j < a.length; j += 4) {
+      var v = invert ? 255 - a[j] : a[j];
+      a[j] = v; a[j + 1] = v; a[j + 2] = v;
+    }
+    ctx.putImageData(img, 0, 0);
+  }
+
+  // Line-leading bullets (•, ▪, ●) are usually read as the Thai digit ๑ or ๐;
+  // only rewritten when several lines share it, so a real "๑ มกราคม" stays.
+  var OCR_BULLET_RE = /^[ \t]*[๑๐●▪][ \t]+(?=\S)/gm;
+  function cleanOcrText(text) {
+    var bullets = text.match(OCR_BULLET_RE);
+    if (bullets && bullets.length >= 2) text = text.replace(OCR_BULLET_RE, '• ');
+    return fixOcrLatinLookalikes(text)
+      .replace(/[ \t]+$/gm, '')
+      .replace(/\n{2,}/g, '\n')
+      .trim();
+  }
+
+  // Latin c / e inside letter-digit runs (hashes, IDs, codes) are often read
+  // as ¢ / €; real prices like "50¢" or "€100" have no letter/digit on both sides.
+  function fixOcrLatinLookalikes(text) {
+    return text
+      .replace(/c¢|¢c/g, 'c') // the same glyph read twice
+      .replace(/(?<=[0-9A-Za-z])¢(?=[0-9A-Za-z])|¢(?=[A-Za-z])/g, 'c')
+      .replace(/(?<=[0-9A-Za-z])€(?=[0-9A-Za-z])|€(?=[A-Za-z])/g, 'e');
+  }
+
+  var OCR_STAGE_LABELS = {
+    'loading tesseract core': 'กำลังโหลดตัวอ่านข้อความ',
+    'initializing tesseract': 'กำลังเตรียมตัวอ่านข้อความ',
+    'loading language traineddata': 'กำลังโหลดข้อมูลภาษา',
+    'initializing api': 'กำลังเตรียมข้อมูลภาษา',
+    'recognizing text': 'กำลังอ่านข้อความ'
+  };
+
+  function initOcrView() {
+    var state = { file: null, thumbUrl: null };
+
+    var $dropzone = $('#ocr-dropzone');
+    var $fileInput = $('#ocr-file-input');
+    var $uploadError = $('#ocr-upload-error');
+    var $docCard = $('#ocr-doc-card');
+    var $docThumb = $('#ocr-doc-thumb');
+    var $docName = $('#ocr-doc-name');
+    var $docMeta = $('#ocr-doc-meta');
+    var $panel = $('#ocr-panel');
+    var $btnRun = $('#btn-ocr-run');
+    var $progress = $('#ocr-progress');
+    var $statusEl = $('#ocr-status');
+    var $output = $('#ocr-output');
+    var $outputCount = $('#ocr-output-count');
+
+    function setStatus(msg, kind) {
+      $statusEl.text(msg || '');
+      $statusEl.removeClass('text-good text-bad text-inksoft');
+      if (kind === 'good') $statusEl.addClass('text-good');
+      else if (kind === 'bad') $statusEl.addClass('text-bad');
+      else $statusEl.addClass('text-inksoft');
+    }
+    function setBusy(busy) {
+      $btnRun.prop('disabled', busy);
+      $btnRun.toggleClass('busy', busy);
+      $btnRun.find('.spinner').toggleClass('hidden', !busy).toggleClass('inline-block', busy);
+      $progress.toggleClass('hidden', !busy);
+      $progress.find('.progress-fill').css('width', '0%');
+    }
+    function updateCount() {
+      $outputCount.text($output.val().length.toLocaleString() + ' ตัวอักษร');
+    }
+    function showUploadError(msg) {
+      // The dropzone (and its error line) is hidden while an image is loaded.
+      if (msg && state.file) setStatus(msg, 'bad');
+      else $uploadError.text(msg || '');
+    }
+    function clearFile() {
+      if (state.thumbUrl) URL.revokeObjectURL(state.thumbUrl);
+      state.file = null;
+      state.thumbUrl = null;
+      $docThumb.removeAttr('src');
+      $docCard.css('display', 'none');
+      $panel.css('display', 'none');
+      $dropzone.css('display', '');
+      $output.val('');
+      updateCount();
+      setStatus('', 'neutral');
+    }
+
+    function handleFile(file) {
+      var okType = /^image\/(jpeg|png|webp|bmp|gif)$/i.test(file.type) || /\.(jpe?g|png|webp|bmp|gif)$/i.test(file.name || '');
+      if (!okType) { showUploadError('รองรับเฉพาะไฟล์รูปภาพ JPG, PNG, WEBP, BMP หรือ GIF'); return; }
+      if (file.size > OCR_MAX_BYTES) { showUploadError('ไฟล์ใหญ่เกิน 30 MB'); return; }
+      showUploadError('');
+      clearFile();
+      state.file = file;
+      state.thumbUrl = URL.createObjectURL(file);
+      $docThumb.attr('src', state.thumbUrl);
+      $docName.text(file.name || 'รูปที่วาง');
+      $docMeta.text(formatSize(file.size));
+      $dropzone.css('display', 'none');
+      $docCard.css('display', 'block');
+      $panel.css('display', 'block');
+      var img = new Image();
+      img.onload = function () {
+        if (state.file === file) $docMeta.text(img.naturalWidth + ' × ' + img.naturalHeight + ' px · ' + formatSize(file.size));
+      };
+      img.src = state.thumbUrl;
+    }
+
+    $dropzone.on('click', function () { $fileInput.trigger('click'); });
+    $dropzone.on('keydown', function (e) {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); $fileInput.trigger('click'); }
+    });
+    // Both the dropzone and the loaded-image card accept a dropped file.
+    $dropzone.add($docCard).on('dragenter dragover', function (e) {
+      e.preventDefault();
+      $(this).removeClass('border-line').addClass('border-accent bg-accentsoft');
+    });
+    $dropzone.add($docCard).on('dragleave drop', function (e) {
+      e.preventDefault();
+      $(this).removeClass('border-accent bg-accentsoft').addClass('border-line');
+    });
+    $dropzone.add($docCard).on('drop', function (e) {
+      if ($btnRun.prop('disabled')) return;
+      var dt = e.originalEvent.dataTransfer;
+      var f = dt && dt.files && dt.files[0];
+      if (f) handleFile(f);
+    });
+    $fileInput.on('change', function () {
+      if ($fileInput[0].files[0]) handleFile($fileInput[0].files[0]);
+      $fileInput.val('');
+    });
+    $('#ocr-doc-replace').on('click', function () {
+      if (!$btnRun.prop('disabled')) $fileInput.trigger('click');
+    });
+    // Paste an image from the clipboard while this view is open.
+    $(document).on('paste', function (e) {
+      if ($viewOcr.attr('hidden') !== undefined || $btnRun.prop('disabled')) return;
+      var items = (e.originalEvent.clipboardData && e.originalEvent.clipboardData.items) || [];
+      for (var i = 0; i < items.length; i++) {
+        if (items[i].kind === 'file' && /^image\//.test(items[i].type)) {
+          var blob = items[i].getAsFile();
+          if (!blob) continue;
+          e.preventDefault();
+          var ext = (blob.type.split('/')[1] || 'png').replace('jpeg', 'jpg');
+          handleFile(new File([blob], 'pasted-image-' + fileTimestamp(new Date()) + '.' + ext, { type: blob.type }));
+          return;
+        }
+      }
+    });
+    $('#ocr-doc-clear').on('click', function () {
+      clearFile();
+      showUploadError('');
+    });
+    $output.on('input', updateCount);
+
+    $btnRun.on('click', async function () {
+      if (!state.file) return;
+      setBusy(true);
+      setStatus('กำลังโหลดตัวอ่านข้อความ (ครั้งแรกใช้เวลาสักครู่)…', 'neutral');
+      ocrProgressHandler = function (m) {
+        var label = OCR_STAGE_LABELS[m.status];
+        if (!label) return;
+        var pct = Math.round((m.progress || 0) * 100);
+        $progress.find('.progress-fill').css('width', (m.status === 'recognizing text' ? pct : 0) + '%');
+        setStatus(label + (m.status === 'recognizing text' ? ' ' + pct + '%' : '…'), 'neutral');
+      };
+      try {
+        var worker = await getOcrWorker();
+        var canvas = await prepareOcrImage(state.file);
+        var result = await worker.recognize(canvas);
+        var text = cleanOcrText(result.data.text || '');
+        $output.val(text);
+        updateCount();
+        if (!text) setStatus('ไม่พบข้อความในภาพ', 'bad');
+        else setStatus('อ่านข้อความเสร็จแล้ว (ความมั่นใจ ' + Math.round(result.data.confidence || 0) + '%)', 'good');
+      } catch (err) {
+        console.error(err);
+        if (ocrWorker) { ocrWorker.terminate(); ocrWorker = null; }
+        setStatus((err && err.message) || 'อ่านข้อความไม่สำเร็จ', 'bad');
+      } finally {
+        ocrProgressHandler = null;
+        setBusy(false);
+      }
+    });
+
+    $('#btn-ocr-copy').on('click', async function () {
+      var text = $output.val();
+      if (!text) return;
+      try {
+        await navigator.clipboard.writeText(text);
+        setStatus('คัดลอกแล้ว', 'good');
+      } catch (err) {
+        $output.trigger('select');
+        setStatus('ไม่สามารถคัดลอกอัตโนมัติได้ ข้อความถูกเลือกไว้แล้ว กด Ctrl+C', 'bad');
+      }
+    });
+
+    $('#btn-ocr-download').on('click', async function () {
+      var text = $output.val();
+      if (!text || !state.file) return;
+      var name = state.file.name || 'image';
+      var dotIdx = name.lastIndexOf('.');
+      var baseName = (dotIdx > 0 ? name.slice(0, dotIdx) : name) + '-ocr';
+      try {
+        var res = await deliverFiles([{ name: baseName + '.txt', blob: new Blob([text], { type: 'text/plain;charset=utf-8' }) }], baseName);
+        setStatus(res.status === 'saved' ? 'บันทึกไฟล์สำเร็จ' : 'ส่งไฟล์เรียบร้อย', 'good');
+      } catch (err) {
+        setStatus(describeDownloadError(err), err && err.code === 'declined' ? 'neutral' : 'bad');
+      }
+    });
+  }
+
+  // ---------- Text compare ----------
+  // Line diff first, then a word-level diff inside each changed line pair.
+  // Everything is rendered with text nodes, never innerHTML, since the
+  // compared text is arbitrary user input.
+  var DIFF_MAX_EDITS = 2000; // Myers keeps one snapshot per edit step, memory grows ~D^2
+  var DIFF_MAX_LINES = 50000;
+  var DIFF_MAX_FILE_BYTES = 5 * 1024 * 1024;
+  var DIFF_CONTEXT = 3;
+  var DIFF_INLINE_MAX_TOKENS = 4000;
+
+  // Myers O(ND) diff over two arrays of keys. Returns ops in order:
+  // {t:'=', a, b} | {t:'-', a} | {t:'+', b}, or null past maxEdits.
+  function myersDiff(a, b, maxEdits) {
+    var n = a.length;
+    var m = b.length;
+    var start = 0;
+    while (start < n && start < m && a[start] === b[start]) start++;
+    var endA = n;
+    var endB = m;
+    while (endA > start && endB > start && a[endA - 1] === b[endB - 1]) { endA--; endB--; }
+    var N = endA - start;
+    var M = endB - start;
+    var limit = Math.min(N + M, maxEdits);
+    var off = limit + 1;
+    var v = new Int32Array(2 * limit + 3);
+    var trace = [];
+    var found = -1;
+    for (var d = 0; d <= limit && found < 0; d++) {
+      trace.push(v.slice(off - d, off + d + 1));
+      for (var k = -d; k <= d; k += 2) {
+        var x = (k === -d || (k !== d && v[off + k - 1] < v[off + k + 1])) ? v[off + k + 1] : v[off + k - 1] + 1;
+        var y = x - k;
+        while (x < N && y < M && a[start + x] === b[start + y]) { x++; y++; }
+        v[off + k] = x;
+        if (x >= N && y >= M) { found = d; break; }
+      }
+    }
+    if (found < 0) return null;
+
+    var mid = [];
+    var cx = N;
+    var cy = M;
+    for (var dd = found; dd > 0; dd--) {
+      var snap = trace[dd];
+      var ck = cx - cy;
+      var prevK = (ck === -dd || (ck !== dd && snap[ck - 1 + dd] < snap[ck + 1 + dd])) ? ck + 1 : ck - 1;
+      var prevX = snap[prevK + dd];
+      var prevY = prevX - prevK;
+      while (cx > prevX && cy > prevY) { mid.push({ t: '=', a: start + cx - 1, b: start + cy - 1 }); cx--; cy--; }
+      if (cx === prevX) mid.push({ t: '+', b: start + cy - 1 });
+      else mid.push({ t: '-', a: start + cx - 1 });
+      cx = prevX;
+      cy = prevY;
+    }
+    while (cx > 0 && cy > 0) { mid.push({ t: '=', a: start + cx - 1, b: start + cy - 1 }); cx--; cy--; }
+
+    var ops = [];
+    for (var i = 0; i < start; i++) ops.push({ t: '=', a: i, b: i });
+    for (var j = mid.length - 1; j >= 0; j--) ops.push(mid[j]);
+    for (var s = 0; s < n - endA; s++) ops.push({ t: '=', a: endA + s, b: endB + s });
+    return ops;
+  }
+
+  // Word tokens; Intl.Segmenter also splits Thai, which has no spaces between words.
+  var diffWordSegmenter = null;
+  var diffGraphemeSegmenter = null;
+  try {
+    if (window.Intl && Intl.Segmenter) {
+      diffWordSegmenter = new Intl.Segmenter('th', { granularity: 'word' });
+      diffGraphemeSegmenter = new Intl.Segmenter('th', { granularity: 'grapheme' });
+    }
+  } catch (e) { diffWordSegmenter = null; diffGraphemeSegmenter = null; }
+  function segmentAll(segmenter, text) {
+    var out = [];
+    var it = segmenter.segment(text)[Symbol.iterator]();
+    for (var r = it.next(); !r.done; r = it.next()) out.push(r.value.segment);
+    return out;
+  }
+  function diffTokens(text) {
+    if (diffWordSegmenter) return segmentAll(diffWordSegmenter, text);
+    return text.match(/\s+|[A-Za-z0-9_]+|[\s\S]/g) || [];
+  }
+  // Grapheme clusters keep Thai vowel/tone marks attached to their consonant.
+  function diffGraphemes(text) {
+    if (diffGraphemeSegmenter) return segmentAll(diffGraphemeSegmenter, text);
+    return Array.from(text);
+  }
+
+  function initTextCompareView() {
+    var $left = $('#textcmp-left');
+    var $right = $('#textcmp-right');
+    var $leftMeta = $('#textcmp-left-meta');
+    var $rightMeta = $('#textcmp-right-meta');
+    var $optCase = $('#textcmp-opt-case');
+    var $optSpace = $('#textcmp-opt-space');
+    var $fileInput = $('#textcmp-file-input');
+    var $statusEl = $('#textcmp-status');
+    var $resultPanel = $('#textcmp-result-panel');
+    var $result = $('#textcmp-result');
+    var $same = $('#textcmp-same');
+    var $diffHead = $('#textcmp-diff-head');
+    var $removed = $('#textcmp-removed');
+    var $added = $('#textcmp-added');
+    var last = null; // { ops, aLines, bLines }
+    var fileTarget = null;
+    var timer = null;
+
+    function setStatus(msg, kind) {
+      $statusEl.text(msg || '');
+      $statusEl.removeClass('text-good text-bad text-inksoft');
+      if (kind === 'good') $statusEl.addClass('text-good');
+      else if (kind === 'bad') $statusEl.addClass('text-bad');
+      else $statusEl.addClass('text-inksoft');
+    }
+    function lineKey(s) {
+      if ($optSpace.prop('checked')) s = s.replace(/\s+/g, '');
+      if ($optCase.prop('checked')) s = s.toLowerCase();
+      return s;
+    }
+    function splitLines(text) {
+      return text.split(/\r\n|\r|\n/);
+    }
+    function updateMeta($ta, $meta) {
+      var text = $ta.val();
+      var lines = text ? splitLines(text).length : 0;
+      $meta.text('บรรทัด ' + lines.toLocaleString() + ' · ตัวอักษร ' + text.length.toLocaleString());
+    }
+
+    function el(tag, cls, text) {
+      var node = document.createElement(tag);
+      if (cls) node.className = cls;
+      if (text !== undefined) node.textContent = text;
+      return node;
+    }
+    function appendSegments(parent, segs) {
+      var buf = '';
+      var changed = false;
+      function flush() {
+        if (buf) parent.appendChild(changed ? el('mark', '', buf) : document.createTextNode(buf));
+        buf = '';
+      }
+      segs.forEach(function (s) {
+        if (!s.text) return;
+        if (s.changed !== changed) { flush(); changed = s.changed; }
+        buf += s.text;
+      });
+      flush();
+    }
+    // One side of an aligned row: kind '=' | '-' | '+' | '' (filler).
+    function appendCell(row, kind, no, content, split) {
+      var cls = kind === '-' ? ' diff-del' : kind === '+' ? ' diff-ins' : kind === '' ? ' diff-empty' : '';
+      row.appendChild(el('span', 'diff-num' + cls + (split ? ' diff-split' : ''), no === null ? '' : String(no)));
+      var text = el('span', 'diff-text' + cls);
+      if (content === null) text.textContent = '';
+      else if (typeof content === 'string') text.textContent = content || ' ';
+      else appendSegments(text, content);
+      row.appendChild(text);
+    }
+    function makeRow(left, right) {
+      var row = el('div', 'diff-row');
+      appendCell(row, left.kind, left.no, left.content, false);
+      appendCell(row, right.kind, right.no, right.content, true);
+      return row;
+    }
+
+    // Word diff, then a character diff inside each replaced word run, so
+    // "aaaa" -> "aaaabaaa" highlights only "baaa" instead of the whole word.
+    function tokenKeyFn() {
+      var ignoreSpace = $optSpace.prop('checked');
+      var ignoreCase = $optCase.prop('checked');
+      return function (t) {
+        if (ignoreSpace && !/\S/.test(t)) return '';
+        return ignoreCase ? t.toLowerCase() : t;
+      };
+    }
+    function charSegments(aText, bText, key) {
+      var aG = diffGraphemes(aText);
+      var bG = diffGraphemes(bText);
+      if (aG.length + bG.length > DIFF_INLINE_MAX_TOKENS) return null;
+      var ops = myersDiff(aG.map(key), bG.map(key), DIFF_MAX_EDITS);
+      if (!ops) return null;
+      var same = 0;
+      ops.forEach(function (o) { if (o.t === '=') same++; });
+      // Mostly-different words read better highlighted whole.
+      if (same * 2 < (aG.length + bG.length) * 0.5) return null;
+      var a = [];
+      var b = [];
+      ops.forEach(function (o) {
+        if (o.t === '=') { a.push({ text: aG[o.a], changed: false }); b.push({ text: bG[o.b], changed: false }); }
+        else if (o.t === '-') a.push({ text: aG[o.a], changed: true });
+        else b.push({ text: bG[o.b], changed: true });
+      });
+      return { a: a, b: b };
+    }
+    function inlineSegments(aText, bText) {
+      var aTok = diffTokens(aText);
+      var bTok = diffTokens(bText);
+      if (aTok.length + bTok.length > DIFF_INLINE_MAX_TOKENS) return null;
+      var key = tokenKeyFn();
+      var ops = myersDiff(aTok.map(key), bTok.map(key), DIFF_MAX_EDITS);
+      if (!ops) return null;
+      var a = [];
+      var b = [];
+      var delRun = '';
+      var insRun = '';
+      function flush() {
+        if (!delRun && !insRun) return;
+        var fine = delRun && insRun ? charSegments(delRun, insRun, key) : null;
+        if (fine) { a = a.concat(fine.a); b = b.concat(fine.b); }
+        else {
+          if (delRun) a.push({ text: delRun, changed: true });
+          if (insRun) b.push({ text: insRun, changed: true });
+        }
+        delRun = '';
+        insRun = '';
+      }
+      ops.forEach(function (o) {
+        if (o.t === '=') {
+          flush();
+          a.push({ text: aTok[o.a], changed: false });
+          b.push({ text: bTok[o.b], changed: false });
+        } else if (o.t === '-') delRun += aTok[o.a];
+        else insRun += bTok[o.b];
+      });
+      flush();
+      return { a: a, b: b };
+    }
+
+    // Groups ops into equal runs and change blocks (deletions + insertions).
+    function buildBlocks(ops) {
+      var blocks = [];
+      var i = 0;
+      while (i < ops.length) {
+        if (ops[i].t === '=') {
+          var eq = [];
+          while (i < ops.length && ops[i].t === '=') eq.push(ops[i++]);
+          blocks.push({ type: 'eq', ops: eq });
+        } else {
+          var dels = [];
+          var ins = [];
+          while (i < ops.length && ops[i].t !== '=') {
+            if (ops[i].t === '-') dels.push(ops[i]); else ins.push(ops[i]);
+            i++;
+          }
+          blocks.push({ type: 'chg', dels: dels, ins: ins });
+        }
+      }
+      return blocks;
+    }
+
+    function renderEqRows(frag, ops) {
+      ops.forEach(function (o) {
+        frag.appendChild(makeRow(
+          { kind: '=', no: o.a + 1, content: last.aLines[o.a] },
+          { kind: '=', no: o.b + 1, content: last.bLines[o.b] }
+        ));
+      });
+    }
+    function renderFold(frag, ops) {
+      var btn = el('button', 'diff-fold', '··· ' + ops.length.toLocaleString() + ' บรรทัดที่เหมือนกัน (กดเพื่อแสดง)');
+      btn.type = 'button';
+      btn.addEventListener('click', function () {
+        var sub = document.createDocumentFragment();
+        renderEqRows(sub, ops);
+        btn.replaceWith(sub);
+      });
+      frag.appendChild(btn);
+    }
+
+    function render() {
+      if (!last) return;
+      var frag = document.createDocumentFragment();
+      var blocks = buildBlocks(last.ops);
+      var dels = 0;
+      var ins = 0;
+      blocks.forEach(function (blk, idx) {
+        if (blk.type === 'eq') {
+          var ops = blk.ops;
+          var head = idx === 0 ? 0 : DIFF_CONTEXT;
+          var tail = idx === blocks.length - 1 ? 0 : DIFF_CONTEXT;
+          if (ops.length <= head + tail + 1) { renderEqRows(frag, ops); return; }
+          renderEqRows(frag, ops.slice(0, head));
+          renderFold(frag, ops.slice(head, ops.length - tail));
+          renderEqRows(frag, ops.slice(ops.length - tail));
+          return;
+        }
+        dels += blk.dels.length;
+        ins += blk.ins.length;
+        // Pair the n-th removed line with the n-th added line on one row.
+        var rows = Math.max(blk.dels.length, blk.ins.length);
+        for (var p = 0; p < rows; p++) {
+          var d = blk.dels[p];
+          var n = blk.ins[p];
+          var segs = d && n ? inlineSegments(last.aLines[d.a], last.bLines[n.b]) : null;
+          frag.appendChild(makeRow(
+            d ? { kind: '-', no: d.a + 1, content: segs ? segs.a : last.aLines[d.a] } : { kind: '', no: null, content: null },
+            n ? { kind: '+', no: n.b + 1, content: segs ? segs.b : last.bLines[n.b] } : { kind: '', no: null, content: null }
+          ));
+        }
+      });
+      $result.empty()[0].appendChild(frag);
+
+      var same = !dels && !ins;
+      $same.attr('hidden', !same);
+      $diffHead.attr('hidden', same);
+      $result.attr('hidden', same);
+      $removed.text(same ? '' : dels.toLocaleString() + ' บรรทัดที่ลบ/แก้');
+      $added.text(same ? '' : ins.toLocaleString() + ' บรรทัดที่เพิ่ม/แก้');
+      $resultPanel.removeAttr('hidden');
+    }
+
+    function run() {
+      timer = null;
+      var aText = $left.val();
+      var bText = $right.val();
+      if (!aText && !bText) {
+        last = null;
+        $result.empty();
+        $resultPanel.attr('hidden', true);
+        setStatus('', 'neutral');
+        return;
+      }
+      var aLines = splitLines(aText);
+      var bLines = splitLines(bText);
+      if (aLines.length > DIFF_MAX_LINES || bLines.length > DIFF_MAX_LINES) {
+        setStatus('ข้อความยาวเกิน ' + DIFF_MAX_LINES.toLocaleString() + ' บรรทัด', 'bad');
+        return;
+      }
+      var ops = myersDiff(aLines.map(lineKey), bLines.map(lineKey), DIFF_MAX_EDITS);
+      if (!ops) {
+        setStatus('ข้อความสองชุดต่างกันมากเกินไป (เกิน ' + DIFF_MAX_EDITS.toLocaleString() + ' บรรทัด) จึงเปรียบเทียบไม่ได้', 'bad');
+        return;
+      }
+      last = { ops: ops, aLines: aLines, bLines: bLines };
+      setStatus('', 'neutral');
+      render();
+    }
+    // Longer text waits a little longer so typing stays responsive.
+    function scheduleRun() {
+      if (timer) clearTimeout(timer);
+      var size = $left.val().length + $right.val().length;
+      timer = setTimeout(run, size > 200000 ? 600 : 200);
+    }
+
+    $left.on('input', function () { updateMeta($left, $leftMeta); scheduleRun(); });
+    $right.on('input', function () { updateMeta($right, $rightMeta); scheduleRun(); });
+    $optCase.add($optSpace).on('change', run);
+    $('#btn-textcmp-swap').on('click', function () {
+      var tmp = $left.val();
+      $left.val($right.val());
+      $right.val(tmp);
+      updateMeta($left, $leftMeta);
+      updateMeta($right, $rightMeta);
+      run();
+    });
+    $('#btn-textcmp-clear').on('click', function () {
+      $left.val('');
+      $right.val('');
+      updateMeta($left, $leftMeta);
+      updateMeta($right, $rightMeta);
+      run();
+    });
+
+    $('.textcmp-open').on('click', function () {
+      fileTarget = $(this).data('target') === 'right' ? 'right' : 'left';
+      $fileInput.trigger('click');
+    });
+    $fileInput.on('change', function () {
+      var file = $fileInput[0].files[0];
+      $fileInput.val('');
+      if (!file || !fileTarget) return;
+      if (file.size > DIFF_MAX_FILE_BYTES) { setStatus('ไฟล์ใหญ่เกิน 5 MB', 'bad'); return; }
+      var $ta = fileTarget === 'right' ? $right : $left;
+      var $meta = fileTarget === 'right' ? $rightMeta : $leftMeta;
+      file.text().then(function (text) {
+        $ta.val(text);
+        updateMeta($ta, $meta);
+        run();
+      }).catch(function () {
+        setStatus('อ่านไฟล์ไม่สำเร็จ', 'bad');
+      });
     });
   }
 })(jQuery);

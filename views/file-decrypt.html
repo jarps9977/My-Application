@@ -1,0 +1,55 @@
+<section id="view-file-decrypt" class="animate-fade-in" hidden>
+  <div class="mt-9 mb-5">
+    <button class="inline-flex items-center gap-1.5 bg-transparent border-none text-inksoft text-sm font-semibold cursor-pointer py-1.5 hover:text-ink" id="btn-file-decrypt-back" type="button">
+      <i class="bi bi-chevron-left text-base leading-none"></i>
+      กลับหน้าหลัก
+    </button>
+  </div>
+
+  <div class="flex items-center gap-3 mb-5">
+    <span class="flex h-9 w-9 flex-none items-center justify-center rounded-full bg-accentsoft text-accent">
+      <i class="bi bi-unlock text-lg leading-none"></i>
+    </span>
+    <h2 class="text-xl font-extrabold">ถอดรหัสไฟล์</h2>
+  </div>
+
+  <p class="text-[12.5px] text-inksoft -mt-3 mb-4 leading-relaxed">
+    ปลดรหัสผ่านไฟล์ <strong>PDF</strong> และ <strong>ZIP</strong> — ต้องกรอกรหัสผ่านที่ถูกต้องก่อนจึงจะถอดรหัสได้
+    ประมวลผลในเบราว์เซอร์ทั้งหมด ไม่มีการส่งไฟล์หรือรหัสผ่านออกนอกเครื่อง
+  </p>
+
+  <div id="filedecrypt-dropzone" class="border-2 border-dashed border-line rounded-2xl bg-surface px-6 py-7 text-center cursor-pointer transition-colors duration-150" tabindex="0" role="button" aria-label="อัปโหลดไฟล์ PDF หรือ ZIP ที่มีรหัสผ่าน">
+    <i class="bi bi-cloud-arrow-up text-2xl text-inkfaint mb-2 block"></i>
+    <div><strong class="text-sm font-bold">ลากไฟล์ PDF หรือ ZIP ที่มีรหัสผ่านมาวางที่นี่</strong></div>
+    <p class="text-[12.5px] text-inksoft mt-1">หรือ <span class="text-accentdeep font-semibold underline underline-offset-2">เลือกไฟล์จากเครื่อง</span></p>
+    <div class="text-bad text-[12.5px] mt-2 text-center" id="filedecrypt-upload-error"></div>
+  </div>
+  <input type="file" id="filedecrypt-file-input" accept=".pdf,.zip,application/pdf,application/zip" class="sr-only" />
+
+  <div id="filedecrypt-doc-card" class="flex gap-3.5 items-center bg-surface border border-line rounded-2xl px-3.5 py-3 shadow-sm" style="display:none; margin-top:14px;">
+    <div class="w-[46px] h-[46px] flex-none rounded-lg overflow-hidden bg-accentsoft text-accent flex items-center justify-center">
+      <i class="bi bi-file-earmark-lock text-xl leading-none" id="filedecrypt-doc-icon"></i>
+    </div>
+    <div class="flex-1 min-w-0">
+      <div class="font-bold text-[14.5px] whitespace-nowrap overflow-hidden text-ellipsis" id="filedecrypt-doc-name">—</div>
+      <div class="text-[12.5px] text-inksoft mt-0.5" id="filedecrypt-doc-meta">—</div>
+    </div>
+    <button class="flex-none w-8 h-8 rounded-[10px] border-none bg-surface2 text-inksoft cursor-pointer flex items-center justify-center hover:text-bad hover:bg-badsoft" id="filedecrypt-doc-clear" type="button" aria-label="นำไฟล์ออก">
+      <i class="bi bi-x-lg text-sm leading-none"></i>
+    </button>
+  </div>
+
+  <div class="panel bg-surface border border-line rounded-2xl p-4 shadow-sm mt-4" id="filedecrypt-panel" style="display:none;">
+    <div class="mb-1">
+      <label class="block text-[12px] font-semibold text-inksoft mb-1.5" for="filedecrypt-password">รหัสผ่านของไฟล์</label>
+      <input type="password" id="filedecrypt-password" class="w-full px-2.5 py-2 rounded-lg border border-line bg-surface2 text-ink text-[13.5px] focus:outline focus:outline-2 focus:outline-accent focus:outline-offset-1" placeholder="กรอกรหัสผ่าน" autocomplete="off" />
+    </div>
+
+    <button class="btn w-full mt-3.5 px-3.5 py-2.5 rounded-xl border-none bg-accent text-accentink text-sm font-bold cursor-pointer flex items-center justify-center gap-2 hover:bg-accentdeep" id="btn-filedecrypt-run" type="button">
+      <span class="spinner hidden w-[15px] h-[15px] rounded-full border-2 border-white/40 border-t-current animate-spin"></span>
+      <span class="btn-label">ถอดรหัสและบันทึก</span>
+    </button>
+    <div class="progress-track hidden h-[5px] rounded-full bg-surface2 mt-3 overflow-hidden" id="filedecrypt-progress"><div class="progress-fill h-full bg-accent rounded-full w-0 transition-[width] duration-150"></div></div>
+    <div class="status-line mt-2.5 text-[12.5px] min-h-[16px]" id="filedecrypt-status"></div>
+  </div>
+</section>

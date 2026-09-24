@@ -4,8 +4,10 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>FileFlow</title>
-<link rel="icon" type="image/svg+xml" href="assets/icon.svg">
-<link rel="apple-touch-icon" href="assets/icon.svg">
+<link rel="icon" href="assets/brand/favicon.ico" sizes="any">
+<link rel="icon" type="image/svg+xml" href="assets/brand/favicon.svg">
+<link rel="icon" type="image/png" sizes="32x32" href="assets/brand/favicon-32.png">
+<link rel="apple-touch-icon" href="assets/brand/apple-touch-icon.png">
 
 <!-- Tailwind Play CDN: JIT-compiles utility classes in-browser, so the
      project keeps its "no build step" rule while using Tailwind. -->
@@ -23,9 +25,7 @@
 
     <header class="flex items-center justify-between gap-4 flex-wrap pb-6">
       <div class="flex items-center gap-2.5">
-        <span class="flex h-10 w-10 flex-none items-center justify-center rounded-2xl bg-accent text-accentink shadow-sm">
-          <i class="bi bi-wrench-adjustable-circle text-xl leading-none"></i>
-        </span>
+        <img src="assets/brand/logo-toolbox-icon.svg" alt="" class="h-10 w-10 flex-none drop-shadow-sm" />
         <div class="leading-tight">
           <div class="text-base font-extrabold text-ink">ToolBox</div>
           <div class="text-[11px] text-inksoft">All the tools you need, in one place</div>
@@ -33,16 +33,16 @@
       </div>
       <nav class="flex items-center gap-1 text-[13px] font-semibold flex-wrap">
         <span class="inline-flex items-center gap-1.5 rounded-xl bg-accentsoft text-accentdeep px-3 py-2">
-          <i class="bi bi-house-door-fill text-sm leading-none"></i>หน้าแรก
+          <img src="assets/icons/icon-home.svg" alt="" class="h-4 w-4 flex-none" />หน้าแรก
         </span>
         <span class="inline-flex items-center gap-1.5 rounded-xl text-inksoft px-3 py-2">
-          <i class="bi bi-heart text-sm leading-none"></i>รายการโปรด
+          <img src="assets/icons/icon-favorite.svg" alt="" class="h-4 w-4 flex-none" />รายการโปรด
         </span>
         <span class="inline-flex items-center gap-1.5 rounded-xl text-inksoft px-3 py-2">
-          <i class="bi bi-clock-history text-sm leading-none"></i>ประวัติการใช้งาน
+          <img src="assets/icons/icon-history.svg" alt="" class="h-4 w-4 flex-none" />ประวัติการใช้งาน
         </span>
         <span class="inline-flex items-center gap-1.5 rounded-xl text-inksoft px-3 py-2">
-          <i class="bi bi-gear text-sm leading-none"></i>ตั้งค่า
+          <img src="assets/icons/icon-settings.svg" alt="" class="h-4 w-4 flex-none" />ตั้งค่า
         </span>
       </nav>
     </header>
@@ -65,7 +65,7 @@
     </div>
 
     <label class="flex items-center gap-2 bg-surface border border-line rounded-2xl pl-4 pr-1.5 py-1.5 mb-8 shadow-sm cursor-text max-w-xl mx-auto" for="tool-search">
-      <i class="bi bi-search text-inkfaint text-base leading-none"></i>
+      <img src="assets/icons/icon-search.svg" alt="" class="h-[18px] w-[18px] flex-none" />
       <input type="text" id="tool-search" class="flex-1 min-w-0 border-none bg-transparent text-ink text-sm outline-none py-2" placeholder="ค้นหาเครื่องมือ เช่น PDF, แปลงไฟล์, รูปภาพ ..." autocomplete="off" />
       <button type="button" class="inline-flex items-center gap-1 flex-none rounded-xl bg-accent text-accentink text-[13px] font-bold px-4 py-2.5 hover:bg-accentdeep transition-colors duration-150">
         ค้นหา <i class="bi bi-chevron-right text-xs leading-none"></i>
@@ -75,7 +75,7 @@
     <div class="flex items-end justify-between gap-3 mb-3 flex-wrap">
       <div class="flex items-center gap-2">
         <span class="flex h-8 w-8 flex-none items-center justify-center rounded-lg bg-accentsoft text-accent">
-          <i class="bi bi-grid-fill text-sm leading-none"></i>
+          <img src="assets/icons/icon-category.svg" alt="" class="h-[18px] w-[18px]" />
         </span>
         <div>
           <h2 class="text-[13px] font-extrabold text-ink uppercase tracking-wide leading-tight">Category</h2>
@@ -86,6 +86,9 @@
         “เครื่องมือดีๆ<br>ใช้งานได้ฟรีเสมอ” <i class="bi bi-heart-fill text-accent"></i>
       </div>
     </div>
+
+    <!-- Category filter chips, rendered by js/app.js (TOOL_CATEGORIES) -->
+    <div class="flex flex-wrap gap-2 mb-4" id="category-filter" role="tablist" aria-label="หมวดหมู่เครื่องมือ"></div>
 
     <div class="grid grid-cols-1 sm:grid-cols-2 gap-3" id="category-grid"></div>
 
@@ -224,6 +227,21 @@
   <!-- Markup lives in views/file-encrypt.html — fetched and mounted at
        runtime by js/app.js, same pattern as views/merge.html. -->
   <div id="view-file-encrypt-mount"></div>
+
+  <!-- ============ FILE DECRYPT VIEW ============ -->
+  <!-- Markup lives in views/file-decrypt.html — fetched and mounted at
+       runtime by js/app.js, same pattern as views/merge.html. -->
+  <div id="view-file-decrypt-mount"></div>
+
+  <!-- ============ OCR VIEW ============ -->
+  <!-- Markup lives in views/ocr.html — fetched and mounted at runtime by
+       js/app.js, same pattern as views/merge.html. -->
+  <div id="view-ocr-mount"></div>
+
+  <!-- ============ TEXT COMPARE VIEW ============ -->
+  <!-- Markup lives in views/text-compare.html — fetched and mounted at
+       runtime by js/app.js, same pattern as views/merge.html. -->
+  <div id="view-text-compare-mount"></div>
 
   <!-- ============ TEXT GENERATOR VIEW ============ -->
   <!-- Markup lives in views/text-gen.html — fetched and mounted at runtime

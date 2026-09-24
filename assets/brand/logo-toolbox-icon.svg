@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+<defs>
+  <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+    <stop offset="0%" stop-color="#A45AF1"/>
+    <stop offset="100%" stop-color="#6748F2"/>
+  </linearGradient>
+</defs>
+
+<rect x="2" y="2" width="60" height="60" rx="16" fill="url(#g)"/>
+<rect x="12" y="31" width="40" height="20" rx="6" fill="#FAF9FF"/>
+<rect x="19" y="24" width="20" height="14" rx="4" fill="#FFFFFF"/>
+<rect x="23" y="27" width="12" height="9" rx="2.5" fill="#6F43D9"/>
+<rect x="19" y="28" width="13" height="16" rx="3" fill="#FFFFFF"/>
+<rect x="31" y="29" width="15" height="16" rx="3" fill="#52B7EB"/>
+<circle cx="42" cy="33" r="2" fill="#FFFFFF"/>
+<circle cx="47" cy="25" r="4" fill="#F56E9A"/>
+<path d="M46 23.5v3l2.5-1.5z" fill="#FFFFFF"/>
+<rect x="27" y="41" width="10" height="10" rx="3" fill="#743FE0"/>
+<path d="M14 18l1.5 3L19 22.5 15.5 24 14 27l-1.5-3-3.5-1.5 3.5-1.5z" fill="#FFFFFF"/>
+<path d="M48 12l1.5 3L53 16.5 49.5 18 48 21l-1.5-3-3.5-1.5 3.5-1.5z" fill="#FFFFFF"/>
+
+</svg>

@@ -21,31 +21,6 @@
   --bad: #ef4b4b;
   --bad-soft: #fde3e3;
 
-  /* Pastel tool-card themes (home view category grid) — one distinct color
-     per enabled tool so tiles are visually distinguishable at a glance;
-     --card-gray is shared by every disabled ("เร็วๆ นี้") tile instead of
-     giving it its own color, since "not available yet" isn't a category. */
-  --card-pink: #fce7f3;
-  --card-pink-deep: #ec6ba8;
-  --card-yellow: #fef3c7;
-  --card-yellow-deep: #e0a324;
-  --card-blue: #dbeafe;
-  --card-blue-deep: #3b82f6;
-  --card-green: #dcfce7;
-  --card-green-deep: #22a35e;
-  --card-orange: #ffedd5;
-  --card-orange-deep: #ea580c;
-  --card-teal: #ccfbf1;
-  --card-teal-deep: #0d9488;
-  --card-rose: #ffe4e6;
-  --card-rose-deep: #e11d48;
-  --card-indigo: #e0e7ff;
-  --card-indigo-deep: #4f46e5;
-  --card-cyan: #cffafe;
-  --card-cyan-deep: #0891b2;
-  --card-gray: #eceaf2;
-  --card-gray-deep: #6b7280;
-
   /* Tool-card icon square background — kept separate from --surface so it
      can be tuned independently of other white surfaces (inputs, modals). */
   --card-icon: #ffffff;
@@ -69,27 +44,6 @@
   --bad: #f07272;
   --bad-soft: #3a2222;
 
-  --card-pink: #3a2431;
-  --card-pink-deep: #f083b8;
-  --card-yellow: #3a3121;
-  --card-yellow-deep: #f0bd4e;
-  --card-blue: #1e2c3f;
-  --card-blue-deep: #6ea4fb;
-  --card-green: #1c3327;
-  --card-green-deep: #4fcf8b;
-  --card-orange: #3a2a1c;
-  --card-orange-deep: #f0954e;
-  --card-teal: #1c332f;
-  --card-teal-deep: #4fcfc0;
-  --card-rose: #3a2128;
-  --card-rose-deep: #f0748c;
-  --card-indigo: #26233c;
-  --card-indigo-deep: #8b93f5;
-  --card-cyan: #1a323a;
-  --card-cyan-deep: #4fd0e8;
-  --card-gray: #29262f;
-  --card-gray-deep: #9490a3;
-
   --card-icon: #211d2e;
 }
 
@@ -102,6 +56,43 @@ body {
 }
 
 [hidden] { display: none !important; }
+
+/* Home tool tiles: one translucent lavender card style that follows the
+   site tone (light + dark) instead of a different pastel per tool. */
+.tool-tile {
+  background: color-mix(in srgb, var(--surface) 94%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--line));
+  box-shadow: 0 4px 14px color-mix(in srgb, var(--accent-deep) 12%, transparent), 0 1px 2px color-mix(in srgb, var(--accent-deep) 10%, transparent);
+  backdrop-filter: blur(8px);
+}
+.tool-tile:hover {
+  background: color-mix(in srgb, var(--accent-soft) 45%, var(--surface));
+  border-color: var(--accent);
+  box-shadow: 0 10px 26px color-mix(in srgb, var(--accent-deep) 22%, transparent);
+}
+.tool-tile.tool-tile-disabled,
+.tool-tile.tool-tile-disabled:hover {
+  background: color-mix(in srgb, var(--surface) 72%, transparent);
+  border: 1px dashed color-mix(in srgb, var(--accent) 30%, var(--line));
+  box-shadow: none;
+}
+
+/* Text compare side-by-side diff (views/text-compare.html) */
+.app.app-wide { max-width: 72rem; }
+.diff-head { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+.diff-row { display: grid; grid-template-columns: 3.4em minmax(0, 1fr) 3.4em minmax(0, 1fr); }
+.diff-row > span { padding: 1px 8px; }
+.diff-split { border-left: 1px solid var(--line); }
+.diff-num { color: var(--ink-faint); text-align: right; user-select: none; }
+.diff-text { white-space: pre-wrap; word-break: break-all; }
+.diff-del { background: color-mix(in srgb, var(--bad) 12%, transparent); }
+.diff-ins { background: color-mix(in srgb, var(--good) 14%, transparent); }
+.diff-empty { background: repeating-linear-gradient(135deg, transparent 0 6px, color-mix(in srgb, var(--line) 60%, transparent) 6px 7px); }
+.diff-del mark { background: color-mix(in srgb, var(--bad) 40%, transparent); color: inherit; border-radius: 2px; }
+.diff-ins mark { background: color-mix(in srgb, var(--good) 45%, transparent); color: inherit; border-radius: 2px; }
+.diff-fold { display: block; width: 100%; padding: 3px 12px; text-align: center; border: none; cursor: pointer;
+  background: var(--surface-2); color: var(--ink-soft); font: inherit; }
+.diff-fold:hover { color: var(--accent-deep); }
 ::placeholder { color: var(--ink-faint); }
 
 @media (prefers-reduced-motion: reduce) {
