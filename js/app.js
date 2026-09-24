@@ -1259,6 +1259,8 @@
     var $progress = $('#convert-stage-progress');
     var $statusEl = $('#convert-stage-status');
     var $render = $('#convert-render');
+    var $modeWrap = $('#convert-mode-wrap');
+    var $modeSelect = $('#convert-mode');
 
     var items = []; // currently staged files for the active pair: { file, url }
 
@@ -1745,11 +1747,25 @@
     function walkPdfOperators(opList, baseTransform) {
       var OPS = pdfjsLib.OPS;
       var Util = pdfjsLib.Util;
-      var state = { ctm: baseTransform.slice(), color: '000000', hidden: false };
+      var state = { ctm: baseTransform.slice(), color: '000000', stroke: '000000', lineWidth: 1, hidden: false };
       var stack = [];
       var chars = [];
       var images = [];
-      function pushState() { stack.push({ ctm: state.ctm.slice(), color: state.color, hidden: state.hidden }); }
+      var paths = [];
+      var pending = [];
+      function pushState() {
+        stack.push({ ctm: state.ctm.slice(), color: state.color, stroke: state.stroke, lineWidth: state.lineWidth, hidden: state.hidden });
+      }
+      function paintPath(fill, stroke) {
+        if (pending.length && paths.length < PDF_MAX_PATHS_PER_PAGE) {
+          var scale = Math.sqrt(Math.abs(state.ctm[0] * state.ctm[3] - state.ctm[1] * state.ctm[2])) || 1;
+          paths.push({
+            cmds: pending, fill: fill ? state.color : null, stroke: stroke ? state.stroke : null,
+            lineWidth: Math.max(0.25, state.lineWidth * scale)
+          });
+        }
+        pending = [];
+      }
       for (var i = 0; i < opList.fnArray.length; i++) {
         var fn = opList.fnArray[i];
         var args = opList.argsArray[i] || [];
@@ -1758,6 +1774,13 @@
         else if (fn === OPS.paintFormXObjectBegin) { pushState(); if (args[0]) state.ctm = Util.transform(state.ctm, args[0]); }
         else if (fn === OPS.transform) state.ctm = Util.transform(state.ctm, args);
         else if (fn === OPS.setFillRGBColor) state.color = pdfColorToHex(args);
+        else if (fn === OPS.setStrokeRGBColor) state.stroke = pdfColorToHex(args);
+        else if (fn === OPS.setLineWidth) state.lineWidth = args[0] || 0;
+        else if (fn === OPS.constructPath) pending = pending.concat(pdfPathCommands(args[0] || [], args[1] || [], state.ctm));
+        else if (fn === OPS.stroke || fn === OPS.closeStroke) paintPath(false, true);
+        else if (fn === OPS.fill || fn === OPS.eoFill) paintPath(true, false);
+        else if (fn === OPS.fillStroke || fn === OPS.eoFillStroke || fn === OPS.closeFillStroke || fn === OPS.closeEOFillStroke) paintPath(true, true);
+        else if (fn === OPS.endPath) pending = [];
         else if (fn === OPS.setTextRenderingMode) state.hidden = args[0] === 3 || args[0] === 7;
         else if (fn === OPS.showText || fn === OPS.showSpacedText) {
           var glyphs = args[0] || [];
@@ -1772,7 +1795,47 @@
         else if (fn === OPS.paintImageXObject) images.push({ objId: args[0], box: unitSquareBox(state.ctm) });
         else if (fn === OPS.paintInlineImageXObject) images.push({ data: args[0], box: unitSquareBox(state.ctm) });
       }
-      return { chars: chars, images: images };
+      return { chars: chars, images: images, paths: paths };
+    }
+
+    // Caps shape count so PDFs with outlined text don't produce a docx Word chokes on.
+    var PDF_MAX_PATHS_PER_PAGE = 4000;
+
+    // Expands a pdf.js constructPath op into page-space commands (pt, top-left origin).
+    function pdfPathCommands(ops, coords, ctm) {
+      var OPS = pdfjsLib.OPS;
+      var Util = pdfjsLib.Util;
+      var out = [];
+      var j = 0;
+      var cur = [0, 0];
+      function pt(x, y) { return Util.applyTransform([x, y], ctm); }
+      for (var k = 0; k < ops.length; k++) {
+        var op = ops[k];
+        if (op === OPS.moveTo) {
+          cur = [coords[j], coords[j + 1]]; j += 2;
+          out.push({ t: 'M', p: [pt(cur[0], cur[1])] });
+        } else if (op === OPS.lineTo) {
+          cur = [coords[j], coords[j + 1]]; j += 2;
+          out.push({ t: 'L', p: [pt(cur[0], cur[1])] });
+        } else if (op === OPS.curveTo) {
+          out.push({ t: 'C', p: [pt(coords[j], coords[j + 1]), pt(coords[j + 2], coords[j + 3]), pt(coords[j + 4], coords[j + 5])] });
+          cur = [coords[j + 4], coords[j + 5]]; j += 6;
+        } else if (op === OPS.curveTo2) {
+          out.push({ t: 'C', p: [pt(cur[0], cur[1]), pt(coords[j], coords[j + 1]), pt(coords[j + 2], coords[j + 3])] });
+          cur = [coords[j + 2], coords[j + 3]]; j += 4;
+        } else if (op === OPS.curveTo3) {
+          out.push({ t: 'C', p: [pt(coords[j], coords[j + 1]), pt(coords[j + 2], coords[j + 3]), pt(coords[j + 2], coords[j + 3])] });
+          cur = [coords[j + 2], coords[j + 3]]; j += 4;
+        } else if (op === OPS.closePath) {
+          out.push({ t: 'Z', p: [] });
+        } else if (op === OPS.rectangle) {
+          var x = coords[j], y = coords[j + 1], w = coords[j + 2], h = coords[j + 3]; j += 4;
+          out.push({ t: 'M', p: [pt(x, y)] }, { t: 'L', p: [pt(x + w, y)] }, { t: 'L', p: [pt(x + w, y + h)] },
+            { t: 'L', p: [pt(x, y + h)] }, { t: 'Z', p: [] });
+          cur = [x, y];
+        }
+      }
+      return out;
     }
 
     // Text items and showText glyphs come out in the same content-stream
@@ -1970,7 +2033,10 @@
       }
 
       var lines = groupPdfLines(items);
-      return { width: viewport.width, height: viewport.height, lines: lines, paras: groupPdfParagraphs(lines), images: images };
+      return {
+        width: viewport.width, height: viewport.height, lines: lines, paras: groupPdfParagraphs(lines),
+        images: images, paths: walked.paths
+      };
     }
 
     function detectPdfAlignment(para, area) {
@@ -2183,15 +2249,118 @@
         body += out.xml;
         finalSectPr = out.sectPr;
       });
+      return packPdfDocx(body + finalSectPr, media);
+    }
 
+    // ---- Exact-layout mode: every text chunk is a page-anchored frame and
+    // every vector path a DrawingML shape, so the page matches the PDF while
+    // text stays editable.
+    function pdfShapeXml(path, id, pageArea) {
+      var minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+      path.cmds.forEach(function (c) {
+        c.p.forEach(function (q) {
+          minX = Math.min(minX, q[0]); minY = Math.min(minY, q[1]);
+          maxX = Math.max(maxX, q[0]); maxY = Math.max(maxY, q[1]);
+        });
+      });
+      if (!isFinite(minX)) return '';
+      var w = maxX - minX, h = maxY - minY;
+      // Full-page white fills are page backgrounds Word already has.
+      if (path.fill === 'FFFFFF' && !path.stroke && w * h >= pageArea * 0.9) return '';
+      var cx = Math.max(1, ptToEmu(w)), cy = Math.max(1, ptToEmu(h));
+      function p(q) { return '<a:pt x="' + ptToEmu(q[0] - minX) + '" y="' + ptToEmu(q[1] - minY) + '"/>'; }
+      var d = path.cmds.map(function (c) {
+        if (c.t === 'M') return '<a:moveTo>' + p(c.p[0]) + '</a:moveTo>';
+        if (c.t === 'L') return '<a:lnTo>' + p(c.p[0]) + '</a:lnTo>';
+        if (c.t === 'C') return '<a:cubicBezTo>' + p(c.p[0]) + p(c.p[1]) + p(c.p[2]) + '</a:cubicBezTo>';
+        return '<a:close/>';
+      }).join('');
+      var fill = path.fill ? '<a:solidFill><a:srgbClr val="' + path.fill + '"/></a:solidFill>' : '<a:noFill/>';
+      var ln = path.stroke
+        ? '<a:ln w="' + ptToEmu(path.lineWidth) + '"><a:solidFill><a:srgbClr val="' + path.stroke + '"/></a:solidFill></a:ln>'
+        : '<a:ln><a:noFill/></a:ln>';
+      return '<w:r><w:drawing><wp:anchor distT="0" distB="0" distL="0" distR="0" simplePos="0" relativeHeight="' + id +
+        '" behindDoc="1" locked="0" layoutInCell="1" allowOverlap="1"><wp:simplePos x="0" y="0"/>' +
+        '<wp:positionH relativeFrom="page"><wp:posOffset>' + ptToEmu(minX) + '</wp:posOffset></wp:positionH>' +
+        '<wp:positionV relativeFrom="page"><wp:posOffset>' + ptToEmu(minY) + '</wp:posOffset></wp:positionV>' +
+        '<wp:extent cx="' + cx + '" cy="' + cy + '"/><wp:effectExtent l="0" t="0" r="0" b="0"/><wp:wrapNone/>' +
+        '<wp:docPr id="' + id + '" name="Shape ' + id + '"/><wp:cNvGraphicFramePr/>' +
+        '<a:graphic><a:graphicData uri="http://schemas.microsoft.com/office/word/2010/wordprocessingShape">' +
+        '<wps:wsp><wps:cNvSpPr/><wps:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="' + cx + '" cy="' + cy + '"/></a:xfrm>' +
+        '<a:custGeom><a:avLst/><a:gdLst/><a:ahLst/><a:cxnLst/><a:rect l="0" t="0" r="r" b="b"/>' +
+        '<a:pathLst><a:path w="' + cx + '" h="' + cy + '"' + (path.fill ? '' : ' fill="none"') + (path.stroke ? '' : ' stroke="0"') + '>' +
+        d + '</a:path></a:pathLst></a:custGeom>' + fill + ln +
+        '</wps:spPr><wps:bodyPr/></wps:wsp></a:graphicData></a:graphic></wp:anchor></w:drawing></w:r>';
+    }
+
+    // Splits a line at column gaps so table cells and tab-aligned text keep their own x.
+    function pdfLineChunks(line) {
+      var chunks = [], chunk = null, prev = null;
+      line.items.forEach(function (it) {
+        var gap = prev ? it.x - (prev.x + prev.w) : 0;
+        var unit = prev ? Math.min(prev.size, it.size) : 0;
+        if (!chunk || gap > unit * 1.5) {
+          chunk = { x: it.x, y: it.y, right: it.x + it.w, size: it.size, segs: [] };
+          chunks.push(chunk);
+        } else if (gap > unit * 0.15 && !/\s$/.test(prev.str) && !/^\s/.test(it.str)) {
+          chunk.segs.push({ text: ' ', style: prev });
+        }
+        chunk.segs.push({ text: it.str, style: it });
+        chunk.right = Math.max(chunk.right, it.x + it.w);
+        chunk.size = Math.max(chunk.size, it.size);
+        prev = it;
+      });
+      return chunks;
+    }
+
+    function pdfFrameParagraphXml(chunk, pageW) {
+      var size = chunk.size;
+      // Taller than the glyphs so Thai upper vowels/tone marks are not clipped.
+      var lineH = size * 1.5;
+      // Word bottom-aligns text in an exact-height line, so baseline = top + lineH - descent.
+      var top = chunk.y - lineH + size * 0.22;
+      var width = Math.min(Math.max(pageW - chunk.x, chunk.right - chunk.x), (chunk.right - chunk.x) * 1.15 + size * 2);
+      var merged = [];
+      chunk.segs.forEach(function (seg) {
+        var last = merged[merged.length - 1];
+        if (last && pdfStyleKey(last.style) === pdfStyleKey(seg.style)) last.text += seg.text;
+        else merged.push({ text: seg.text, style: seg.style });
+      });
+      return '<w:p><w:pPr><w:framePr w:w="' + Math.max(20, ptToTwip(width)) + '" w:wrap="around" w:hAnchor="page" w:vAnchor="page"' +
+        ' w:x="' + Math.max(0, ptToTwip(chunk.x)) + '" w:y="' + Math.max(0, ptToTwip(top)) + '"/>' +
+        '<w:spacing w:before="0" w:after="0" w:line="' + ptToTwip(lineH) + '" w:lineRule="exact"/></w:pPr>' +
+        merged.map(pdfRunXml).join('') + '</w:p>';
+    }
+
+    function buildPdfExactDocx(pages, media) {
+      var ids = { n: 0 };
+      var zero = { top: 0, right: 0, bottom: 0, left: 0 };
+      var body = '', finalSectPr = '';
+      pages.forEach(function (pg, idx) {
+        var pageArea = pg.width * pg.height;
+        var drawings = pg.paths.map(function (path) { return pdfShapeXml(path, ++ids.n, pageArea); }).join('') +
+          pg.images.map(function (im) { return docxDrawingXml(im.media, im.w, im.h, ++ids.n, { x: im.x, y: im.y }); }).join('');
+        var tiny = '<w:spacing w:before="0" w:after="0" w:line="20" w:lineRule="exact"/>';
+        body += '<w:p><w:pPr>' + tiny + '</w:pPr>' + drawings + '</w:p>';
+        pg.lines.forEach(function (line) {
+          pdfLineChunks(line).forEach(function (chunk) { body += pdfFrameParagraphXml(chunk, pg.width); });
+        });
+        finalSectPr = pdfSectPrXml(pg, zero);
+        if (idx < pages.length - 1) body += '<w:p><w:pPr>' + tiny + finalSectPr + '</w:pPr></w:p>';
+      });
+      return packPdfDocx(body + finalSectPr, media);
+    }
+
+    function packPdfDocx(bodyXml, media) {
       var xmlHead = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>';
       var documentXml = xmlHead +
         '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"' +
         ' xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"' +
         ' xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"' +
         ' xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"' +
-        ' xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">' +
-        '<w:body>' + body + finalSectPr + '</w:body></w:document>';
+        ' xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"' +
+        ' xmlns:wps="http://schemas.microsoft.com/office/word/2010/wordprocessingShape">' +
+        '<w:body>' + bodyXml + '</w:body></w:document>';
       var stylesXml = xmlHead +
         '<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">' +
         '<w:docDefaults><w:rPrDefault><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:eastAsia="Arial" w:cs="Tahoma"/>' +
@@ -2228,7 +2397,7 @@
       return zip.generateAsync({ type: 'blob', compression: 'DEFLATE', mimeType: DOCX_MIME });
     }
 
-    async function runPdfToWord(files, onProgress) {
+    async function runPdfToWord(files, onProgress, mode) {
       if (!window.pdfjsLib) throw new Error('ไม่สามารถโหลดไลบรารีอ่าน PDF ได้ ลองรีเฟรชหน้านี้');
       if (!window.JSZip) throw new Error('ไม่สามารถโหลดไลบรารีสร้างไฟล์ Word ได้ ลองรีเฟรชหน้านี้');
       var file = files[0];
@@ -2246,7 +2415,7 @@
       } finally {
         doc.destroy();
       }
-      var blob = await buildPdfDocx(pages, media);
+      var blob = mode === 'flow' ? await buildPdfDocx(pages, media) : await buildPdfExactDocx(pages, media);
       var baseName = file.name.replace(/\.pdf$/i, '') || 'document';
       return [{ name: baseName + '.docx', blob: blob }];
     }
@@ -2389,7 +2558,16 @@
       'pdf|word': {
         accept: '.pdf,application/pdf', multiple: false, icon: 'bi-file-earmark-pdf',
         title: 'ลากไฟล์ PDF มาวางที่นี่', hint: '',
-        note: 'คงฟอนต์ ขนาด ตัวหนา/เอียง สี ย่อหน้า การจัดแนว ขนาดหน้า และรูปภาพไว้ใกล้เคียงต้นฉบับ — ตารางจะออกมาเป็นข้อความจัดด้วย Tab, ขีดเส้นใต้/เส้นกรอบไม่ถูกดึงมา และ PDF ที่สแกนจะได้เป็นรูปภาพ',
+        modes: [
+          {
+            value: 'exact', label: 'เหมือนต้นฉบับ (วางตามตำแหน่งเดิม)',
+            note: 'วางข้อความ เส้น ตาราง กรอบ สี และรูปภาพตามตำแหน่งเดิมบนหน้า ข้อความยังแก้ไขได้ แต่แต่ละบรรทัดเป็นกรอบแยกกัน จึงไม่เหมาะกับการพิมพ์เพิ่มยาวๆ — ถ้าเครื่องไม่มีฟอนต์ของ PDF จะใช้ฟอนต์อื่นแทน ความกว้างตัวอักษรอาจต่างเล็กน้อย'
+          },
+          {
+            value: 'flow', label: 'แก้ไขง่าย (จัดเป็นย่อหน้า)',
+            note: 'คงฟอนต์ ขนาด ตัวหนา/เอียง สี ย่อหน้า การจัดแนว ขนาดหน้า และรูปภาพไว้ใกล้เคียงต้นฉบับ — ตารางจะออกมาเป็นข้อความจัดด้วย Tab, ขีดเส้นใต้/เส้นกรอบไม่ถูกดึงมา และ PDF ที่สแกนจะได้เป็นรูปภาพ'
+          }
+        ],
         runLabel: 'แปลงเป็น Word', zipBaseName: 'pdf-to-word',
         validate: validatePdfFile, run: runPdfToWord
       },
@@ -2405,6 +2583,11 @@
     };
 
     function currentPairKey() { return $fromSelect.val() + '|' + $toSelect.val(); }
+
+    function currentModeNote(cfg) {
+      var mode = (cfg.modes || []).filter(function (m) { return m.value === $modeSelect.val(); })[0];
+      return mode ? mode.note : (cfg.note || '');
+    }
 
     function setStageStatus(msg, kind) {
       $statusEl.text(msg || '');
@@ -2504,7 +2687,10 @@
       if (!cfg) return;
       if (cfg.disabled) { $stageDisabled.removeAttr('hidden'); return; }
       if (cfg.alias) { $stageAlias.removeAttr('hidden'); return; }
-      $note.text(cfg.note || '');
+      $modeSelect.empty();
+      (cfg.modes || []).forEach(function (m) { $modeSelect.append($('<option>').val(m.value).text(m.label)); });
+      $modeWrap.attr('hidden', !cfg.modes);
+      $note.text(currentModeNote(cfg));
       $dropzoneTitle.text(cfg.title);
       $dropzoneHint.html('หรือ <span class="text-accentdeep font-semibold underline underline-offset-2">เลือกไฟล์จากเครื่อง</span>' + (cfg.hint ? ' — ' + cfg.hint : ''));
       $fileInput.attr('accept', cfg.accept);
@@ -2526,6 +2712,10 @@
 
     $fromSelect.on('change', populateToOptions);
     $toSelect.on('change', updatePairUI);
+    $modeSelect.on('change', function () {
+      var cfg = PAIRS[currentPairKey()];
+      if (cfg) $note.text(currentModeNote(cfg));
+    });
 
     $('#btn-convert-alias-pdf-image').on('click', function () {
       $viewConvertFiles.attr('hidden', true);
@@ -2562,7 +2752,7 @@
       setStageBusy(true);
       setStageStatus('', 'neutral');
       try {
-        var outFiles = await cfg.run(items.map(function (it) { return it.file; }), updateStageProgress);
+        var outFiles = await cfg.run(items.map(function (it) { return it.file; }), updateStageProgress, cfg.modes ? $modeSelect.val() : undefined);
         if (!outFiles || !outFiles.length) throw new Error('ไม่มีไฟล์ผลลัพธ์');
         var res = await deliverFiles(outFiles, cfg.zipBaseName || 'converted');
         setStageStatus(res.status === 'saved' ? 'บันทึกไฟล์สำเร็จ' : 'ส่งไฟล์เรียบร้อย', 'good');
