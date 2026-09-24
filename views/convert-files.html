@@ -18,7 +18,6 @@
       <label class="block text-[12px] font-semibold text-inksoft mb-1.5" for="convert-from">จากไฟล์</label>
       <select id="convert-from" class="w-full px-2.5 py-2 rounded-lg border border-line bg-surface2 text-ink text-[13px] focus:outline focus:outline-2 focus:outline-accent focus:outline-offset-1">
         <option value="pdf">PDF</option>
-        <option value="word">Word (.doc, .docx)</option>
         <option value="excel">Excel (.xls, .xlsx, .csv)</option>
         <option value="powerpoint">PowerPoint (.ppt, .pptx)</option>
         <option value="image">รูปภาพ (JPG/PNG)</option>
@@ -73,8 +72,8 @@
     <button type="button" id="btn-convert-alias-pdf-image" class="btn w-auto mt-3.5 px-4 py-2 rounded-xl border-none bg-accent text-accentink text-sm font-bold cursor-pointer hover:bg-accentdeep">ไปที่เครื่องมือแปลงเป็นรูปภาพ</button>
   </div>
 
-  <!-- Off-screen render target for the html2canvas-based conversions (Word,
-       Excel, HTML, Text -> PDF): needs real layout, so it's pushed off-screen
+  <!-- Off-screen render target for the html2canvas-based conversions (Excel,
+       HTML, Text -> PDF): needs real layout, so it's pushed off-screen
        with a fixed page width rather than display:none. -->
   <div id="convert-render" style="position:fixed; left:-9999px; top:0; width:794px; background:#ffffff; color:#000000;"></div>
 </section>

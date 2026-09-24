@@ -1263,7 +1263,6 @@
     var items = []; // currently staged files for the active pair: { file, url }
 
     var TO_OPTIONS = {
-      word: [{ value: 'pdf', label: 'PDF' }],
       excel: [{ value: 'pdf', label: 'PDF' }, { value: 'markdown', label: 'Markdown (.md)' }, { value: 'text', label: 'ข้อความ (.txt)' }, { value: 'csv', label: 'CSV (.csv)' }],
       powerpoint: [{ value: 'pdf', label: 'PDF' }],
       image: [
@@ -1361,114 +1360,6 @@
 
     // ----- run handlers: each takes plain File[] (+ onProgress) and
     // resolves to an array of { name, blob } handed to deliverFiles -----
-
-    // docx-preview "123.4pt" style value -> CSS px.
-    function cssPtToPx(value, fallbackPx) {
-      var m = /^([\d.]+)pt$/.exec(value || '');
-      return m ? parseFloat(m[1]) / 0.75 : fallbackPx;
-    }
-
-    function isCanvasRowBlank(data, width, row) {
-      for (var x = 0; x < width; x += 3) {
-        var i = (row * width + x) * 4;
-        if (data[i] < 235 || data[i + 1] < 235 || data[i + 2] < 235) return false;
-      }
-      return true;
-    }
-
-    // Walks up from `to` looking for an all-white row so page cuts fall
-    // between text lines instead of through them.
-    function findBlankRowCut(ctx, width, from, to) {
-      if (to - from <= 0) return to;
-      var data = ctx.getImageData(0, from, width, to - from).data;
-      for (var r = to - from - 1; r >= 0; r--) {
-        if (isCanvasRowBlank(data, width, r)) return from + r;
-      }
-      return to;
-    }
-
-    function isCanvasRegionBlank(ctx, width, from, height) {
-      var data = ctx.getImageData(0, from, width, height).data;
-      for (var r = 0; r < height; r += 4) {
-        if (!isCanvasRowBlank(data, width, r)) return false;
-      }
-      return true;
-    }
-
-    // Each docx-preview <section> is one Word page (or a whole section when
-    // the file has no saved page-break hints); overflow is split onto extra
-    // pages, repeating the top margin on continuation pages.
-    async function addDocxSectionToPdf(state, section) {
-      var cs = window.getComputedStyle(section);
-      var widthPx = section.offsetWidth;
-      var pageHpx = cssPtToPx(section.style.minHeight, widthPx * Math.SQRT2);
-      var padTop = parseFloat(cs.paddingTop) || 0;
-      var padBottom = parseFloat(cs.paddingBottom) || 0;
-      var canvas = await window.html2canvas(section, { scale: 2, useCORS: true, backgroundColor: '#ffffff' });
-      var ctx = canvas.getContext('2d');
-      var s = canvas.width / widthPx;
-      var pageW = widthPx * 0.75, pageH = pageHpx * 0.75;
-      var orientation = pageW > pageH ? 'landscape' : 'portrait';
-      var y = 0;
-      while (y < canvas.height - 1) {
-        var offset = y === 0 ? 0 : Math.round(padTop * s);
-        var remaining = canvas.height - y;
-        var room = Math.floor(pageHpx * s) - offset;
-        var len;
-        if (remaining <= room) {
-          if (y > 0 && isCanvasRegionBlank(ctx, canvas.width, y, remaining)) break;
-          len = remaining;
-        } else {
-          var target = Math.max(Math.floor(room - padBottom * s), Math.floor(room * 0.5));
-          len = findBlankRowCut(ctx, canvas.width, y + Math.floor(target * 0.8), y + target) - y;
-          if (len < 1) len = target;
-        }
-        var slice = document.createElement('canvas');
-        slice.width = canvas.width;
-        slice.height = len;
-        var sctx = slice.getContext('2d');
-        sctx.fillStyle = '#ffffff';
-        sctx.fillRect(0, 0, slice.width, len);
-        sctx.drawImage(canvas, 0, y, canvas.width, len, 0, 0, canvas.width, len);
-        if (!state.pdf) state.pdf = new window.jspdf.jsPDF({ unit: 'pt', format: [pageW, pageH], orientation: orientation });
-        else state.pdf.addPage([pageW, pageH], orientation);
-        state.pdf.addImage(slice.toDataURL('image/jpeg', 0.92), 'JPEG', 0, (offset / s) * 0.75, pageW, (len / s) * 0.75);
-        y += len;
-      }
-    }
-
-    async function runWordToPdf(files, onProgress) {
-      if (!window.docx || !window.docx.renderAsync) throw new Error('ไม่สามารถโหลดไลบรารีแปลงไฟล์ Word ได้ ลองรีเฟรชหน้านี้');
-      if (!window.jspdf || !window.jspdf.jsPDF || !window.html2canvas) throw new Error('ไม่สามารถโหลดไลบรารีสร้าง PDF ได้ ลองรีเฟรชหน้านี้');
-      var file = files[0];
-      var buf = await file.arrayBuffer();
-      var prevWidth = $render[0].style.width;
-      var state = { pdf: null };
-      try {
-        $render.empty();
-        // Pages carry their own width (landscape pages exceed the 794px default).
-        $render[0].style.width = 'auto';
-        await window.docx.renderAsync(buf, $render[0], $render[0], {
-          inWrapper: false, breakPages: true, ignoreLastRenderedPageBreak: false,
-          experimental: true, useBase64URL: true
-        });
-        if (document.fonts && document.fonts.ready) await document.fonts.ready;
-        var sections = $render.children('section').toArray();
-        if (!sections.length) throw new Error('ไม่พบเนื้อหาในไฟล์ Word');
-        for (var i = 0; i < sections.length; i++) {
-          onProgress(i, sections.length);
-          await addDocxSectionToPdf(state, sections[i]);
-        }
-        onProgress(sections.length, sections.length);
-      } finally {
-        $render.empty();
-        $render[0].style.width = prevWidth;
-      }
-      if (!state.pdf) throw new Error('ไม่พบเนื้อหาในไฟล์ Word');
-      var blob = new Blob([state.pdf.output('arraybuffer')], { type: 'application/pdf' });
-      var baseName = file.name.replace(/\.docx$/i, '') || 'document';
-      return [{ name: baseName + '.pdf', blob: blob }];
-    }
 
     async function runExcelToPdf(files, onProgress) {
       if (!window.jspdf || !window.jspdf.jsPDF || !window.html2canvas) throw new Error('ไม่สามารถโหลดไลบรารีสร้าง PDF ได้ ลองรีเฟรชหน้านี้');
@@ -2503,19 +2394,6 @@
     }
 
     var PAIRS = {
-      'word|pdf': {
-        accept: '.docx,.doc', multiple: false, icon: 'bi-filetype-docx',
-        title: 'ลากไฟล์ Word มาวางที่นี่',
-        hint: 'รองรับเฉพาะ .docx — ไฟล์ .doc รูปแบบเก่าต้องแปลงเป็น .docx ก่อน',
-        note: 'แปลงฝั่งเบราว์เซอร์ล้วนๆ รองรับข้อความ ตาราง และรูปแบบพื้นฐาน — เอกสารที่มีเลย์เอาต์ซับซ้อนอาจไม่ตรงกับ Word ทุกประการ',
-        runLabel: 'แปลงเป็น PDF', zipBaseName: 'word-to-pdf',
-        validate: function (file) {
-          if (/\.doc$/i.test(file.name)) return 'ไม่รองรับไฟล์ .doc รูปแบบเก่า กรุณาบันทึกเป็น .docx ก่อนแล้วลองใหม่';
-          if (!/\.docx$/i.test(file.name)) return 'รองรับเฉพาะไฟล์ .docx เท่านั้น';
-          return null;
-        },
-        run: runWordToPdf
-      },
       'excel|pdf': {
         accept: '.xlsx,.xls,.csv', multiple: true, icon: 'bi-filetype-xlsx',
         title: 'ลากไฟล์ Excel/CSV มาวางที่นี่', hint: 'เลือกได้หลายไฟล์ (.xlsx, .xls, .csv)',
@@ -3035,7 +2913,17 @@
     ts: { prefix: '// test data\nconst testFileFiller: string = "', suffix: '";\n' },
     py: { prefix: '# test data\ntest_file_filler = "', suffix: '"\n' },
     sql: { prefix: "-- test data\nSELECT '", suffix: "';\n" },
-    svg: { prefix: '<?xml version="1.0" encoding="UTF-8"?><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><!-- ', suffix: ' --></svg>' },
+    svg: {
+      prefix: '<?xml version="1.0" encoding="UTF-8"?><svg xmlns="http://www.w3.org/2000/svg" width="400" height="300" viewBox="0 0 400 300">' +
+        '<defs><pattern id="grid" width="25" height="25" patternUnits="userSpaceOnUse"><path d="M25 0H0V25" fill="none" stroke="#e2e5e9" stroke-width="1"/></pattern></defs>' +
+        '<rect width="400" height="300" fill="#f4f5f7"/><rect width="400" height="300" fill="url(#grid)"/>' +
+        '<rect x="1" y="1" width="398" height="298" fill="none" stroke="#aeb4bd" stroke-width="2"/>' +
+        '<rect x="76" y="99" width="248" height="102" fill="#ffffff" stroke="#d1d5db" stroke-width="1"/>' +
+        '<text x="200" y="135" text-anchor="middle" dominant-baseline="middle" font-family="Segoe UI, Arial, sans-serif" font-weight="bold" font-size="22" fill="#1f2937">TEST IMAGE</text>' +
+        '<rect x="173" y="151" width="54" height="2" fill="#1d4ed8"/>' +
+        '<text x="200" y="171" text-anchor="middle" dominant-baseline="middle" font-family="Segoe UI, Arial, sans-serif" font-size="12" fill="#4b5563">SVG &#183; 400 &#215; 300 px</text><!-- ',
+      suffix: ' --></svg>'
+    },
     rtf: { prefix: '{\\rtf1\\ansi\\deff0 ', suffix: ' }' }
   };
 
@@ -3218,25 +3106,54 @@
     return new Blob([out], { type: MIME_MAP.xls });
   }
 
-  // Real raster image via canvas.toBlob (same API the image-conversion
-  // tools above already use) filled with pseudo-random pixels. Compressed
-  // output size can't be dictated directly, so this scales canvas
-  // dimensions by the observed size ratio and re-encodes a few times to
-  // converge close to the target — never exact for jpg/png/webp.
-  function buildNoiseCanvas(width, height) {
+  // Real raster image via canvas.toBlob: a neutral placeholder card (grid,
+  // frame, title, format and dimensions) encoded small, then padded with
+  // format-legal filler (PNG tEXt / JPEG COM / WebP JUNK chunks) up to the
+  // requested size.
+  function drawTestScene(ctx, w, h, label) {
+    var s = Math.min(w, h);
+    ctx.fillStyle = '#f4f5f7';
+    ctx.fillRect(0, 0, w, h);
+    var step = Math.max(8, Math.round(s / 12));
+    ctx.strokeStyle = '#e2e5e9';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    for (var x = step; x < w; x += step) { ctx.moveTo(x + 0.5, 0); ctx.lineTo(x + 0.5, h); }
+    for (var y = step; y < h; y += step) { ctx.moveTo(0, y + 0.5); ctx.lineTo(w, y + 0.5); }
+    ctx.stroke();
+    var border = Math.max(1, Math.round(s * 0.006));
+    ctx.strokeStyle = '#aeb4bd';
+    ctx.lineWidth = border;
+    ctx.strokeRect(border / 2, border / 2, w - border, h - border);
+
+    var cardW = w * 0.62;
+    var cardH = s * 0.34;
+    var cardX = (w - cardW) / 2;
+    var cardY = (h - cardH) / 2;
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(cardX, cardY, cardW, cardH);
+    ctx.strokeStyle = '#d1d5db';
+    ctx.lineWidth = Math.max(1, Math.round(s * 0.003));
+    ctx.strokeRect(cardX, cardY, cardW, cardH);
+
+    var cx = w / 2;
+    var cy = h / 2;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#1f2937';
+    ctx.font = 'bold ' + Math.max(8, Math.round(s * 0.075)) + 'px "Segoe UI", Arial, sans-serif';
+    ctx.fillText('TEST IMAGE', cx, cy - s * 0.05);
+    ctx.fillStyle = '#1d4ed8';
+    ctx.fillRect(cx - s * 0.09, cy + s * 0.005, s * 0.18, Math.max(1, Math.round(s * 0.008)));
+    ctx.fillStyle = '#4b5563';
+    ctx.font = Math.max(6, Math.round(s * 0.04)) + 'px "Segoe UI", Arial, sans-serif';
+    ctx.fillText((label ? label + '  \u00B7  ' : '') + w + ' \u00D7 ' + h + ' px', cx, cy + s * 0.07);
+  }
+  function buildSceneCanvas(width, height, label) {
     var canvas = document.createElement('canvas');
     canvas.width = width;
     canvas.height = height;
-    var ctx = canvas.getContext('2d');
-    var imgData = ctx.createImageData(width, height);
-    for (var i = 0; i < imgData.data.length; i += 4) {
-      var n = Math.floor(Math.random() * 256);
-      imgData.data[i] = n;
-      imgData.data[i + 1] = (n + 85) % 256;
-      imgData.data[i + 2] = (n + 170) % 256;
-      imgData.data[i + 3] = 255;
-    }
-    ctx.putImageData(imgData, 0, 0);
+    drawTestScene(canvas.getContext('2d'), width, height, label);
     return canvas;
   }
   function canvasToBlobAsync(canvas, mime, quality) {
@@ -3244,37 +3161,129 @@
       canvas.toBlob(function (b) { b ? resolve(b) : reject(new Error('เข้ารหัสรูปภาพล้มเหลว')); }, mime, quality);
     });
   }
-  async function buildRealImageBlob(ext, totalBytes) {
-    var mime = MIME_MAP[ext];
-    var quality = (ext === 'jpg' || ext === 'jpeg') ? 0.85 : undefined;
-    var width = Math.max(8, Math.round(Math.sqrt(Math.max(64, totalBytes / 1.2))));
-    var height = width;
-    var blob = await canvasToBlobAsync(buildNoiseCanvas(width, height), mime, quality);
-    for (var i = 0; i < 4 && Math.abs(blob.size - totalBytes) > Math.max(512, totalBytes * 0.05); i++) {
-      var scale = Math.sqrt(totalBytes / Math.max(1, blob.size));
-      width = Math.max(8, Math.round(width * scale));
-      height = Math.max(8, Math.round(height * scale));
-      blob = await canvasToBlobAsync(buildNoiseCanvas(width, height), mime, quality);
+
+  var CRC32_TABLE = null;
+  function crc32(bytes) {
+    if (!CRC32_TABLE) {
+      CRC32_TABLE = new Uint32Array(256);
+      for (var n = 0; n < 256; n++) {
+        var c = n;
+        for (var k = 0; k < 8; k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
+        CRC32_TABLE[n] = c >>> 0;
+      }
     }
-    return blob;
+    var crc = 0xFFFFFFFF;
+    for (var i = 0; i < bytes.length; i++) crc = CRC32_TABLE[(crc ^ bytes[i]) & 0xFF] ^ (crc >>> 8);
+    return (crc ^ 0xFFFFFFFF) >>> 0;
   }
 
-  // Hand-rolled uncompressed 24bpp BMP — the simplest real image format to
-  // size precisely, since file size is pure arithmetic (54-byte header +
-  // width x height x 3, row-padded to 4 bytes) with no encoder involved.
+  var IMAGE_PAD_BLOCK = 1024 * 1024;
+  function fillPadding(buf, start, end) {
+    var src = 'test-file padding ';
+    for (var i = start; i < end; i++) buf[i] = src.charCodeAt((i - start) % src.length);
+  }
+  // Splits `rem` bytes into segment sizes within [minTotal, maxTotal]; a
+  // leftover smaller than minTotal is left unfilled.
+  function splitPadding(rem, maxTotal, minTotal) {
+    var sizes = [];
+    while (rem >= minTotal) {
+      var take = Math.min(maxTotal, rem);
+      if (rem - take > 0 && rem - take < minTotal) take = rem - minTotal;
+      sizes.push(take);
+      rem -= take;
+    }
+    return sizes;
+  }
+  function pngTextChunk(total) {
+    var chunk = new Uint8Array(total);
+    var dv = new DataView(chunk.buffer);
+    dv.setUint32(0, total - 12);
+    writeAscii(chunk, 4, 'tEXt');
+    writeAscii(chunk, 8, 'Comment'); // keyword + NUL separator at [15]
+    fillPadding(chunk, 16, total - 4);
+    dv.setUint32(total - 4, crc32(chunk.subarray(4, total - 4)));
+    return chunk;
+  }
+  function jpegComSegment(total) {
+    var seg = new Uint8Array(total);
+    seg[0] = 0xFF; seg[1] = 0xFE;
+    seg[2] = ((total - 2) >> 8) & 0xFF; seg[3] = (total - 2) & 0xFF;
+    fillPadding(seg, 4, total);
+    return seg;
+  }
+  function isAsciiAt(bytes, offset, str) {
+    for (var i = 0; i < str.length; i++) if (bytes[offset + i] !== str.charCodeAt(i)) return false;
+    return true;
+  }
+  async function padImageBlob(ext, blob, totalBytes) {
+    var extra = totalBytes - blob.size;
+    if (extra <= 0) return blob;
+    var bytes = new Uint8Array(await blob.arrayBuffer());
+    var cache = {};
+    var parts = null;
+    if (ext === 'png' && isAsciiAt(bytes, bytes.length - 8, 'IEND')) {
+      var iend = bytes.length - 12;
+      parts = [bytes.subarray(0, iend)];
+      splitPadding(extra, IMAGE_PAD_BLOCK, 20).forEach(function (size) {
+        parts.push(cache[size] || (cache[size] = pngTextChunk(size)));
+      });
+      parts.push(bytes.subarray(iend));
+    } else if ((ext === 'jpg' || ext === 'jpeg') && bytes[0] === 0xFF && bytes[1] === 0xD8) {
+      parts = [bytes.subarray(0, 2)];
+      splitPadding(extra, 65537, 4).forEach(function (size) {
+        parts.push(cache[size] || (cache[size] = jpegComSegment(size)));
+      });
+      parts.push(bytes.subarray(2));
+    } else if (ext === 'webp' && isAsciiAt(bytes, 0, 'RIFF') && isAsciiAt(bytes, 8, 'WEBP') && extra >= 8) {
+      // RIFF chunks stay even-aligned, so an odd request ends 1 byte short.
+      var dataLen = (extra - 8) & ~1;
+      var head = bytes.slice(0, 12);
+      new DataView(head.buffer).setUint32(4, bytes.length - 8 + 8 + dataLen, true);
+      var chunkHead = new Uint8Array(8);
+      writeAscii(chunkHead, 0, 'JUNK');
+      new DataView(chunkHead.buffer).setUint32(4, dataLen, true);
+      parts = [head, bytes.subarray(12), chunkHead];
+      var block = new Uint8Array(Math.min(IMAGE_PAD_BLOCK, dataLen));
+      fillPadding(block, 0, block.length);
+      for (var left = dataLen; left > 0; left -= block.length) {
+        parts.push(left >= block.length ? block : block.subarray(0, left));
+      }
+    }
+    return parts ? new Blob(parts, { type: blob.type }) : blob;
+  }
+  async function buildRealImageBlob(ext, totalBytes) {
+    var mime = MIME_MAP[ext];
+    var quality = (ext === 'jpg' || ext === 'jpeg') ? 0.92 : undefined;
+    var width = 1200;
+    var height = 900;
+    var blob = await canvasToBlobAsync(buildSceneCanvas(width, height, ext.toUpperCase()), mime, quality);
+    for (var i = 0; i < 10 && blob.size > totalBytes && width > 16; i++) {
+      width = Math.max(16, Math.round(width * Math.sqrt(totalBytes / blob.size) * 0.9));
+      height = Math.max(12, Math.round(width * 0.75));
+      blob = await canvasToBlobAsync(buildSceneCanvas(width, height, ext.toUpperCase()), mime, quality);
+    }
+    return padImageBlob(ext, blob, totalBytes);
+  }
+
+  // Hand-rolled uncompressed 24bpp BMP of the same scene. Size is pure
+  // arithmetic; any remainder becomes a gap before the pixel data
+  // (bfOffBits), so the target is hit exactly.
+  var BMP_MAX_SIDE = 4000; // keeps canvas within browser size limits
   function buildBmpBlob(totalBytes) {
     var HEADER_SIZE = 54;
     var available = Math.max(3, totalBytes - HEADER_SIZE);
-    var width = Math.max(1, Math.round(Math.sqrt(available / 3)));
+    var width = Math.min(BMP_MAX_SIDE, Math.max(1, Math.round(Math.sqrt(available / 3 * 4 / 3))));
     var rowSize = Math.ceil(width * 3 / 4) * 4;
-    var height = Math.max(1, Math.floor(available / rowSize));
+    var height = Math.max(1, Math.min(Math.floor(available / rowSize), Math.round(width * 0.75)));
     var pixelDataSize = rowSize * height;
-    var fileSize = HEADER_SIZE + pixelDataSize;
+    var gap = Math.max(0, totalBytes - HEADER_SIZE - pixelDataSize);
+    var pixelOffset = HEADER_SIZE + gap;
+    var fileSize = pixelOffset + pixelDataSize;
     var buf = new Uint8Array(fileSize);
     var dv = new DataView(buf.buffer);
     buf[0] = 0x42; buf[1] = 0x4D; // 'BM'
     dv.setUint32(2, fileSize, true);
-    dv.setUint32(10, HEADER_SIZE, true);
+    dv.setUint32(10, pixelOffset, true);
     dv.setUint32(14, 40, true);
     dv.setInt32(18, width, true);
     dv.setInt32(22, height, true);
@@ -3283,7 +3292,16 @@
     dv.setUint32(34, pixelDataSize, true);
     dv.setInt32(38, 2835, true);
     dv.setInt32(42, 2835, true);
-    for (var i = HEADER_SIZE; i < fileSize; i++) buf[i] = (i * 37) & 0xFF;
+    var rgba = buildSceneCanvas(width, height, 'BMP').getContext('2d').getImageData(0, 0, width, height).data;
+    for (var y = 0; y < height; y++) {
+      var src = (height - 1 - y) * width * 4; // BMP rows are bottom-up
+      var dst = pixelOffset + y * rowSize;
+      for (var x = 0; x < width; x++, src += 4, dst += 3) {
+        buf[dst] = rgba[src + 2];
+        buf[dst + 1] = rgba[src + 1];
+        buf[dst + 2] = rgba[src];
+      }
+    }
     return new Blob([buf], { type: MIME_MAP.bmp });
   }
 
@@ -3330,6 +3348,11 @@
     }
   }
 
+  function fileTimestamp(d) {
+    function p(n) { return (n < 10 ? '0' : '') + n; }
+    return d.getFullYear() + p(d.getMonth() + 1) + p(d.getDate()) + '-' + p(d.getHours()) + p(d.getMinutes()) + p(d.getSeconds());
+  }
+
   function initTestFileView() {
     var $extSelect = $('#testfile-ext');
     var $sizeInput = $('#testfile-size');
@@ -3363,6 +3386,7 @@
 
       var ext = $extSelect.val();
       var baseName = ($nameInput.val() || 'test-file').trim().replace(/[\\/:*?"<>|]+/g, '_') || 'test-file';
+      baseName += '-' + fileTimestamp(new Date()); // avoid overwriting earlier downloads
       var fileName = baseName + '.' + ext;
 
       setBusy(true);
