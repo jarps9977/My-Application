@@ -2682,6 +2682,8 @@
         var pattern = $repeatPattern.val();
         if (!pattern) { setStatus('กรุณาระบุข้อความที่ต้องการทำซ้ำ', 'bad'); return; }
         text = repeatToLength(pattern, length);
+      } else if (mode === 'thai') {
+        text = randomThaiAwareString(length, THAI_CONSONANTS + THAI_SPACING_VOWELS);
       } else {
         var pool = '';
         if ($optUpper.prop('checked')) pool += 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
