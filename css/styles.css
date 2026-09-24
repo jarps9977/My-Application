@@ -98,6 +98,15 @@ body::before {
 .app.app-wide { max-width: 72rem; }
 /* HTML preview, code format and text compare use the whole viewport */
 .app.app-full { max-width: none; padding-top: 0; padding-bottom: 1.5rem; }
+/* OCR (views/ocr.html) fills the viewport height: the two panes take whatever
+   the header and status line leave, so the page itself never scrolls. */
+.app.app-flush { padding-bottom: 0; }
+@media (min-width: 768px) {
+  #view-ocr { display: flex; flex-direction: column; height: 100vh; }
+  #view-ocr .ocr-panes { flex: 1; min-height: 0; }
+  #view-text-gen { display: flex; flex-direction: column; height: 100vh; }
+  #view-text-gen .textgen-panes { flex: 1; min-height: 0; }
+}
 .diff-head { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
 .diff-row { display: grid; grid-template-columns: 3.4em minmax(0, 1fr) 3.4em minmax(0, 1fr); }
 .diff-row > span { padding: 1px 8px; }
@@ -107,6 +116,8 @@ body::before {
 .diff-del { background: color-mix(in srgb, var(--bad) 12%, transparent); }
 .diff-ins { background: color-mix(in srgb, var(--good) 14%, transparent); }
 .diff-empty { background: repeating-linear-gradient(135deg, transparent 0 6px, color-mix(in srgb, var(--line) 60%, transparent) 6px 7px); }
+/* Inline padding that keeps both sides column-aligned after a changed run */
+.diff-gap { background: repeating-linear-gradient(135deg, transparent 0 4px, color-mix(in srgb, var(--line) 55%, transparent) 4px 5px); border-radius: 2px; }
 .diff-del mark { background: color-mix(in srgb, var(--bad) 40%, transparent); color: inherit; border-radius: 2px; }
 .diff-ins mark { background: color-mix(in srgb, var(--good) 45%, transparent); color: inherit; border-radius: 2px; }
 .diff-fold { display: block; width: 100%; padding: 3px 12px; text-align: center; border: none; cursor: pointer;

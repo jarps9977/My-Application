@@ -72,7 +72,8 @@
     $viewCodeFormat.attr('hidden', true);
     // Side-by-side views need more width than the 640px tool column.
     $('.app').toggleClass('app-wide', $view.is($viewConvertCase))
-      .toggleClass('app-full', $view.is($viewHtmlPreview) || $view.is($viewCodeFormat) || $view.is($viewTextCompare));
+      .toggleClass('app-full', $view.is($viewHtmlPreview) || $view.is($viewCodeFormat) || $view.is($viewTextCompare) || $view.is($viewOcr) || $view.is($viewTextGen))
+      .toggleClass('app-flush', $view.is($viewOcr) || $view.is($viewTextGen));
     $view.removeAttr('hidden');
   }
   $('#btn-back').on('click', function () {
@@ -3126,7 +3127,73 @@
   // pattern), and a live character/word/line counter for pasted text.
   var LOREM_IPSUM_BASE = 'Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum. ';
 
-  var LOREM_IPSUM_TH_BASE = 'ข้อความนี้เป็นข้อความตัวอย่างสำหรับใช้ทดสอบการแสดงผลของตัวอักษรภาษาไทย ใช้สำหรับจัดวางหน้าเอกสาร ออกแบบเว็บไซต์ และตรวจสอบรูปแบบของฟอนต์ ก่อนที่จะนำเนื้อหาจริงมาใส่แทนที่ในภายหลัง การใช้ข้อความตัวอย่างช่วยให้ผู้ออกแบบมองเห็นภาพรวมของงานได้ชัดเจนขึ้น ทั้งเรื่องระยะห่างระหว่างบรรทัด ขนาดของตัวอักษร และความสมดุลของพื้นที่บนหน้ากระดาษ โดยไม่ต้องกังวลเกี่ยวกับความหมายของเนื้อหาที่ปรากฏอยู่ ';
+  // Thai filler is assembled from word banks instead of repeating one fixed
+  // paragraph, so long output keeps varying instead of looping every ~400 chars.
+  var TH_FILLER_BANK = {
+    conn: ['', '', 'นอกจากนี้ ', 'ในขณะเดียวกัน ', 'อย่างไรก็ตาม ', 'ด้วยเหตุนี้ ', 'ที่สำคัญคือ ', 'โดยทั่วไปแล้ว ', 'ในทางปฏิบัติ '],
+    person: ['ทีมออกแบบ', 'นักพัฒนา', 'ผู้ใช้งาน', 'บรรณาธิการ', 'นักเขียน', 'ทีมการตลาด', 'ผู้ดูแลระบบ', 'นักวิจัย', 'ลูกค้า', 'ช่างภาพ', 'ผู้จัดการโครงการ', 'ที่ปรึกษาภายนอก'],
+    verb: ['ทดสอบ', 'ปรับปรุง', 'ออกแบบ', 'ตรวจสอบ', 'จัดวาง', 'รวบรวม', 'วิเคราะห์', 'เผยแพร่', 'แก้ไข', 'จัดเก็บ', 'นำเสนอ', 'เปรียบเทียบ', 'สรุป'],
+    noun: ['เนื้อหา', 'ตัวอักษร', 'หน้าเอกสาร', 'รูปแบบฟอนต์', 'ระยะห่างระหว่างบรรทัด', 'โครงสร้างข้อมูล', 'ภาพประกอบ', 'ตารางสรุป', 'แบบร่างหน้าแรก', 'ชุดสีหลัก', 'ไฟล์ตัวอย่าง', 'รายงานฉบับย่อ'],
+    adj: ['ชัดเจน', 'เรียบง่าย', 'สมดุล', 'ครบถ้วน', 'รวดเร็ว', 'ประณีต', 'อ่านง่าย', 'เป็นระเบียบ', 'ยืดหยุ่น', 'น่าเชื่อถือ'],
+    place: ['หน้าจอคอมพิวเตอร์', 'เอกสารฉบับพิมพ์', 'เว็บไซต์ของบริษัท', 'แอปพลิเคชันบนมือถือ', 'สไลด์นำเสนอ', 'ระบบจัดการเนื้อหา', 'คลังไฟล์ส่วนกลาง'],
+    time: ['ต้นสัปดาห์', 'ช่วงเช้า', 'ปลายเดือน', 'วันหยุดที่ผ่านมา', 'ก่อนกำหนดส่งงาน', 'หลังการประชุม', 'ระหว่างการทดสอบ'],
+    topic: ['งานออกแบบ', 'การสื่อสาร', 'ประสบการณ์ของผู้ใช้', 'ภาพรวมของโครงการ', 'คุณภาพของงาน', 'ขั้นตอนการทำงาน']
+  };
+  var TH_FILLER_SENTENCES = [
+    '{conn}{person}{verb}{noun}ให้{adj}ยิ่งขึ้น',
+    '{conn}เมื่อ{time} {person}ได้{verb}{noun}บน{place}อีกครั้ง',
+    '{conn}{noun}ที่{adj}ช่วยให้{topic}ดำเนินไปได้อย่างราบรื่น',
+    '{conn}การ{verb}{noun}อย่างสม่ำเสมอทำให้{topic}มีความ{adj}มากขึ้น',
+    '{conn}{person}จึงเลือก{verb}{noun}ก่อนนำไปใช้จริงบน{place}',
+    '{conn}ผลลัพธ์ที่ได้แสดงให้เห็นว่า{noun}มีความ{adj}เพียงพอต่อ{topic}',
+    '{conn}หาก{noun}ยังไม่{adj} {person}ก็จะ{verb}ใหม่จนกว่าจะพอใจ',
+    '{conn}{person}บันทึกสิ่งที่พบระหว่าง{verb}{noun}ไว้ใน{place}',
+    '{conn}ข้อความชุดนี้ใช้แทน{noun}จริงเพื่อดู{topic}ก่อนเริ่มงานจริง'
+  ];
+
+  // Short-story flavour: same engine, a narrative word bank.
+  var TH_STORY_BANK = {
+    when: ['เช้าวันหนึ่ง', 'ในคืนที่ฝนตกหนัก', 'ช่วงปลายฤดูร้อน', 'ก่อนตะวันตกดิน', 'ในวันที่ลมแรงผิดปกติ', 'หลังงานวัดเลิกไปไม่นาน'],
+    who: ['เด็กหญิงตัวเล็ก', 'ชายชราเจ้าของร้านหนังสือ', 'นักเดินทางจากเมืองไกล', 'แมวจรสีส้ม', 'คนทำขนมปังประจำหมู่บ้าน', 'นักเรียนชั้นมัธยม', 'ช่างซ่อมนาฬิกา', 'หญิงสาวผู้ชอบวาดรูป'],
+    where: ['ริมแม่น้ำสายเล็ก', 'ในตลาดเช้าวันอาทิตย์', 'บนเนินเขาหลังหมู่บ้าน', 'ที่สถานีรถไฟเก่า', 'ในสวนหลังบ้าน', 'กลางป่าสนฤดูหนาว', 'บนดาดฟ้าของตึกเก่า'],
+    what: ['กล่องไม้ใบเล็กที่ไม่มีใครเปิดมานาน', 'จดหมายที่ไม่ได้ระบุชื่อผู้ส่ง', 'กุญแจสนิมเขรอะ', 'สมุดบันทึกเล่มบาง', 'ภาพถ่ายขาวดำ', 'เมล็ดพันธุ์ที่ไม่มีใครรู้จัก'],
+    act: ['ค่อยๆ เปิดดูอย่างระมัดระวัง', 'เก็บเอาไว้โดยไม่บอกใคร', 'นำไปให้เพื่อนบ้านดู', 'นั่งมองมันอยู่นาน', 'ตัดสินใจออกตามหาเจ้าของ'],
+    end: ['และเรื่องราวก็เริ่มต้นขึ้นจากตรงนั้น', 'จนทั้งหมู่บ้านพูดถึงกันอยู่หลายวัน', 'ก่อนจะรู้ว่ามันเปลี่ยนบางอย่างไปตลอดกาล', 'แม้ในตอนนั้นจะยังไม่มีใครเข้าใจ']
+  };
+  var TH_STORY_SENTENCES = [
+    '{when} {who}พบ{what}{where}',
+    '{who}จึง{act} {end}',
+    '{where}ในเวลานั้นเงียบกว่าที่เคย {who}ยังคงคิดถึง{what}อยู่เสมอ',
+    '{when}มีคนเล่ากันว่า{what}เคยเป็นของ{who}มาก่อน',
+    '{who}เก็บ{what}ไว้{where}นานหลายปี {end}',
+    'ไม่มีใครรู้ว่า{who}นำ{what}มาจากไหน รู้เพียงว่ามันปรากฏขึ้น{where}{when}'
+  ];
+
+  function pickFrom(list) { return list[Math.floor(Math.random() * list.length)]; }
+  function renderThaiTemplate(tpl, bank) {
+    return tpl.replace(/\{(\w+)\}/g, function (m, key) {
+      return bank[key] ? pickFrom(bank[key]) : m;
+    });
+  }
+  // Sentences are joined with spaces and broken into paragraphs every few
+  // sentences; the result is trimmed so the length still matches exactly.
+  function buildThaiText(bank, templates, length) {
+    var out = '';
+    var inParagraph = 0;
+    var perParagraph = 4 + Math.floor(Math.random() * 3);
+    while (out.length < length) {
+      out += renderThaiTemplate(pickFrom(templates), bank);
+      inParagraph++;
+      if (inParagraph >= perParagraph) {
+        out += '\n\n';
+        inParagraph = 0;
+        perParagraph = 4 + Math.floor(Math.random() * 3);
+      } else {
+        out += ' ';
+      }
+    }
+    return out.slice(0, length);
+  }
 
   function repeatToLength(base, length) {
     if (!base) return '';
@@ -3185,6 +3252,10 @@
     var $btnSendToCounter = $('#btn-textgen-send-to-counter');
     var $statusEl = $('#textgen-status');
 
+    var $tabs = $('#textgen-tabs [data-tab]');
+    var $paneGen = $('#textgen-pane-gen');
+    var $paneCount = $('#textgen-pane-count');
+
     var $countInput = $('#textcount-input');
     var $countChars = $('#textcount-chars');
     var $countCharsNoSpace = $('#textcount-chars-no-space');
@@ -3203,6 +3274,19 @@
       $outputCount.text('ผลลัพธ์: ' + $output.val().length.toLocaleString() + ' ตัวอักษร');
     }
 
+    // Panels stay mounted (hidden) so switching tabs never loses typed text.
+    function setTab(tab) {
+      $tabs.each(function () {
+        var on = $(this).data('tab') === tab;
+        $(this).attr('aria-selected', on ? 'true' : 'false')
+          .toggleClass('bg-accent text-accentink shadow-md', on)
+          .toggleClass('bg-transparent text-inksoft hover:text-ink hover:bg-surface', !on);
+      });
+      $paneGen.attr('hidden', tab !== 'gen' ? true : null);
+      $paneCount.attr('hidden', tab !== 'count' ? true : null);
+    }
+    $tabs.on('click', function () { setTab($(this).data('tab')); });
+
     $mode.on('change', function () {
       var mode = $mode.val();
       $randomOptions.attr('hidden', mode !== 'random');
@@ -3210,14 +3294,16 @@
     });
 
     $btnGenerate.on('click', function () {
-      var length = Math.max(1, Math.min(1000000, parseInt($length.val(), 10) || 0));
-      if (!length) { setStatus('กรุณาระบุจำนวนตัวอักษรที่ต้องการ (อย่างน้อย 1)', 'bad'); return; }
+      // Empty falls back to the placeholder value shown in the field.
+      var length = Math.max(1, Math.min(1000000, parseInt($length.val(), 10) || 150));
       var mode = $mode.val();
       var text;
       if (mode === 'lorem') {
         text = repeatToLength(LOREM_IPSUM_BASE, length);
       } else if (mode === 'lorem-th') {
-        text = repeatToLength(LOREM_IPSUM_TH_BASE, length);
+        text = buildThaiText(TH_FILLER_BANK, TH_FILLER_SENTENCES, length);
+      } else if (mode === 'story-th') {
+        text = buildThaiText(TH_STORY_BANK, TH_STORY_SENTENCES, length);
       } else if (mode === 'repeat') {
         var pattern = $repeatPattern.val();
         if (!pattern) { setStatus('กรุณาระบุข้อความที่ต้องการทำซ้ำ', 'bad'); return; }
@@ -3256,7 +3342,8 @@
       var text = $output.val();
       if (!text) return;
       try {
-        var res = await deliverFiles([{ name: 'generated-text.txt', blob: new Blob([text], { type: 'text/plain' }) }], 'generated-text');
+        var baseName = 'generated-text-' + fileTimestamp(new Date());
+        var res = await deliverFiles([{ name: baseName + '.txt', blob: new Blob([text], { type: 'text/plain' }) }], baseName);
         setStatus(res.status === 'saved' ? 'บันทึกไฟล์สำเร็จ' : 'ส่งไฟล์เรียบร้อย', 'good');
       } catch (err) {
         setStatus(describeDownloadError(err), err && err.code === 'declined' ? 'neutral' : 'bad');
@@ -3266,6 +3353,7 @@
     $btnSendToCounter.on('click', function () {
       $countInput.val($output.val());
       updateCounts();
+      setTab('count');
       $countInput.trigger('focus');
     });
 
@@ -3282,6 +3370,7 @@
     }
     $countInput.on('input', updateCounts);
 
+    setTab('gen');
     updateOutputCount();
     updateCounts();
   }
@@ -4852,21 +4941,26 @@
   };
 
   function initOcrView() {
-    var state = { file: null, thumbUrl: null };
+    var state = { file: null, thumbUrl: null, busy: false };
 
     var $dropzone = $('#ocr-dropzone');
     var $fileInput = $('#ocr-file-input');
     var $uploadError = $('#ocr-upload-error');
-    var $docCard = $('#ocr-doc-card');
+    var $imagePane = $('#ocr-image-pane');
+    var $imageActions = $('#ocr-image-actions');
     var $docThumb = $('#ocr-doc-thumb');
     var $docName = $('#ocr-doc-name');
     var $docMeta = $('#ocr-doc-meta');
-    var $panel = $('#ocr-panel');
     var $btnRun = $('#btn-ocr-run');
     var $progress = $('#ocr-progress');
     var $statusEl = $('#ocr-status');
     var $output = $('#ocr-output');
     var $outputCount = $('#ocr-output-count');
+    var $imgViewer = $('#ocr-img-viewer');
+    var $imgFull = $('#ocr-img-full');
+    var $textViewer = $('#ocr-text-viewer');
+    var $textFull = $('#ocr-text-full');
+    var $textFullCount = $('#ocr-text-full-count');
 
     function setStatus(msg, kind) {
       $statusEl.text(msg || '');
@@ -4876,14 +4970,17 @@
       else $statusEl.addClass('text-inksoft');
     }
     function setBusy(busy) {
-      $btnRun.prop('disabled', busy);
+      state.busy = busy;
+      $btnRun.prop('disabled', busy || !state.file);
       $btnRun.toggleClass('busy', busy);
       $btnRun.find('.spinner').toggleClass('hidden', !busy).toggleClass('inline-block', busy);
       $progress.toggleClass('hidden', !busy);
       $progress.find('.progress-fill').css('width', '0%');
     }
     function updateCount() {
-      $outputCount.text($output.val().length.toLocaleString() + ' ตัวอักษร');
+      var label = $output.val().length.toLocaleString() + ' ตัวอักษร';
+      $outputCount.text(label);
+      $textFullCount.text(label);
     }
     function showUploadError(msg) {
       // The dropzone (and its error line) is hidden while an image is loaded.
@@ -4894,10 +4991,12 @@
       if (state.thumbUrl) URL.revokeObjectURL(state.thumbUrl);
       state.file = null;
       state.thumbUrl = null;
-      $docThumb.removeAttr('src');
-      $docCard.css('display', 'none');
-      $panel.css('display', 'none');
+      $docThumb.removeAttr('src').css('display', 'none');
+      $imageActions.css('display', 'none');
       $dropzone.css('display', '');
+      $docName.text('ยังไม่ได้เลือกรูป');
+      $docMeta.text('—');
+      $btnRun.prop('disabled', true);
       $output.val('');
       updateCount();
       setStatus('', 'neutral');
@@ -4911,12 +5010,12 @@
       clearFile();
       state.file = file;
       state.thumbUrl = URL.createObjectURL(file);
-      $docThumb.attr('src', state.thumbUrl);
+      $docThumb.attr('src', state.thumbUrl).css('display', '');
       $docName.text(file.name || 'รูปที่วาง');
       $docMeta.text(formatSize(file.size));
       $dropzone.css('display', 'none');
-      $docCard.css('display', 'block');
-      $panel.css('display', 'block');
+      $imageActions.css('display', '');
+      $btnRun.prop('disabled', false);
       var img = new Image();
       img.onload = function () {
         if (state.file === file) $docMeta.text(img.naturalWidth + ' × ' + img.naturalHeight + ' px · ' + formatSize(file.size));
@@ -4928,17 +5027,18 @@
     $dropzone.on('keydown', function (e) {
       if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); $fileInput.trigger('click'); }
     });
-    // Both the dropzone and the loaded-image card accept a dropped file.
-    $dropzone.add($docCard).on('dragenter dragover', function (e) {
+    // Bound on the pane, not the dropzone inside it: the dropzone is swapped
+    // for the preview once an image is loaded, and both accept a dropped file.
+    $imagePane.on('dragenter dragover', function (e) {
       e.preventDefault();
-      $(this).removeClass('border-line').addClass('border-accent bg-accentsoft');
+      $dropzone.removeClass('border-line').addClass('border-accent bg-accentsoft');
     });
-    $dropzone.add($docCard).on('dragleave drop', function (e) {
+    $imagePane.on('dragleave drop', function (e) {
       e.preventDefault();
-      $(this).removeClass('border-accent bg-accentsoft').addClass('border-line');
+      $dropzone.removeClass('border-accent bg-accentsoft').addClass('border-line');
     });
-    $dropzone.add($docCard).on('drop', function (e) {
-      if ($btnRun.prop('disabled')) return;
+    $imagePane.on('drop', function (e) {
+      if (state.busy) return;
       var dt = e.originalEvent.dataTransfer;
       var f = dt && dt.files && dt.files[0];
       if (f) handleFile(f);
@@ -4948,11 +5048,12 @@
       $fileInput.val('');
     });
     $('#ocr-doc-replace').on('click', function () {
-      if (!$btnRun.prop('disabled')) $fileInput.trigger('click');
+      if (!state.busy) $fileInput.trigger('click');
     });
     // Paste an image from the clipboard while this view is open.
     $(document).on('paste', function (e) {
-      if ($viewOcr.attr('hidden') !== undefined || $btnRun.prop('disabled')) return;
+      if ($viewOcr.attr('hidden') !== undefined || state.busy) return;
+      if (!$textViewer.attr('hidden')) return; // editing text full screen
       var items = (e.originalEvent.clipboardData && e.originalEvent.clipboardData.items) || [];
       for (var i = 0; i < items.length; i++) {
         if (items[i].kind === 'file' && /^image\//.test(items[i].type)) {
@@ -4970,6 +5071,76 @@
       showUploadError('');
     });
     $output.on('input', updateCount);
+
+    // ----- Full-screen viewers -----
+    // The text viewer edits a copy that is mirrored back into #ocr-output on
+    // every keystroke, so closing it (or the Esc key) never loses an edit.
+    function openImgViewer() {
+      if (!state.thumbUrl) return;
+      $imgFull.attr('src', state.thumbUrl);
+      $imgViewer.removeAttr('hidden');
+    }
+    function closeImgViewer() {
+      $imgViewer.attr('hidden', true);
+      $imgFull.removeAttr('src');
+    }
+    function openTextViewer() {
+      $textFull.val($output.val());
+      updateCount();
+      $textViewer.removeAttr('hidden');
+      $textFull.trigger('focus');
+    }
+    function closeTextViewer() {
+      $textViewer.attr('hidden', true);
+      $output.trigger('focus');
+    }
+
+    $docThumb.on('click', openImgViewer);
+    $('#btn-ocr-img-expand').on('click', openImgViewer);
+    $('#btn-ocr-img-viewer-close').on('click', closeImgViewer);
+    // The image fills the whole overlay, so any click outside the close button closes it.
+    $imgViewer.on('click', function (e) {
+      if (!$(e.target).closest('#btn-ocr-img-viewer-close').length) closeImgViewer();
+    });
+
+    $('#btn-ocr-text-expand').on('click', openTextViewer);
+    $('#btn-ocr-text-viewer-close').on('click', closeTextViewer);
+    $textFull.on('input', function () {
+      $output.val($textFull.val());
+      updateCount();
+    });
+    // The status line sits behind the overlay, so this button reports in place.
+    var $btnCopyFull = $('#btn-ocr-text-copy-full');
+    var copyFullTimer = null;
+    $btnCopyFull.on('click', async function () {
+      var text = $textFull.val();
+      if (!text) return;
+      var ok = true;
+      try {
+        await navigator.clipboard.writeText(text);
+      } catch (err) {
+        ok = false;
+        $textFull.trigger('select');
+      }
+      $btnCopyFull.find('span').remove();
+      $btnCopyFull.append($('<span>').text(ok ? 'คัดลอกแล้ว' : 'กด Ctrl+C'));
+      clearTimeout(copyFullTimer);
+      copyFullTimer = setTimeout(function () {
+        $btnCopyFull.find('span').remove();
+        $btnCopyFull.append($('<span>').text('คัดลอก'));
+      }, 1600);
+    });
+
+    $('#btn-ocr-back').on('click', function () {
+      $imgViewer.attr('hidden', true);
+      $textViewer.attr('hidden', true);
+    });
+
+    $(document).on('keydown', function (e) {
+      if (e.key !== 'Escape') return;
+      if (!$imgViewer.attr('hidden')) closeImgViewer();
+      else if (!$textViewer.attr('hidden')) closeTextViewer();
+    });
 
     $btnRun.on('click', async function () {
       if (!state.file) return;
@@ -6713,6 +6884,7 @@
       }
       segs.forEach(function (s) {
         if (!s.text) return;
+        if (s.filler) { flush(); parent.appendChild(el('span', 'diff-gap', s.text)); return; }
         if (s.changed !== changed) { flush(); changed = s.changed; }
         buf += s.text;
       });
@@ -6764,6 +6936,12 @@
       });
       return { a: a, b: b };
     }
+    function spaces(n) { return new Array(n + 1).join(' '); }
+    function segmentsLength(segs) {
+      var n = 0;
+      for (var i = 0; i < segs.length; i++) n += segs[i].text.length;
+      return n;
+    }
     function inlineSegments(aText, bText) {
       var aTok = diffTokens(aText);
       var bTok = diffTokens(bText);
@@ -6775,7 +6953,9 @@
       var b = [];
       var delRun = '';
       var insRun = '';
-      function flush() {
+      // After a change run the shorter side is padded with a blank gap, so the
+      // text that follows starts in the same column on both sides again.
+      function flush(align) {
         if (!delRun && !insRun) return;
         var fine = delRun && insRun ? charSegments(delRun, insRun, key) : null;
         if (fine) { a = a.concat(fine.a); b = b.concat(fine.b); }
@@ -6785,16 +6965,20 @@
         }
         delRun = '';
         insRun = '';
+        if (!align) return;
+        var gap = segmentsLength(a) - segmentsLength(b);
+        if (gap > 0) b.push({ text: spaces(gap), filler: true });
+        else if (gap < 0) a.push({ text: spaces(-gap), filler: true });
       }
       ops.forEach(function (o) {
         if (o.t === '=') {
-          flush();
+          flush(true);
           a.push({ text: aTok[o.a], changed: false });
           b.push({ text: bTok[o.b], changed: false });
         } else if (o.t === '-') delRun += aTok[o.a];
         else insRun += bTok[o.b];
       });
-      flush();
+      flush(false); // nothing follows the last run, so no padding needed
       return { a: a, b: b };
     }
 

@@ -1,109 +1,112 @@
 <section id="view-text-gen" class="animate-fade-in" hidden>
-  <div class="mt-9 mb-5">
+  <div class="mt-4 mb-3">
     <button class="inline-flex items-center gap-1.5 bg-transparent border-none text-inksoft text-sm font-semibold cursor-pointer py-1.5 hover:text-ink" id="btn-text-gen-back" type="button">
       <i class="bi bi-chevron-left text-base leading-none"></i>
       กลับหน้าหลัก
     </button>
   </div>
 
-  <div class="flex items-center gap-3 mb-5">
-    <span class="flex h-9 w-9 flex-none items-center justify-center rounded-full bg-accentsoft text-accent">
-      <i class="bi bi-card-text text-lg leading-none"></i>
-    </span>
-    <h2 class="text-xl font-extrabold">สร้างข้อความ</h2>
+  <div class="flex items-center justify-between flex-wrap gap-3 mb-3">
+    <div class="flex items-center gap-3">
+      <span class="flex h-9 w-9 flex-none items-center justify-center rounded-full bg-accentsoft text-accent">
+        <i class="bi bi-card-text text-lg leading-none"></i>
+      </span>
+      <h2 class="text-xl font-extrabold">สร้างข้อความ</h2>
+    </div>
+
+    <!-- Tabs: only one panel is mounted visible at a time; both keep their state. -->
+    <div class="inline-grid grid-cols-2 gap-1 p-1 rounded-xl bg-surface2 border border-line" id="textgen-tabs" role="tablist" aria-label="โหมดเครื่องมือ">
+      <button type="button" role="tab" data-tab="gen" aria-selected="true" aria-controls="textgen-pane-gen" class="flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-lg border-none text-[12.5px] font-bold cursor-pointer transition-colors duration-150">
+        <i class="bi bi-magic text-sm leading-none"></i> สร้างข้อความตามจำนวนที่ต้องการ
+      </button>
+      <button type="button" role="tab" data-tab="count" aria-selected="false" aria-controls="textgen-pane-count" class="flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-lg border-none text-[12.5px] font-bold cursor-pointer transition-colors duration-150">
+        <i class="bi bi-calculator text-sm leading-none"></i> เช็คจำนวนตัวอักษร
+      </button>
+    </div>
   </div>
 
-  <!-- ---------- Generator ---------- -->
-  <div class="panel bg-surface border border-line rounded-2xl p-4 shadow-sm">
-    <div class="flex items-center gap-2 mb-3">
-      <span class="flex h-7 w-7 flex-none items-center justify-center rounded-full bg-accentsoft text-accent">
-        <i class="bi bi-magic text-sm leading-none"></i>
-      </span>
-      <h3 class="text-sm font-bold">สร้างข้อความตามจำนวนที่ต้องการ</h3>
+  <div class="textgen-panes min-h-0">
+
+    <!-- ---------- Generator ---------- -->
+    <div class="panel h-full flex flex-col min-h-0 bg-surface border border-line rounded-2xl p-4 shadow-sm" id="textgen-pane-gen" role="tabpanel">
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+        <div class="mb-3">
+          <label class="block text-[12px] font-semibold text-inksoft mb-1.5" for="textgen-length">จำนวนตัวอักษร</label>
+          <input type="number" id="textgen-length" min="1" max="1000000" placeholder="150" class="w-full px-2.5 py-2 rounded-lg border border-line bg-surface2 text-ink text-[13px] focus:outline focus:outline-2 focus:outline-accent focus:outline-offset-1" />
+        </div>
+        <div class="mb-3">
+          <label class="block text-[12px] font-semibold text-inksoft mb-1.5" for="textgen-mode">รูปแบบข้อความ</label>
+          <select id="textgen-mode" class="w-full px-2.5 py-2 rounded-lg border border-line bg-surface2 text-ink text-[13px] focus:outline focus:outline-2 focus:outline-accent focus:outline-offset-1">
+            <option value="lorem">Lorem Ipsum</option>
+            <option value="lorem-th">ข้อความไทย (สุ่มประโยค)</option>
+            <option value="story-th">เรื่องสั้นภาษาไทย (สุ่ม)</option>
+            <option value="random">อักขระสุ่ม</option>
+            <option value="thai">อักขระภาษาไทย</option>
+            <option value="repeat">ทำซ้ำข้อความที่กำหนด</option>
+          </select>
+        </div>
+      </div>
+
+      <div id="textgen-random-options" class="mb-3 flex flex-wrap gap-x-4 gap-y-1.5" hidden>
+        <label class="flex items-center gap-1.5 text-[13px] font-medium"><input type="checkbox" id="textgen-opt-upper" class="accent-accent w-[15px] h-[15px]" checked /> A-Z</label>
+        <label class="flex items-center gap-1.5 text-[13px] font-medium"><input type="checkbox" id="textgen-opt-lower" class="accent-accent w-[15px] h-[15px]" checked /> a-z</label>
+        <label class="flex items-center gap-1.5 text-[13px] font-medium"><input type="checkbox" id="textgen-opt-digits" class="accent-accent w-[15px] h-[15px]" checked /> 0-9</label>
+        <label class="flex items-center gap-1.5 text-[13px] font-medium"><input type="checkbox" id="textgen-opt-thai" class="accent-accent w-[15px] h-[15px]" /> ก-ฮ (ภาษาไทย)</label>
+        <label class="flex items-center gap-1.5 text-[13px] font-medium"><input type="checkbox" id="textgen-opt-symbols" class="accent-accent w-[15px] h-[15px]" /> สัญลักษณ์ (!@#$%...)</label>
+      </div>
+
+      <div id="textgen-repeat-options" class="mb-3" hidden>
+        <label class="block text-[12px] font-semibold text-inksoft mb-1.5" for="textgen-repeat-pattern">ข้อความที่ต้องการทำซ้ำ</label>
+        <input type="text" id="textgen-repeat-pattern" value="A" class="w-full px-2.5 py-2 rounded-lg border border-line bg-surface2 text-ink text-[13px] focus:outline focus:outline-2 focus:outline-accent focus:outline-offset-1" />
+      </div>
+
+      <button class="btn w-full px-3.5 py-2.5 rounded-xl border-none bg-accent text-accentink text-sm font-bold cursor-pointer flex items-center justify-center gap-2 hover:bg-accentdeep" id="btn-textgen-generate" type="button">
+        <i class="bi bi-stars text-base leading-none"></i>
+        สร้างข้อความ
+      </button>
+
+      <textarea id="textgen-output" readonly rows="7" class="w-full flex-1 min-h-[200px] md:min-h-0 mt-3.5 px-3 py-2.5 rounded-xl border border-line bg-surface2 text-ink text-[12.5px] font-mono leading-relaxed resize-none focus:outline focus:outline-2 focus:outline-accent focus:outline-offset-1" placeholder="ข้อความที่สร้างจะแสดงที่นี่..."></textarea>
+
+      <div class="flex items-center justify-between flex-wrap gap-2 mt-2.5">
+        <span class="text-[12.5px] text-inksoft font-semibold" id="textgen-output-count">ผลลัพธ์: 0 ตัวอักษร</span>
+        <div class="flex items-center gap-2">
+          <button type="button" id="btn-textgen-copy" class="flex items-center gap-1.5 bg-surface2 border border-line text-ink text-[12.5px] font-bold px-3 py-1.5 rounded-lg cursor-pointer hover:border-accent hover:text-accentdeep">
+            <i class="bi bi-clipboard text-sm leading-none"></i> คัดลอก
+          </button>
+          <button type="button" id="btn-textgen-download" class="flex items-center gap-1.5 bg-surface2 border border-line text-ink text-[12.5px] font-bold px-3 py-1.5 rounded-lg cursor-pointer hover:border-accent hover:text-accentdeep">
+            <i class="bi bi-download text-sm leading-none"></i> ดาวน์โหลด .txt
+          </button>
+          <button type="button" id="btn-textgen-send-to-counter" class="flex items-center gap-1.5 bg-surface2 border border-line text-ink text-[12.5px] font-bold px-3 py-1.5 rounded-lg cursor-pointer hover:border-accent hover:text-accentdeep">
+            <i class="bi bi-calculator text-sm leading-none"></i> เช็คจำนวน
+          </button>
+        </div>
+      </div>
+      <div class="status-line mt-2.5 text-[12.5px] min-h-[16px]" id="textgen-status"></div>
     </div>
 
-    <div class="grid grid-cols-2 gap-2.5">
-      <div class="mb-3">
-        <label class="block text-[12px] font-semibold text-inksoft mb-1.5" for="textgen-length">จำนวนตัวอักษร</label>
-        <input type="number" id="textgen-length" min="1" max="1000000" value="7000" class="w-full px-2.5 py-2 rounded-lg border border-line bg-surface2 text-ink text-[13px] focus:outline focus:outline-2 focus:outline-accent focus:outline-offset-1" />
-      </div>
-      <div class="mb-3">
-        <label class="block text-[12px] font-semibold text-inksoft mb-1.5" for="textgen-mode">รูปแบบข้อความ</label>
-        <select id="textgen-mode" class="w-full px-2.5 py-2 rounded-lg border border-line bg-surface2 text-ink text-[13px] focus:outline focus:outline-2 focus:outline-accent focus:outline-offset-1">
-          <option value="lorem">Lorem Ipsum</option>
-          <option value="lorem-th">Lorem Ipsum (ภาษาไทย)</option>
-          <option value="random">อักขระสุ่ม</option>
-          <option value="thai">อักขระภาษาไทย</option>
-          <option value="repeat">ทำซ้ำข้อความที่กำหนด</option>
-        </select>
-      </div>
-    </div>
+    <!-- ---------- Character/word counter ---------- -->
+    <div class="panel h-full flex flex-col min-h-0 bg-surface border border-line rounded-2xl p-4 shadow-sm" id="textgen-pane-count" role="tabpanel" hidden>
+      <textarea id="textcount-input" rows="7" class="w-full flex-1 min-h-[200px] md:min-h-0 px-3 py-2.5 rounded-xl border border-line bg-surface2 text-ink text-[12.5px] font-mono leading-relaxed resize-none focus:outline focus:outline-2 focus:outline-accent focus:outline-offset-1" placeholder="วางหรือพิมพ์ข้อความที่นี่เพื่อเช็คจำนวน..."></textarea>
 
-    <div id="textgen-random-options" class="mb-3 flex flex-wrap gap-x-4 gap-y-1.5" hidden>
-      <label class="flex items-center gap-1.5 text-[13px] font-medium"><input type="checkbox" id="textgen-opt-upper" class="accent-accent w-[15px] h-[15px]" checked /> A-Z</label>
-      <label class="flex items-center gap-1.5 text-[13px] font-medium"><input type="checkbox" id="textgen-opt-lower" class="accent-accent w-[15px] h-[15px]" checked /> a-z</label>
-      <label class="flex items-center gap-1.5 text-[13px] font-medium"><input type="checkbox" id="textgen-opt-digits" class="accent-accent w-[15px] h-[15px]" checked /> 0-9</label>
-      <label class="flex items-center gap-1.5 text-[13px] font-medium"><input type="checkbox" id="textgen-opt-thai" class="accent-accent w-[15px] h-[15px]" /> ก-ฮ (ภาษาไทย)</label>
-      <label class="flex items-center gap-1.5 text-[13px] font-medium"><input type="checkbox" id="textgen-opt-symbols" class="accent-accent w-[15px] h-[15px]" /> สัญลักษณ์ (!@#$%...)</label>
-    </div>
-
-    <div id="textgen-repeat-options" class="mb-3" hidden>
-      <label class="block text-[12px] font-semibold text-inksoft mb-1.5" for="textgen-repeat-pattern">ข้อความที่ต้องการทำซ้ำ</label>
-      <input type="text" id="textgen-repeat-pattern" value="A" class="w-full px-2.5 py-2 rounded-lg border border-line bg-surface2 text-ink text-[13px] focus:outline focus:outline-2 focus:outline-accent focus:outline-offset-1" />
-    </div>
-
-    <button class="btn w-full px-3.5 py-2.5 rounded-xl border-none bg-accent text-accentink text-sm font-bold cursor-pointer flex items-center justify-center gap-2 hover:bg-accentdeep" id="btn-textgen-generate" type="button">
-      <i class="bi bi-stars text-base leading-none"></i>
-      สร้างข้อความ
-    </button>
-
-    <textarea id="textgen-output" readonly rows="7" class="w-full mt-3.5 px-3 py-2.5 rounded-xl border border-line bg-surface2 text-ink text-[12.5px] font-mono leading-relaxed resize-y focus:outline focus:outline-2 focus:outline-accent focus:outline-offset-1" placeholder="ข้อความที่สร้างจะแสดงที่นี่..."></textarea>
-
-    <div class="flex items-center justify-between flex-wrap gap-2 mt-2.5">
-      <span class="text-[12.5px] text-inksoft font-semibold" id="textgen-output-count">ผลลัพธ์: 0 ตัวอักษร</span>
-      <div class="flex items-center gap-2">
-        <button type="button" id="btn-textgen-copy" class="flex items-center gap-1.5 bg-surface2 border border-line text-ink text-[12.5px] font-bold px-3 py-1.5 rounded-lg cursor-pointer hover:border-accent hover:text-accentdeep">
-          <i class="bi bi-clipboard text-sm leading-none"></i> คัดลอก
-        </button>
-        <button type="button" id="btn-textgen-download" class="flex items-center gap-1.5 bg-surface2 border border-line text-ink text-[12.5px] font-bold px-3 py-1.5 rounded-lg cursor-pointer hover:border-accent hover:text-accentdeep">
-          <i class="bi bi-download text-sm leading-none"></i> ดาวน์โหลด .txt
-        </button>
-        <button type="button" id="btn-textgen-send-to-counter" class="flex items-center gap-1.5 bg-surface2 border border-line text-ink text-[12.5px] font-bold px-3 py-1.5 rounded-lg cursor-pointer hover:border-accent hover:text-accentdeep">
-          <i class="bi bi-calculator text-sm leading-none"></i> เช็คจำนวน
-        </button>
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5 mt-3.5">
+        <div class="bg-surface2 border border-line rounded-xl px-3 py-2.5 text-center">
+          <div class="text-lg font-extrabold tabular-nums" id="textcount-chars">0</div>
+          <div class="text-[11px] text-inksoft mt-0.5">ตัวอักษร</div>
+        </div>
+        <div class="bg-surface2 border border-line rounded-xl px-3 py-2.5 text-center">
+          <div class="text-lg font-extrabold tabular-nums" id="textcount-chars-no-space">0</div>
+          <div class="text-[11px] text-inksoft mt-0.5">ไม่รวมช่องว่าง</div>
+        </div>
+        <div class="bg-surface2 border border-line rounded-xl px-3 py-2.5 text-center">
+          <div class="text-lg font-extrabold tabular-nums" id="textcount-words">0</div>
+          <div class="text-[11px] text-inksoft mt-0.5">คำ</div>
+        </div>
+        <div class="bg-surface2 border border-line rounded-xl px-3 py-2.5 text-center">
+          <div class="text-lg font-extrabold tabular-nums" id="textcount-lines">0</div>
+          <div class="text-[11px] text-inksoft mt-0.5">บรรทัด</div>
+        </div>
       </div>
     </div>
-    <div class="status-line mt-2.5 text-[12.5px] min-h-[16px]" id="textgen-status"></div>
-  </div>
 
-  <!-- ---------- Character/word counter ---------- -->
-  <div class="panel bg-surface border border-line rounded-2xl p-4 shadow-sm mt-4">
-    <div class="flex items-center gap-2 mb-3">
-      <span class="flex h-7 w-7 flex-none items-center justify-center rounded-full bg-accentsoft text-accent">
-        <i class="bi bi-calculator text-sm leading-none"></i>
-      </span>
-      <h3 class="text-sm font-bold">เช็คจำนวนตัวอักษร</h3>
-    </div>
-
-    <textarea id="textcount-input" rows="7" class="w-full px-3 py-2.5 rounded-xl border border-line bg-surface2 text-ink text-[12.5px] font-mono leading-relaxed resize-y focus:outline focus:outline-2 focus:outline-accent focus:outline-offset-1" placeholder="วางหรือพิมพ์ข้อความที่นี่เพื่อเช็คจำนวน..."></textarea>
-
-    <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5 mt-3.5">
-      <div class="bg-surface2 border border-line rounded-xl px-3 py-2.5 text-center">
-        <div class="text-lg font-extrabold tabular-nums" id="textcount-chars">0</div>
-        <div class="text-[11px] text-inksoft mt-0.5">ตัวอักษร</div>
-      </div>
-      <div class="bg-surface2 border border-line rounded-xl px-3 py-2.5 text-center">
-        <div class="text-lg font-extrabold tabular-nums" id="textcount-chars-no-space">0</div>
-        <div class="text-[11px] text-inksoft mt-0.5">ไม่รวมช่องว่าง</div>
-      </div>
-      <div class="bg-surface2 border border-line rounded-xl px-3 py-2.5 text-center">
-        <div class="text-lg font-extrabold tabular-nums" id="textcount-words">0</div>
-        <div class="text-[11px] text-inksoft mt-0.5">คำ</div>
-      </div>
-      <div class="bg-surface2 border border-line rounded-xl px-3 py-2.5 text-center">
-        <div class="text-lg font-extrabold tabular-nums" id="textcount-lines">0</div>
-        <div class="text-[11px] text-inksoft mt-0.5">บรรทัด</div>
-      </div>
-    </div>
   </div>
 </section>

@@ -1,73 +1,112 @@
 <section id="view-ocr" class="animate-fade-in" hidden>
-  <div class="mt-9 mb-5">
+  <div class="mt-4 mb-3">
     <button class="inline-flex items-center gap-1.5 bg-transparent border-none text-inksoft text-sm font-semibold cursor-pointer py-1.5 hover:text-ink" id="btn-ocr-back" type="button">
       <i class="bi bi-chevron-left text-base leading-none"></i>
       กลับหน้าหลัก
     </button>
   </div>
 
-  <div class="flex items-center gap-3 mb-5">
-    <span class="flex h-9 w-9 flex-none items-center justify-center rounded-full bg-accentsoft text-accent">
-      <i class="bi bi-fonts text-lg leading-none"></i>
-    </span>
-    <h2 class="text-xl font-extrabold">อ่านข้อความจากภาพ</h2>
-  </div>
-
-  <p class="text-[12.5px] text-inksoft -mt-3 mb-4 leading-relaxed">
-    ดึงข้อความจากรูปภาพ (OCR) รองรับภาษาไทยและอังกฤษ ประมวลผลในเบราว์เซอร์ทั้งหมด ไม่มีการส่งรูปออกนอกเครื่อง
-  </p>
-
-  <div id="ocr-dropzone" class="border-2 border-dashed border-line rounded-2xl bg-surface px-6 py-7 text-center cursor-pointer transition-colors duration-150" tabindex="0" role="button" aria-label="อัปโหลดรูปภาพ">
-    <i class="bi bi-cloud-arrow-up text-2xl text-inkfaint mb-2 block"></i>
-    <div><strong class="text-sm font-bold">ลากรูปภาพมาวางที่นี่ หรือกด Ctrl+V เพื่อวางรูป</strong></div>
-    <p class="text-[12.5px] text-inksoft mt-1">หรือ <span class="text-accentdeep font-semibold underline underline-offset-2">เลือกไฟล์จากเครื่อง</span> (JPG, PNG, WEBP, BMP, GIF)</p>
-    <div class="text-bad text-[12.5px] mt-2 text-center" id="ocr-upload-error"></div>
-  </div>
-  <input type="file" id="ocr-file-input" accept="image/jpeg,image/png,image/webp,image/bmp,image/gif" class="sr-only" />
-
-  <!-- Replaces the dropzone once an image is loaded; dropping or pasting
-       another image still swaps it. -->
-  <div id="ocr-doc-card" class="bg-surface border border-line rounded-2xl shadow-sm overflow-hidden transition-colors duration-150" style="display:none;">
-    <div class="flex gap-3 items-center px-3.5 py-3">
-      <span class="flex h-9 w-9 flex-none items-center justify-center rounded-lg bg-accentsoft text-accent">
-        <i class="bi bi-file-earmark-image text-lg leading-none"></i>
+  <div class="flex items-center justify-between flex-wrap gap-3 mb-3">
+    <div class="flex items-center gap-3">
+      <span class="flex h-9 w-9 flex-none items-center justify-center rounded-full bg-accentsoft text-accent">
+        <i class="bi bi-fonts text-lg leading-none"></i>
       </span>
-      <div class="flex-1 min-w-0">
-        <div class="font-bold text-[14.5px] whitespace-nowrap overflow-hidden text-ellipsis" id="ocr-doc-name">—</div>
-        <div class="text-[12.5px] text-inksoft mt-0.5" id="ocr-doc-meta">—</div>
+      <div>
+        <h2 class="text-xl font-extrabold leading-tight">อ่านข้อความจากภาพ</h2>
+        <p class="text-[12px] text-inksoft mt-0.5">รองรับภาษาไทยและอังกฤษ ประมวลผลในเบราว์เซอร์ทั้งหมด ไม่มีการส่งรูปออกนอกเครื่อง</p>
       </div>
-      <button class="flex-none flex items-center gap-1.5 h-8 px-2.5 rounded-[10px] border-none bg-surface2 text-inksoft text-[12.5px] font-bold cursor-pointer hover:text-accentdeep" id="ocr-doc-replace" type="button">
-        <i class="bi bi-arrow-repeat text-sm leading-none"></i> เปลี่ยนรูป
-      </button>
-      <button class="flex-none w-8 h-8 rounded-[10px] border-none bg-surface2 text-inksoft cursor-pointer flex items-center justify-center hover:text-bad hover:bg-badsoft" id="ocr-doc-clear" type="button" aria-label="นำรูปออก">
-        <i class="bi bi-x-lg text-sm leading-none"></i>
-      </button>
     </div>
-    <div class="border-t border-line bg-surface2 p-3 flex items-center justify-center">
-      <img id="ocr-doc-thumb" alt="ตัวอย่างรูปภาพ" class="block max-w-full max-h-[520px] object-contain rounded-lg shadow-sm" />
-    </div>
-  </div>
-
-  <div class="panel bg-surface border border-line rounded-2xl p-4 shadow-sm mt-4" id="ocr-panel" style="display:none;">
-    <button class="btn w-full px-3.5 py-2.5 rounded-xl border-none bg-accent text-accentink text-sm font-bold cursor-pointer flex items-center justify-center gap-2 hover:bg-accentdeep" id="btn-ocr-run" type="button">
+    <button class="btn px-4 py-2.5 rounded-xl border-none bg-accent text-accentink text-sm font-bold cursor-pointer flex items-center justify-center gap-2 hover:bg-accentdeep disabled:opacity-50 disabled:pointer-events-none" id="btn-ocr-run" type="button" disabled>
       <span class="spinner hidden w-[15px] h-[15px] rounded-full border-2 border-white/40 border-t-current animate-spin"></span>
       <span class="btn-label">อ่านข้อความ</span>
     </button>
-    <div class="progress-track hidden h-[5px] rounded-full bg-surface2 mt-3 overflow-hidden" id="ocr-progress"><div class="progress-fill h-full bg-accent rounded-full w-0 transition-[width] duration-150"></div></div>
-    <div class="status-line mt-2.5 text-[12.5px] min-h-[16px]" id="ocr-status"></div>
+  </div>
 
-    <textarea id="ocr-output" rows="9" class="w-full mt-3 px-3 py-2.5 rounded-xl border border-line bg-surface2 text-ink text-[13px] leading-relaxed resize-y focus:outline focus:outline-2 focus:outline-accent focus:outline-offset-1" placeholder="ข้อความที่อ่านได้จะแสดงที่นี่ (แก้ไขได้)"></textarea>
-
-    <div class="flex items-center justify-between flex-wrap gap-2 mt-2.5">
-      <span class="text-[12.5px] text-inksoft font-semibold" id="ocr-output-count">0 ตัวอักษร</span>
-      <div class="flex items-center gap-2">
-        <button type="button" id="btn-ocr-copy" class="flex items-center gap-1.5 bg-surface2 border border-line text-ink text-[12.5px] font-bold px-3 py-1.5 rounded-lg cursor-pointer hover:border-accent hover:text-accentdeep">
-          <i class="bi bi-clipboard text-sm leading-none"></i> คัดลอก
-        </button>
-        <button type="button" id="btn-ocr-download" class="flex items-center gap-1.5 bg-surface2 border border-line text-ink text-[12.5px] font-bold px-3 py-1.5 rounded-lg cursor-pointer hover:border-accent hover:text-accentdeep">
-          <i class="bi bi-download text-sm leading-none"></i> ดาวน์โหลด .txt
-        </button>
+  <!-- Image (left) / text (right) share the side-by-side shell used by the text compare tool. -->
+  <div class="ocr-panes grid grid-cols-1 md:grid-cols-2 bg-surface border border-line rounded-2xl shadow-sm overflow-hidden">
+    <div class="flex flex-col min-w-0 min-h-0 md:border-r border-line">
+      <div class="flex items-center justify-between gap-2 px-4 py-2.5 border-b border-line">
+        <span class="text-[13px] font-bold">รูปภาพ</span>
+        <div class="flex items-center gap-1.5" id="ocr-image-actions" style="display:none;">
+          <button class="flex items-center gap-1 bg-transparent border-none text-inksoft text-[12px] font-semibold cursor-pointer hover:text-accentdeep" id="btn-ocr-img-expand" type="button" title="ดูเต็มจอ">
+            <i class="bi bi-arrows-fullscreen text-sm leading-none"></i> เต็มจอ
+          </button>
+          <button class="flex items-center gap-1 bg-transparent border-none text-inksoft text-[12px] font-semibold cursor-pointer hover:text-accentdeep" id="ocr-doc-replace" type="button">
+            <i class="bi bi-arrow-repeat text-sm leading-none"></i> เปลี่ยนรูป
+          </button>
+          <button class="w-7 h-7 rounded-lg border-none bg-transparent text-inksoft cursor-pointer flex items-center justify-center hover:text-bad hover:bg-badsoft" id="ocr-doc-clear" type="button" aria-label="นำรูปออก">
+            <i class="bi bi-x-lg text-sm leading-none"></i>
+          </button>
+        </div>
       </div>
+
+      <div class="relative flex-1 min-h-[320px] md:min-h-0 bg-surface2" id="ocr-image-pane">
+        <div id="ocr-dropzone" class="absolute inset-0 m-3 flex flex-col items-center justify-center text-center border-2 border-dashed border-line rounded-xl bg-surface px-6 cursor-pointer transition-colors duration-150" tabindex="0" role="button" aria-label="อัปโหลดรูปภาพ">
+          <i class="bi bi-cloud-arrow-up text-3xl text-inkfaint mb-2 block"></i>
+          <div><strong class="text-sm font-bold">ลากรูปภาพมาวางที่นี่ หรือกด Ctrl+V เพื่อวางรูป</strong></div>
+          <p class="text-[12.5px] text-inksoft mt-1">หรือ <span class="text-accentdeep font-semibold underline underline-offset-2">เลือกไฟล์จากเครื่อง</span> (JPG, PNG, WEBP, BMP, GIF)</p>
+          <div class="text-bad text-[12.5px] mt-2 text-center" id="ocr-upload-error"></div>
+        </div>
+        <img id="ocr-doc-thumb" alt="ตัวอย่างรูปภาพ" class="absolute inset-0 w-full h-full object-contain p-3 cursor-zoom-in" style="display:none;" title="กดเพื่อดูเต็มจอ" />
+      </div>
+
+      <div class="flex items-center justify-between gap-3 px-4 py-1.5 border-t border-line text-[11.5px] text-inkfaint">
+        <span class="min-w-0 whitespace-nowrap overflow-hidden text-ellipsis font-semibold" id="ocr-doc-name">ยังไม่ได้เลือกรูป</span>
+        <span class="flex-none font-mono" id="ocr-doc-meta">—</span>
+      </div>
+    </div>
+
+    <div class="flex flex-col min-w-0 min-h-0 border-t md:border-t-0 border-line">
+      <div class="flex items-center justify-between gap-2 px-4 py-2.5 border-b border-line">
+        <label class="text-[13px] font-bold" for="ocr-output">ข้อความที่อ่านได้</label>
+        <div class="flex items-center gap-1.5">
+          <button class="flex items-center gap-1 bg-transparent border-none text-inksoft text-[12px] font-semibold cursor-pointer hover:text-accentdeep" id="btn-ocr-text-expand" type="button" title="แก้ไขแบบเต็มจอ">
+            <i class="bi bi-arrows-fullscreen text-sm leading-none"></i> เต็มจอ
+          </button>
+          <button type="button" id="btn-ocr-copy" class="flex items-center gap-1 bg-transparent border-none text-inksoft text-[12px] font-semibold cursor-pointer hover:text-accentdeep">
+            <i class="bi bi-clipboard text-sm leading-none"></i> คัดลอก
+          </button>
+          <button type="button" id="btn-ocr-download" class="flex items-center gap-1 bg-transparent border-none text-inksoft text-[12px] font-semibold cursor-pointer hover:text-accentdeep">
+            <i class="bi bi-download text-sm leading-none"></i> .txt
+          </button>
+        </div>
+      </div>
+
+      <textarea id="ocr-output" spellcheck="false" wrap="soft" class="w-full flex-1 min-h-[320px] md:min-h-0 px-4 py-3 border-none bg-surface text-ink text-[13px] leading-relaxed resize-none outline-none" placeholder="ข้อความที่อ่านได้จะแสดงที่นี่ (แก้ไขได้)"></textarea>
+
+      <div class="px-4 py-1.5 border-t border-line text-[11.5px] text-inkfaint text-right font-mono" id="ocr-output-count">0 ตัวอักษร</div>
+    </div>
+  </div>
+
+  <input type="file" id="ocr-file-input" accept="image/jpeg,image/png,image/webp,image/bmp,image/gif" class="sr-only" />
+
+  <div class="progress-track hidden h-[5px] rounded-full bg-surface2 mt-3 overflow-hidden" id="ocr-progress"><div class="progress-fill h-full bg-accent rounded-full w-0 transition-[width] duration-150"></div></div>
+  <div class="status-line mt-2.5 text-[12.5px] min-h-[16px]" id="ocr-status"></div>
+
+  <!-- Full-screen image preview -->
+  <div id="ocr-img-viewer" class="fixed inset-0 z-50 bg-black/90" role="dialog" aria-modal="true" aria-label="ดูรูปภาพเต็มจอ" hidden>
+    <img id="ocr-img-full" alt="รูปภาพเต็มจอ" class="w-full h-full object-contain" />
+    <button type="button" id="btn-ocr-img-viewer-close" class="absolute top-4 right-4 flex h-9 w-9 items-center justify-center rounded-lg border-none bg-white/15 text-white cursor-pointer hover:bg-white/30" aria-label="ปิด">
+      <i class="bi bi-x-lg text-base leading-none"></i>
+    </button>
+  </div>
+
+  <!-- Full-screen text editor; edits sync back into #ocr-output -->
+  <div id="ocr-text-viewer" class="fixed inset-0 z-50 flex bg-surface" role="dialog" aria-modal="true" aria-label="ข้อความเต็มจอ" hidden>
+    <div class="flex flex-col w-full h-full bg-surface overflow-hidden">
+      <div class="flex items-center justify-between gap-2 px-4 py-2.5 border-b border-line">
+        <span class="text-[13px] font-bold">ข้อความที่อ่านได้</span>
+        <div class="flex items-center gap-1.5">
+          <button type="button" id="btn-ocr-text-copy-full" class="flex items-center gap-1 bg-transparent border-none text-inksoft text-[12px] font-semibold cursor-pointer hover:text-accentdeep">
+            <i class="bi bi-clipboard text-sm leading-none"></i> <span>คัดลอก</span>
+          </button>
+          <button type="button" id="btn-ocr-text-viewer-close" class="w-7 h-7 rounded-lg border-none bg-transparent text-inksoft cursor-pointer flex items-center justify-center hover:text-ink hover:bg-surface2" aria-label="ปิด">
+            <i class="bi bi-x-lg text-sm leading-none"></i>
+          </button>
+        </div>
+      </div>
+      <textarea id="ocr-text-full" spellcheck="false" wrap="soft" class="w-full flex-1 px-5 py-4 border-none bg-surface text-ink text-[14.5px] leading-relaxed resize-none outline-none" placeholder="ข้อความที่อ่านได้จะแสดงที่นี่ (แก้ไขได้)"></textarea>
+      <div class="px-4 py-1.5 border-t border-line text-[11.5px] text-inkfaint text-right font-mono" id="ocr-text-full-count">0 ตัวอักษร</div>
     </div>
   </div>
 </section>
