@@ -4,8 +4,8 @@
     {
       "name": "static-server",
       "runtimeExecutable": "python",
-      "runtimeArgs": ["-m", "http.server"],
-      "autoPort": true
+      "runtimeArgs": ["-m", "http.server", "8123", "--bind", "127.0.0.1"],
+      "port": 8123
     }
   ]
 }

@@ -2590,6 +2590,8 @@
   // pattern), and a live character/word/line counter for pasted text.
   var LOREM_IPSUM_BASE = 'Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum. ';
 
+  var LOREM_IPSUM_TH_BASE = 'ข้อความนี้เป็นข้อความตัวอย่างสำหรับใช้ทดสอบการแสดงผลของตัวอักษรภาษาไทย ใช้สำหรับจัดวางหน้าเอกสาร ออกแบบเว็บไซต์ และตรวจสอบรูปแบบของฟอนต์ ก่อนที่จะนำเนื้อหาจริงมาใส่แทนที่ในภายหลัง การใช้ข้อความตัวอย่างช่วยให้ผู้ออกแบบมองเห็นภาพรวมของงานได้ชัดเจนขึ้น ทั้งเรื่องระยะห่างระหว่างบรรทัด ขนาดของตัวอักษร และความสมดุลของพื้นที่บนหน้ากระดาษ โดยไม่ต้องกังวลเกี่ยวกับความหมายของเนื้อหาที่ปรากฏอยู่ ';
+
   function repeatToLength(base, length) {
     if (!base) return '';
     var out = '';
@@ -2678,6 +2680,8 @@
       var text;
       if (mode === 'lorem') {
         text = repeatToLength(LOREM_IPSUM_BASE, length);
+      } else if (mode === 'lorem-th') {
+        text = repeatToLength(LOREM_IPSUM_TH_BASE, length);
       } else if (mode === 'repeat') {
         var pattern = $repeatPattern.val();
         if (!pattern) { setStatus('กรุณาระบุข้อความที่ต้องการทำซ้ำ', 'bad'); return; }
