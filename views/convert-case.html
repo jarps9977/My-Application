@@ -1,0 +1,46 @@
+<section id="view-convert-case" class="animate-fade-in" hidden>
+  <div class="mt-9 mb-5">
+    <button class="inline-flex items-center gap-1.5 bg-transparent border-none text-inksoft text-sm font-semibold cursor-pointer py-1.5 hover:text-ink" id="btn-convert-case-back" type="button">
+      <i class="bi bi-chevron-left text-base leading-none"></i>
+      กลับหน้าหลัก
+    </button>
+  </div>
+
+  <div class="flex items-center gap-3 mb-5">
+    <span class="flex h-9 w-9 flex-none items-center justify-center rounded-full bg-accentsoft text-accent">
+      <i class="bi bi-type text-lg leading-none"></i>
+    </span>
+    <h2 class="text-xl font-extrabold">แปลงตัวพิมพ์</h2>
+  </div>
+
+  <div class="bg-surface border border-line rounded-2xl shadow-sm overflow-hidden">
+    <div class="flex items-center justify-between gap-2 px-4 py-2.5 border-b border-line">
+      <label class="text-[13px] font-bold" for="case-text">ข้อความ</label>
+      <div class="flex items-center gap-3">
+        <button type="button" id="btn-case-copy" class="flex items-center gap-1 bg-transparent border-none text-inksoft text-[12px] font-semibold cursor-pointer hover:text-accentdeep">
+          <i class="bi bi-clipboard text-sm leading-none"></i> คัดลอก
+        </button>
+        <button type="button" id="btn-case-download" class="flex items-center gap-1 bg-transparent border-none text-inksoft text-[12px] font-semibold cursor-pointer hover:text-accentdeep">
+          <i class="bi bi-download text-sm leading-none"></i> ดาวน์โหลด
+        </button>
+        <button type="button" id="btn-case-clear" class="flex items-center gap-1 bg-transparent border-none text-inksoft text-[12px] font-semibold cursor-pointer hover:text-bad">
+          <i class="bi bi-eraser text-sm leading-none"></i> ล้าง
+        </button>
+      </div>
+    </div>
+    <textarea id="case-text" rows="12" spellcheck="false" class="w-full px-4 py-3 border-none bg-surface text-ink text-[13.5px] leading-relaxed resize-y outline-none" placeholder="พิมพ์หรือวางข้อความที่นี่ แล้วเลือกรูปแบบตัวพิมพ์ด้านล่าง..."></textarea>
+    <div class="px-4 py-1.5 border-t border-line text-[11.5px] text-inkfaint text-right" id="case-meta">ตัวอักษร 0 · คำ 0 · บรรทัด 0</div>
+  </div>
+
+  <!-- data-case maps to CASE_CONVERTERS in js/app.js -->
+  <div id="case-buttons" class="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-3">
+    <button type="button" data-case="sentence" class="case-btn">Sentence case</button>
+    <button type="button" data-case="lower" class="case-btn">lower case</button>
+    <button type="button" data-case="upper" class="case-btn">UPPER CASE</button>
+    <button type="button" data-case="capitalized" class="case-btn">Capitalized Case</button>
+    <button type="button" data-case="alternating" class="case-btn">aLtErNaTiNg cAsE</button>
+    <button type="button" data-case="title" class="case-btn">Title Case</button>
+    <button type="button" data-case="inverse" class="case-btn">InVeRsE CaSe</button>
+  </div>
+  <div class="status-line mt-2.5 text-[12.5px] min-h-[16px]" id="case-status"></div>
+</section>

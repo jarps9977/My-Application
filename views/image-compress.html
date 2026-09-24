@@ -1,0 +1,54 @@
+<section id="view-image-compress" class="animate-fade-in" hidden>
+  <div class="mt-9 mb-5">
+    <button class="inline-flex items-center gap-1.5 bg-transparent border-none text-inksoft text-sm font-semibold cursor-pointer py-1.5 hover:text-ink" id="btn-image-compress-back" type="button">
+      <i class="bi bi-chevron-left text-base leading-none"></i>
+      กลับหน้าหลัก
+    </button>
+  </div>
+
+  <div class="flex items-center gap-3 mb-5">
+    <span class="flex h-9 w-9 flex-none items-center justify-center rounded-full bg-accentsoft text-accent">
+      <i class="bi bi-file-earmark-zip text-lg leading-none"></i>
+    </span>
+    <h2 class="text-xl font-extrabold">บีบอัดรูปภาพ</h2>
+  </div>
+
+  <p class="text-[12.5px] text-inksoft -mt-3 mb-4 leading-relaxed">
+    ลดขนาดไฟล์ JPG, PNG, WEBP และตัดข้อมูลแฝง เช่น EXIF, GPS, thumbnail ประมวลผลในเบราว์เซอร์ทั้งหมด ไม่มีการส่งรูปออกนอกเครื่อง
+  </p>
+
+  <div class="mb-4">
+    <div id="imgc-mode" role="radiogroup" aria-label="โหมดการบีบอัด" class="grid grid-cols-2 gap-1 p-1 rounded-xl bg-surface border border-line shadow-sm">
+      <button type="button" role="radio" data-mode="lossless" class="flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-[13px] font-bold cursor-pointer transition-colors duration-150">
+        <i class="bi bi-gem text-sm leading-none"></i> ไม่เสียคุณภาพ
+      </button>
+      <button type="button" role="radio" data-mode="lossy" class="flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-[13px] font-bold cursor-pointer transition-colors duration-150">
+        <i class="bi bi-lightning-charge text-sm leading-none"></i> ลดขนาดมากขึ้น
+      </button>
+    </div>
+    <p class="text-[12px] text-inksoft mt-1.5 leading-relaxed" id="imgc-mode-note"></p>
+  </div>
+
+  <div id="imgc-dropzone" class="border-2 border-dashed border-line rounded-2xl bg-surface px-6 py-7 text-center cursor-pointer transition-colors duration-150" tabindex="0" role="button" aria-label="อัปโหลดรูปภาพ">
+    <i class="bi bi-cloud-arrow-up text-2xl text-inkfaint mb-2 block"></i>
+    <div><strong class="text-sm font-bold">ลากรูปภาพมาวางที่นี่ หรือกด Ctrl+V เพื่อวางรูป</strong></div>
+    <p class="text-[12.5px] text-inksoft mt-1">หรือ <span class="text-accentdeep font-semibold underline underline-offset-2">เลือกไฟล์จากเครื่อง</span> (JPG, PNG, WEBP · เลือกได้หลายไฟล์)</p>
+    <div class="text-bad text-[12.5px] mt-2 text-center" id="imgc-upload-error"></div>
+  </div>
+  <input type="file" id="imgc-file-input" accept="image/jpeg,image/png,image/webp" multiple class="sr-only" />
+
+  <div class="panel bg-surface border border-line rounded-2xl p-4 shadow-sm mt-4" id="imgc-panel" style="display:none;">
+    <div class="flex items-center justify-between flex-wrap gap-2 mb-3">
+      <span class="text-[13px] font-bold" id="imgc-summary"></span>
+      <button type="button" id="btn-imgc-clear" class="flex items-center gap-1.5 bg-surface2 border border-line text-ink text-[12.5px] font-bold px-3 py-1.5 rounded-lg cursor-pointer hover:border-bad hover:text-bad">
+        <i class="bi bi-eraser text-sm leading-none"></i> ล้างทั้งหมด
+      </button>
+    </div>
+    <div class="flex flex-col gap-2" id="imgc-list"></div>
+    <button class="btn w-full mt-4 px-3.5 py-2.5 rounded-xl border-none bg-accent text-accentink text-sm font-bold cursor-pointer flex items-center justify-center gap-2 hover:bg-accentdeep disabled:opacity-50 disabled:pointer-events-none" id="btn-imgc-download-all" type="button">
+      <i class="bi bi-download text-sm leading-none"></i>
+      <span class="btn-label">ดาวน์โหลด</span>
+    </button>
+    <div class="status-line mt-2.5 text-[12.5px] min-h-[16px]" id="imgc-status"></div>
+  </div>
+</section>

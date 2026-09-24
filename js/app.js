@@ -48,6 +48,9 @@
   var $viewFileDecrypt = $(); // populated once views/file-decrypt.html is fetched and mounted
   var $viewOcr = $(); // populated once views/ocr.html is fetched and mounted
   var $viewTextCompare = $(); // populated once views/text-compare.html is fetched and mounted
+  var $viewImageCompress = $(); // populated once views/image-compress.html is fetched and mounted
+  var $viewHtmlPreview = $(); // populated once views/html-preview.html is fetched and mounted
+  var $viewConvertCase = $(); // populated once views/convert-case.html is fetched and mounted
   function openView($view) {
     $viewHome.attr('hidden', true);
     $viewPdf.attr('hidden', true);
@@ -62,8 +65,12 @@
     $viewFileDecrypt.attr('hidden', true);
     $viewOcr.attr('hidden', true);
     $viewTextCompare.attr('hidden', true);
-    // Side-by-side diff needs more width than the 640px tool column.
-    $('.app').toggleClass('app-wide', $view.is($viewTextCompare));
+    $viewImageCompress.attr('hidden', true);
+    $viewHtmlPreview.attr('hidden', true);
+    $viewConvertCase.attr('hidden', true);
+    // Side-by-side views need more width than the 640px tool column.
+    $('.app').toggleClass('app-wide', $view.is($viewTextCompare) || $view.is($viewConvertCase))
+      .toggleClass('app-full', $view.is($viewHtmlPreview));
     $view.removeAttr('hidden');
   }
   $('#btn-back').on('click', function () {
@@ -226,6 +233,48 @@
     console.error('ไม่สามารถโหลด views/text-compare.html ได้');
   });
 
+  // Same fetch-and-mount pattern for the "image compress" view
+  // (views/image-compress.html).
+  var imageCompressViewReady = $.get('views/image-compress.html').done(function (html) {
+    $('#view-image-compress-mount').replaceWith(html);
+    $viewImageCompress = $('#view-image-compress');
+    $('#btn-image-compress-back').on('click', function () {
+      $viewImageCompress.attr('hidden', true);
+      $viewHome.removeAttr('hidden');
+    });
+    initImageCompressView();
+  }).fail(function () {
+    console.error('ไม่สามารถโหลด views/image-compress.html ได้');
+  });
+
+  // Same fetch-and-mount pattern for the "HTML preview" view
+  // (views/html-preview.html).
+  var htmlPreviewViewReady = $.get('views/html-preview.html').done(function (html) {
+    $('#view-html-preview-mount').replaceWith(html);
+    $viewHtmlPreview = $('#view-html-preview');
+    $('#btn-html-preview-back').on('click', function () {
+      $viewHtmlPreview.attr('hidden', true);
+      $viewHome.removeAttr('hidden');
+    });
+    initHtmlPreviewView();
+  }).fail(function () {
+    console.error('ไม่สามารถโหลด views/html-preview.html ได้');
+  });
+
+  // Same fetch-and-mount pattern for the "convert case" view
+  // (views/convert-case.html).
+  var convertCaseViewReady = $.get('views/convert-case.html').done(function (html) {
+    $('#view-convert-case-mount').replaceWith(html);
+    $viewConvertCase = $('#view-convert-case');
+    $('#btn-convert-case-back').on('click', function () {
+      $viewConvertCase.attr('hidden', true);
+      $viewHome.removeAttr('hidden');
+    });
+    initConvertCaseView();
+  }).fail(function () {
+    console.error('ไม่สามารถโหลด views/convert-case.html ได้');
+  });
+
   // ---------- Category tiles ----------
   // Each tool's home tile now carries only an icon + short bold label (no
   // description, no status tag) — disabled tools are still distinguished
@@ -235,14 +284,16 @@
     { id: 'split', label: 'แยกไฟล์ PDF', desc: 'แยกหน้า PDF เป็นหลายไฟล์', enabled: true, img: 'assets/split-pdf.png', cats: ['pdf'] },
     { id: 'merge', label: 'รวมไฟล์ PDF', desc: 'รวมหลายไฟล์เป็นไฟล์เดียว', enabled: true, img: 'assets/merge-pdf.png', cats: ['pdf'] },
     { id: 'convert-files', label: 'แปลงไฟล์', desc: 'แปลงไฟล์ได้หลากหลายรูปแบบ', enabled: true, img: 'assets/convert-file.png', cats: ['convert'] },
-    { id: 'video-convert', label: 'แปลงวิดีโอ', desc: 'แปลงวิดีโอไปมาระหว่างฟอร์แมต', enabled: true, img: 'assets/video-convert.svg', cats: ['convert'] },
+    { id: 'video-convert', label: 'แปลงวิดีโอ', desc: 'แปลงวิดีโอไปมาระหว่างฟอร์แมต', enabled: true, img: 'assets/convert-video.png', cats: ['convert'] },
     { id: 'text-gen', label: 'สร้างข้อความ', desc: 'สร้างและแก้ไขข้อความออนไลน์', enabled: true, img: 'assets/create-text.png', cats: ['text'] },
-    { id: 'text-compare', label: 'เปรียบเทียบข้อความ', desc: 'หาจุดที่ต่างกันระหว่างข้อความสองชุด', enabled: true, img: 'assets/text-compare.svg', cats: ['text'] },
+    { id: 'convert-case', label: 'แปลงตัวพิมพ์', desc: 'เปลี่ยนตัวพิมพ์เล็ก/ใหญ่ เช่น UPPER, Title Case', enabled: true, img: 'assets/convert-case.png', cats: ['text'] },
+    { id: 'html-preview', label: 'พรีวิว HTML', desc: 'ดูผลลัพธ์ HTML ทันที พร้อมจัดรูปแบบโค้ด', enabled: true, img: 'assets/html-preview.png', cats: ['text'] },
+    { id: 'text-compare', label: 'เปรียบเทียบข้อความ', desc: 'หาจุดที่ต่างกันระหว่างข้อความสองชุด', enabled: true, img: 'assets/compare-text.png', cats: ['text'] },
     { id: 'test-file', label: 'สร้างไฟล์ทดสอบ', desc: 'สร้างไฟล์ตัวอย่างสำหรับทดสอบ', enabled: true, img: 'assets/create-test.png', cats: ['file'] },
-    { id: 'file-resize', label: 'ปรับขนาดไฟล์', desc: 'เพิ่มหรือลดขนาดไฟล์ตามที่กำหนด', enabled: true, img: 'assets/file-resize.svg', cats: ['file'] },
-    { id: 'file-encrypt', label: 'เข้ารหัสไฟล์', desc: 'ใส่รหัสผ่านป้องกันไฟล์', enabled: true, img: 'assets/file-encrypt.svg', cats: ['security'] },
-    { id: 'file-decrypt', label: 'ถอดรหัสไฟล์', desc: 'ปลดรหัสผ่านไฟล์ด้วยรหัสที่ถูกต้อง', enabled: true, img: 'assets/file-decrypt.svg', cats: ['security'] },
-    { id: 'compress', label: 'บีบอัดรูปภาพ', desc: 'ลดขนาดไฟล์รูปภาพ แบบไม่เสียคุณภาพ', enabled: false, img: 'assets/compress-image.png', cats: ['image'] },
+    { id: 'file-resize', label: 'ปรับขนาดไฟล์', desc: 'เพิ่มหรือลดขนาดไฟล์ตามที่กำหนด', enabled: true, img: 'assets/resize-file.png', cats: ['file'] },
+    { id: 'file-encrypt', label: 'เข้ารหัสไฟล์', desc: 'ใส่รหัสผ่านป้องกันไฟล์', enabled: true, img: 'assets/protect-file.png', cats: ['security'] },
+    { id: 'file-decrypt', label: 'ถอดรหัสไฟล์', desc: 'ปลดรหัสผ่านไฟล์ด้วยรหัสที่ถูกต้อง', enabled: true, img: 'assets/unlock-file.png', cats: ['security'] },
+    { id: 'compress', label: 'บีบอัดรูปภาพ', desc: 'ลดขนาดไฟล์รูปภาพ แบบไม่เสียคุณภาพ', enabled: true, img: 'assets/compress-image.png', cats: ['image'] },
     { id: 'ocr', label: 'อ่านข้อความจากภาพ', desc: 'ดึงข้อความจากรูปภาพ (OCR)', enabled: true, img: 'assets/ocr.png', cats: ['image', 'text'] }
   ];
   // Home-page category filter; a tool can sit in more than one category.
@@ -292,16 +343,14 @@
         )
       );
     }
-    $text.append($title, $('<span>').addClass('block text-[12px] text-inksoft mt-0.5 truncate').text(tool.desc));
+    $text.append($title, $('<span>').addClass('block text-[12px] text-inksoft mt-0.5 leading-snug line-clamp-2').text(tool.desc));
     $el.append(
       $('<span>').addClass('flex h-11 w-11 flex-none items-center justify-center rounded-xl overflow-hidden bg-cardicon ring-1 ring-line shadow-sm')
         .append($('<img>').attr({ src: tool.img, alt: '' }).addClass('h-full w-full object-cover')),
       $text,
-      // Same accent fill as the search button, so it follows the theme (light/dark).
-      $('<span>').attr('aria-hidden', 'true')
-        .addClass('flex h-8 w-8 flex-none items-center justify-center rounded-full shadow-sm transition-colors duration-150')
-        .addClass(tool.enabled ? 'bg-accent text-accentink group-hover:bg-accentdeep' : 'bg-line text-inkfaint')
-        .append($('<i>').addClass('bi bi-arrow-right text-[15px] leading-none'))
+      $('<img>').attr({ src: 'assets/icons/icon-right-click.png', alt: '', 'aria-hidden': 'true' })
+        .addClass('h-8 w-8 flex-none object-contain drop-shadow-sm transition-transform duration-150')
+        .addClass(tool.enabled ? 'group-hover:translate-x-0.5' : 'grayscale opacity-50')
     );
     if (tool.id === 'convert') {
       $el.on('click', function () { openView($viewPdf); });
@@ -351,6 +400,18 @@
     } else if (tool.id === 'text-compare') {
       $el.on('click', function () {
         $.when(textCompareViewReady).done(function () { openView($viewTextCompare); });
+      });
+    } else if (tool.id === 'convert-case') {
+      $el.on('click', function () {
+        $.when(convertCaseViewReady).done(function () { openView($viewConvertCase); });
+      });
+    } else if (tool.id === 'html-preview') {
+      $el.on('click', function () {
+        $.when(htmlPreviewViewReady).done(function () { openView($viewHtmlPreview); });
+      });
+    } else if (tool.id === 'compress') {
+      $el.on('click', function () {
+        $.when(imageCompressViewReady).done(function () { openView($viewImageCompress); });
       });
     }
     return $el;
@@ -4667,6 +4728,1262 @@
         setStatus(describeDownloadError(err), err && err.code === 'declined' ? 'neutral' : 'bad');
       }
     });
+  }
+
+  // ---------- Image compress (lossless) ----------
+  // Output pixels are identical to the input. Nothing goes through canvas
+  // (lossy for JPEG/WebP, and premultiplied alpha / color management can
+  // change PNG pixels). Savings come from:
+  //   - dropping metadata (EXIF, XMP, text, thumbnails, trailing data),
+  //   - re-packing PNG pixels (smaller color type/bit depth, per-row filters).
+  var COMPRESS_MAX_BYTES = 50 * 1024 * 1024;
+  var COMPRESS_MAX_FILES = 30;
+  var COMPRESS_MAX_PIXELS = 36 * 1000 * 1000; // RGBA buffer ~144 MB
+  var COMPRESS_MIME = { png: 'image/png', jpg: 'image/jpeg', webp: 'image/webp' };
+
+  function readU32BE(b, i) { return b[i] * 16777216 + (b[i + 1] << 16) + (b[i + 2] << 8) + b[i + 3]; }
+  function writeU32BE(b, i, v) { b[i] = v >>> 24; b[i + 1] = (v >>> 16) & 255; b[i + 2] = (v >>> 8) & 255; b[i + 3] = v & 255; }
+  function readU32LE(b, i) { return b[i] + (b[i + 1] << 8) + (b[i + 2] << 16) + b[i + 3] * 16777216; }
+  function writeU32LE(b, i, v) { b[i] = v & 255; b[i + 1] = (v >>> 8) & 255; b[i + 2] = (v >>> 16) & 255; b[i + 3] = v >>> 24; }
+  function concatBytes(parts) {
+    var total = 0;
+    for (var i = 0; i < parts.length; i++) total += parts[i].length;
+    var out = new Uint8Array(total);
+    var pos = 0;
+    for (var j = 0; j < parts.length; j++) { out.set(parts[j], pos); pos += parts[j].length; }
+    return out;
+  }
+  function bytesStartWith(b, pos, str) {
+    if (pos + str.length > b.length) return false;
+    for (var i = 0; i < str.length; i++) if (b[pos + i] !== str.charCodeAt(i)) return false;
+    return true;
+  }
+  function sniffImageKind(b) {
+    if (b.length >= 8 && b[0] === 0x89 && bytesStartWith(b, 1, 'PNG\r\n\x1a\n')) return 'png';
+    if (b.length >= 4 && b[0] === 0xFF && b[1] === 0xD8 && b[2] === 0xFF) return 'jpg';
+    if (b.length >= 12 && bytesStartWith(b, 0, 'RIFF') && bytesStartWith(b, 8, 'WEBP')) return 'webp';
+    return null;
+  }
+
+  // EXIF orientation from a TIFF block (bytes start at "II"/"MM"); 0 if absent.
+  function readTiffOrientation(b, start, end) {
+    if (start + 8 > end) return 0;
+    var le;
+    if (b[start] === 0x49 && b[start + 1] === 0x49) le = true;
+    else if (b[start] === 0x4D && b[start + 1] === 0x4D) le = false;
+    else return 0;
+    function u16(i) { return le ? b[i] | (b[i + 1] << 8) : (b[i] << 8) | b[i + 1]; }
+    function u32(i) { return le ? readU32LE(b, i) : readU32BE(b, i); }
+    var ifd = start + u32(start + 4);
+    if (ifd + 2 > end) return 0;
+    var count = u16(ifd);
+    for (var k = 0; k < count; k++) {
+      var e = ifd + 2 + k * 12;
+      if (e + 12 > end) return 0;
+      if (u16(e) === 0x0112) return u16(e + 8);
+    }
+    return 0;
+  }
+  function exifOrientation(b, start, end) {
+    if (bytesStartWith(b, start, 'Exif\0\0')) start += 6;
+    return readTiffOrientation(b, start, end);
+  }
+
+  // ----- JPEG: keep coding segments + JFIF/ICC/Adobe, drop the rest -----
+  function jpegOrientationSegment(orientation) {
+    // APP1 "Exif" with a single big-endian IFD0 entry: Orientation (SHORT).
+    var seg = new Uint8Array(36);
+    seg.set([0xFF, 0xE1, 0x00, 0x22, 0x45, 0x78, 0x69, 0x66, 0x00, 0x00,
+      0x4D, 0x4D, 0x00, 0x2A, 0x00, 0x00, 0x00, 0x08, 0x00, 0x01,
+      0x01, 0x12, 0x00, 0x03, 0x00, 0x00, 0x00, 0x01, 0x00, orientation & 255, 0x00, 0x00,
+      0x00, 0x00, 0x00, 0x00]);
+    return seg;
+  }
+  function optimizeJpeg(b) {
+    var head = [b.subarray(0, 2)];
+    var body = [];
+    var orientation = 0;
+    var pos = 2;
+    var sawEoi = false;
+    while (pos + 2 <= b.length) {
+      if (b[pos] !== 0xFF) return null;
+      var marker = b[pos + 1];
+      if (marker === 0xFF) { pos++; continue; } // fill byte
+      if (marker === 0xD9) { body.push(b.subarray(pos, pos + 2)); sawEoi = true; break; }
+      if (marker === 0x01 || (marker >= 0xD0 && marker <= 0xD7)) { body.push(b.subarray(pos, pos + 2)); pos += 2; continue; }
+      if (pos + 4 > b.length) return null;
+      var len = (b[pos + 2] << 8) | b[pos + 3];
+      var segEnd = pos + 2 + len;
+      if (len < 2 || segEnd > b.length) return null;
+      var dataStart = pos + 4;
+      if (marker === 0xDA) {
+        // Entropy-coded data runs until the next real marker.
+        var i = segEnd;
+        while (i < b.length) {
+          if (b[i] !== 0xFF) { i++; continue; }
+          var n = b[i + 1];
+          if (n === 0x00 || (n >= 0xD0 && n <= 0xD7)) { i += 2; continue; }
+          if (n === 0xFF) { i++; continue; }
+          break;
+        }
+        body.push(b.subarray(pos, i));
+        pos = i;
+        continue;
+      }
+      var keep;
+      if (marker === 0xE0) keep = bytesStartWith(b, dataStart, 'JFIF\0');
+      else if (marker === 0xE1) {
+        keep = false;
+        if (bytesStartWith(b, dataStart, 'Exif\0\0')) orientation = exifOrientation(b, dataStart, segEnd) || orientation;
+      } else if (marker === 0xE2) keep = bytesStartWith(b, dataStart, 'ICC_PROFILE\0');
+      else if (marker === 0xEE) keep = bytesStartWith(b, dataStart, 'Adobe');
+      else if ((marker >= 0xE3 && marker <= 0xEF) || marker === 0xFE) keep = false;
+      else keep = true;
+      if (keep) {
+        // JFIF must stay first; everything else keeps its original order.
+        if (marker === 0xE0 && !body.length) head.push(b.subarray(pos, segEnd));
+        else body.push(b.subarray(pos, segEnd));
+      }
+      pos = segEnd;
+    }
+    if (!sawEoi) return null; // truncated or unknown layout: leave untouched
+    // Rotation only lives in EXIF; keep it so the image still displays upright.
+    if (orientation > 1 && orientation <= 8) head.push(jpegOrientationSegment(orientation));
+    return concatBytes(head.concat(body));
+  }
+
+  // ----- WebP: drop EXIF/XMP chunks and clear their VP8X flags -----
+  function optimizeWebp(b) {
+    var riffEnd = Math.min(b.length, 8 + readU32LE(b, 4));
+    var parts = [];
+    var pos = 12;
+    var vp8x = null;
+    var changed = false;
+    while (pos + 8 <= riffEnd) {
+      var size = readU32LE(b, pos + 4);
+      var end = pos + 8 + size + (size & 1);
+      if (pos + 8 + size > riffEnd) return null;
+      end = Math.min(end, riffEnd);
+      var type = String.fromCharCode(b[pos], b[pos + 1], b[pos + 2], b[pos + 3]);
+      var drop = false;
+      if (type === 'XMP ') drop = true;
+      else if (type === 'EXIF') {
+        var o = exifOrientation(b, pos + 8, pos + 8 + size);
+        drop = !(o > 1 && o <= 8);
+      }
+      if (drop) changed = true;
+      else {
+        var chunk = b.slice(pos, end);
+        if (type === 'VP8X' && size >= 10) vp8x = chunk;
+        parts.push(chunk);
+      }
+      pos = end;
+    }
+    if (!changed && riffEnd === b.length) return null;
+    if (vp8x) {
+      var hasExif = parts.some(function (c) { return bytesStartWith(c, 0, 'EXIF'); });
+      vp8x[8] &= ~0x04; // XMP
+      if (!hasExif) vp8x[8] &= ~0x08;
+    }
+    var header = new Uint8Array(12);
+    header.set(b.subarray(0, 12));
+    var out = concatBytes([header].concat(parts));
+    writeU32LE(out, 4, out.length - 8);
+    return out;
+  }
+
+  // ----- PNG -----
+  var PNG_SIGNATURE = new Uint8Array([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]);
+  // Ancillary chunks that affect how pixels are shown (color, gamma, DPI, animation).
+  var PNG_KEEP = { gAMA: 1, cHRM: 1, sRGB: 1, iCCP: 1, cICP: 1, mDCv: 1, cLLI: 1, sBIT: 1, pHYs: 1, tRNS: 1, acTL: 1, fcTL: 1, fdAT: 1 };
+
+  function parsePngChunks(b) {
+    var chunks = [];
+    var pos = 8;
+    while (pos + 12 <= b.length) {
+      var len = readU32BE(b, pos);
+      if (pos + 12 + len > b.length) return null;
+      var type = String.fromCharCode(b[pos + 4], b[pos + 5], b[pos + 6], b[pos + 7]);
+      chunks.push({ type: type, data: b.subarray(pos + 8, pos + 8 + len), raw: b.subarray(pos, pos + 12 + len) });
+      pos += 12 + len;
+      if (type === 'IEND') break;
+    }
+    if (!chunks.length || chunks[0].type !== 'IHDR' || chunks[0].data.length !== 13) return null;
+    if (chunks[chunks.length - 1].type !== 'IEND') return null;
+    return chunks;
+  }
+  function pngChunk(type, data) {
+    var out = new Uint8Array(12 + data.length);
+    writeU32BE(out, 0, data.length);
+    for (var i = 0; i < 4; i++) out[4 + i] = type.charCodeAt(i);
+    out.set(data, 8);
+    writeU32BE(out, 8 + data.length, crc32(out.subarray(4, 8 + data.length)));
+    return out;
+  }
+  function isCriticalChunk(type) { return type.charCodeAt(0) < 97; }
+  function keepPngChunk(c) {
+    if (isCriticalChunk(c.type) || PNG_KEEP[c.type]) return true;
+    if (c.type === 'eXIf') {
+      var o = readTiffOrientation(c.data, 0, c.data.length);
+      return o > 1 && o <= 8;
+    }
+    return false;
+  }
+
+  async function streamThrough(bytes, transform) {
+    return new Uint8Array(await new Response(new Blob([bytes]).stream().pipeThrough(transform)).arrayBuffer());
+  }
+  // Inflate with a hard output cap, so a hostile IDAT can't balloon memory.
+  async function inflateZlibLimited(bytes, maxOut) {
+    var reader = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('deflate')).getReader();
+    var out = new Uint8Array(maxOut);
+    var n = 0;
+    for (;;) {
+      var r = await reader.read();
+      if (r.done) break;
+      if (n + r.value.length > maxOut) { await reader.cancel(); throw new Error('png_data_too_large'); }
+      out.set(r.value, n);
+      n += r.value.length;
+    }
+    return n === maxOut ? out : out.subarray(0, n);
+  }
+
+  var PNG_CHANNELS = { 0: 1, 2: 3, 3: 1, 4: 2, 6: 4 };
+  function pngLayout(w, depth, ct) {
+    var bits = PNG_CHANNELS[ct] * depth;
+    return { rowBytes: Math.ceil(w * bits / 8), bpp: Math.max(1, bits >> 3) };
+  }
+  function pngDecodeInfo(ihdr) {
+    return { w: readU32BE(ihdr, 0), h: readU32BE(ihdr, 4), depth: ihdr[8], ct: ihdr[9], interlace: ihdr[12] };
+  }
+  function paeth(a, b, c) {
+    var p = a + b - c;
+    var pa = Math.abs(p - a), pb = Math.abs(p - b), pc = Math.abs(p - c);
+    return (pa <= pb && pa <= pc) ? a : (pb <= pc ? b : c);
+  }
+  function pngUnfilter(raw, h, rowBytes, bpp) {
+    var px = new Uint8Array(h * rowBytes);
+    for (var y = 0; y < h; y++) {
+      var f = raw[y * (rowBytes + 1)];
+      var src = y * (rowBytes + 1) + 1;
+      var dst = y * rowBytes;
+      var up = dst - rowBytes;
+      for (var i = 0; i < rowBytes; i++) {
+        var a = i >= bpp ? px[dst + i - bpp] : 0;
+        var b = y > 0 ? px[up + i] : 0;
+        var x = raw[src + i];
+        if (f === 0) px[dst + i] = x;
+        else if (f === 1) px[dst + i] = (x + a) & 255;
+        else if (f === 2) px[dst + i] = (x + b) & 255;
+        else if (f === 3) px[dst + i] = (x + ((a + b) >> 1)) & 255;
+        else if (f === 4) px[dst + i] = (x + paeth(a, b, (i >= bpp && y > 0) ? px[up + i - bpp] : 0)) & 255;
+        else throw new Error('png_bad_filter');
+      }
+    }
+    return px;
+  }
+  // Unpacks 8-bit-or-less PNG scanlines into RGBA8 (a Uint32Array view).
+  function pngToRgba(info, raw, plte, trns) {
+    var w = info.w, h = info.h, depth = info.depth, ct = info.ct;
+    var lay = pngLayout(w, depth, ct);
+    if (raw.length !== h * (lay.rowBytes + 1)) throw new Error('png_bad_size');
+    var px = pngUnfilter(raw, h, lay.rowBytes, lay.bpp);
+    var rgba = new Uint8Array(w * h * 4);
+    var maxv = (1 << depth) - 1;
+    var scale = 255 / maxv;
+    var tGray = -1, tR = -1, tG = -1, tB = -1;
+    if (trns && ct === 0 && trns.length >= 2) tGray = (trns[0] << 8) | trns[1];
+    if (trns && ct === 2 && trns.length >= 6) { tR = (trns[0] << 8) | trns[1]; tG = (trns[2] << 8) | trns[3]; tB = (trns[4] << 8) | trns[5]; }
+    var palCount = plte ? Math.floor(plte.length / 3) : 0;
+    var o = 0;
+    for (var y = 0; y < h; y++) {
+      var row = y * lay.rowBytes;
+      for (var x = 0; x < w; x++, o += 4) {
+        var r, g, b, a = 255;
+        if (depth < 8) {
+          var bit = x * depth;
+          var s = (px[row + (bit >> 3)] >> (8 - depth - (bit & 7))) & maxv;
+          if (ct === 3) {
+            if (s >= palCount) throw new Error('png_bad_index');
+            r = plte[s * 3]; g = plte[s * 3 + 1]; b = plte[s * 3 + 2];
+            if (trns && s < trns.length) a = trns[s];
+          } else {
+            r = g = b = s * scale;
+            if (s === tGray) a = 0;
+          }
+        } else {
+          var p = row + x * PNG_CHANNELS[ct];
+          if (ct === 0) { r = g = b = px[p]; if (px[p] === tGray) a = 0; }
+          else if (ct === 2) { r = px[p]; g = px[p + 1]; b = px[p + 2]; if (r === tR && g === tG && b === tB) a = 0; }
+          else if (ct === 3) {
+            var idx = px[p];
+            if (idx >= palCount) throw new Error('png_bad_index');
+            r = plte[idx * 3]; g = plte[idx * 3 + 1]; b = plte[idx * 3 + 2];
+            if (trns && idx < trns.length) a = trns[idx];
+          }
+          else if (ct === 4) { r = g = b = px[p]; a = px[p + 1]; }
+          else { r = px[p]; g = px[p + 1]; b = px[p + 2]; a = px[p + 3]; }
+        }
+        rgba[o] = r; rgba[o + 1] = g; rgba[o + 2] = b; rgba[o + 3] = a;
+      }
+    }
+    return new Uint32Array(rgba.buffer);
+  }
+
+  // Per-row filter choice by minimum sum of absolute differences (libpng heuristic).
+  function pngFilterRows(lines, h, rowBytes, bpp, adaptive) {
+    var out = new Uint8Array(h * (rowBytes + 1));
+    var tmp = [null, new Uint8Array(rowBytes), new Uint8Array(rowBytes), new Uint8Array(rowBytes), new Uint8Array(rowBytes)];
+    for (var y = 0; y < h; y++) {
+      var cur = y * rowBytes;
+      var o = y * (rowBytes + 1);
+      if (!adaptive) { out.set(lines.subarray(cur, cur + rowBytes), o + 1); continue; }
+      var up = cur - rowBytes;
+      var sums = [0, 0, 0, 0, 0];
+      for (var i = 0; i < rowBytes; i++) {
+        var x = lines[cur + i];
+        var a = i >= bpp ? lines[cur + i - bpp] : 0;
+        var b = y > 0 ? lines[up + i] : 0;
+        var c = (i >= bpp && y > 0) ? lines[up + i - bpp] : 0;
+        var v1 = (x - a) & 255, v2 = (x - b) & 255, v3 = (x - ((a + b) >> 1)) & 255, v4 = (x - paeth(a, b, c)) & 255;
+        tmp[1][i] = v1; tmp[2][i] = v2; tmp[3][i] = v3; tmp[4][i] = v4;
+        sums[0] += x < 128 ? x : 256 - x;
+        sums[1] += v1 < 128 ? v1 : 256 - v1;
+        sums[2] += v2 < 128 ? v2 : 256 - v2;
+        sums[3] += v3 < 128 ? v3 : 256 - v3;
+        sums[4] += v4 < 128 ? v4 : 256 - v4;
+      }
+      var best = 0;
+      for (var f = 1; f < 5; f++) if (sums[f] < sums[best]) best = f;
+      out[o] = best;
+      out.set(best === 0 ? lines.subarray(cur, cur + rowBytes) : tmp[best], o + 1);
+    }
+    return out;
+  }
+
+  // Packs RGBA pixels into the given color type / bit depth.
+  function pngPack(u32, w, h, fmt) {
+    var lay = pngLayout(w, fmt.depth, fmt.ct);
+    var lines = new Uint8Array(h * lay.rowBytes);
+    var depth = fmt.depth;
+    var step = 255 / ((1 << depth) - 1);
+    for (var y = 0; y < h; y++) {
+      var row = y * lay.rowBytes;
+      for (var x = 0; x < w; x++) {
+        var v = u32[y * w + x];
+        var r = v & 255, g = (v >>> 8) & 255, b = (v >>> 16) & 255, a = v >>> 24;
+        if (depth < 8) {
+          var s = fmt.ct === 3 ? fmt.index.get(v) : r / step;
+          var bit = x * depth;
+          lines[row + (bit >> 3)] |= s << (8 - depth - (bit & 7));
+          continue;
+        }
+        var p = row + x * PNG_CHANNELS[fmt.ct];
+        if (fmt.ct === 0) lines[p] = r;
+        else if (fmt.ct === 3) lines[p] = fmt.index.get(v);
+        else if (fmt.ct === 4) { lines[p] = r; lines[p + 1] = a; }
+        else if (fmt.ct === 2) { lines[p] = r; lines[p + 1] = g; lines[p + 2] = b; }
+        else { lines[p] = r; lines[p + 1] = g; lines[p + 2] = b; lines[p + 3] = a; }
+      }
+    }
+    return { lines: lines, rowBytes: lay.rowBytes, bpp: lay.bpp };
+  }
+
+  // Smallest lossless formats worth trying for these pixels.
+  function pngCandidateFormats(u32, origCt, hasIcc) {
+    var opaque = true, gray = true, overflow = false;
+    var colors = new Map();
+    var graySeen = new Uint8Array(256);
+    var last = -1;
+    for (var i = 0; i < u32.length; i++) {
+      var v = u32[i];
+      if (v === last) continue;
+      last = v;
+      var r = v & 255;
+      if ((v >>> 24) !== 255) opaque = false;
+      if (r !== ((v >>> 8) & 255) || r !== ((v >>> 16) & 255)) gray = false;
+      else graySeen[r] = 1;
+      if (!overflow && !colors.has(v)) {
+        if (colors.size >= 256) overflow = true; else colors.set(v, 0);
+      }
+    }
+    // An ICC profile is tied to gray vs color, so don't cross that line when one is present.
+    var origGray = origCt === 0 || origCt === 4;
+    var grayOk = gray && (!hasIcc || origGray);
+    var colorOk = !hasIcc || !origGray;
+    var out = [];
+    if (grayOk) {
+      if (opaque) {
+        var depth = 8;
+        [1, 2, 4].some(function (d) {
+          var step = 255 / ((1 << d) - 1);
+          for (var g = 0; g < 256; g++) if (graySeen[g] && g % step) return false;
+          depth = d;
+          return true;
+        });
+        out.push({ ct: 0, depth: depth, adaptive: depth === 8 });
+      } else {
+        out.push({ ct: 4, depth: 8, adaptive: true });
+      }
+    }
+    if (colorOk && !overflow) {
+      // Semi-transparent entries first so tRNS can stop early.
+      var list = Array.from(colors.keys()).sort(function (a, b) { return (a >>> 24 === 255) - (b >>> 24 === 255); });
+      var index = new Map();
+      var plte = new Uint8Array(list.length * 3);
+      var trnsLen = 0;
+      list.forEach(function (v, k) {
+        index.set(v, k);
+        plte[k * 3] = v & 255; plte[k * 3 + 1] = (v >>> 8) & 255; plte[k * 3 + 2] = (v >>> 16) & 255;
+        if ((v >>> 24) !== 255) trnsLen = k + 1;
+      });
+      var trns = new Uint8Array(trnsLen);
+      for (var t = 0; t < trnsLen; t++) trns[t] = list[t] >>> 24;
+      var n = list.length;
+      out.push({ ct: 3, depth: n <= 2 ? 1 : n <= 4 ? 2 : n <= 16 ? 4 : 8, adaptive: false, index: index, plte: plte, trns: trns });
+    }
+    if (colorOk && !grayOk) out.push({ ct: opaque ? 2 : 6, depth: 8, adaptive: true });
+    return out;
+  }
+
+  function pngAssemble(ihdr, ancillary, idat, fmt) {
+    var parts = [PNG_SIGNATURE, pngChunk('IHDR', ihdr)].concat(ancillary);
+    if (fmt && fmt.plte) parts.push(pngChunk('PLTE', fmt.plte));
+    if (fmt && fmt.trns && fmt.trns.length) parts.push(pngChunk('tRNS', fmt.trns));
+    parts.push(pngChunk('IDAT', idat), pngChunk('IEND', new Uint8Array(0)));
+    return concatBytes(parts);
+  }
+
+  // Encodes RGBA pixels in each candidate format; returns the smallest PNG
+  // that beats `best` and decodes back to exactly `u32`.
+  async function pngEncodeBest(u32, info, chunks, best) {
+    var types = chunks.map(function (c) { return c.type; });
+    var hasIcc = types.indexOf('iCCP') !== -1;
+    var formats = pngCandidateFormats(u32, info.ct, hasIcc);
+    for (var i = 0; i < formats.length; i++) {
+      var fmt = formats[i];
+      var packed = pngPack(u32, info.w, info.h, fmt);
+      var filtered = pngFilterRows(packed.lines, info.h, packed.rowBytes, packed.bpp, fmt.adaptive);
+      packed = null;
+      var idat = await streamThrough(filtered, new CompressionStream('deflate'));
+      filtered = null;
+      var ihdr = new Uint8Array(13);
+      ihdr.set(chunks[0].data);
+      ihdr[8] = fmt.depth;
+      ihdr[9] = fmt.ct;
+      ihdr[12] = 0; // never interlaced
+      var sameType = fmt.ct === info.ct && fmt.depth === info.depth;
+      // PLTE/tRNS are rebuilt; sBIT's layout depends on the color type.
+      var ancillary = chunks.filter(function (c) {
+        return keepPngChunk(c) && !isCriticalChunk(c.type) && c.type !== 'tRNS' && (sameType || c.type !== 'sBIT');
+      }).map(function (c) { return c.raw; });
+      var candidate = pngAssemble(ihdr, ancillary, idat, fmt);
+      if (candidate.length >= best.length) continue;
+      // Decode the result again and require an exact pixel match.
+      var check = pngToRgba(pngDecodeInfo(ihdr),
+        await inflateZlibLimited(idat, info.h * (pngLayout(info.w, fmt.depth, fmt.ct).rowBytes + 1)),
+        fmt.plte || null, fmt.trns && fmt.trns.length ? fmt.trns : null);
+      var same = check.length === u32.length;
+      for (var k = 0; same && k < u32.length; k++) if (check[k] !== u32[k]) same = false;
+      if (same) best = candidate;
+      else console.warn('PNG repack mismatch, candidate dropped');
+    }
+    return best;
+  }
+
+  // Browser decode, used only by the lossy mode (16-bit, interlaced, etc.).
+  async function decodeImageRgba(blob) {
+    var bmp = await createImageBitmap(blob, { premultiplyAlpha: 'none', colorSpaceConversion: 'none' });
+    try {
+      if (bmp.width * bmp.height > COMPRESS_MAX_PIXELS) throw new Error('รูปใหญ่เกินไป (เกิน 36 ล้านพิกเซล)');
+      var canvas = document.createElement('canvas');
+      canvas.width = bmp.width;
+      canvas.height = bmp.height;
+      var ctx = canvas.getContext('2d', { willReadFrequently: true });
+      ctx.drawImage(bmp, 0, 0);
+      var data = ctx.getImageData(0, 0, bmp.width, bmp.height).data;
+      return { w: bmp.width, h: bmp.height, u32: new Uint32Array(data.buffer, data.byteOffset, data.length >> 2) };
+    } finally {
+      bmp.close();
+    }
+  }
+
+  // pngquant-style lossy step: median-cut palette (<=256 colors) plus
+  // Floyd-Steinberg dithering, so gradients don't band.
+  var QUANT_DITHER = 0.85; // <1 keeps noise (and file size) down
+  function quantizeRgba(u32, w, h) {
+    var HB = 1 << 19; // 5-bit RGB + 4-bit alpha histogram buckets
+    var cnt = new Uint32Array(HB);
+    var sr = new Float64Array(HB), sg = new Float64Array(HB), sb = new Float64Array(HB), sa = new Float64Array(HB);
+    var hasClear = false;
+    var i, v, r, g, b, a, k;
+    for (i = 0; i < u32.length; i++) {
+      v = u32[i];
+      a = v >>> 24;
+      if (a < 8) { hasClear = true; continue; }
+      r = v & 255; g = (v >>> 8) & 255; b = (v >>> 16) & 255;
+      k = ((r >> 3) << 14) | ((g >> 3) << 9) | ((b >> 3) << 4) | (a >> 4);
+      cnt[k]++; sr[k] += r; sg[k] += g; sb[k] += b; sa[k] += a;
+    }
+    var keys = [];
+    for (k = 0; k < HB; k++) if (cnt[k]) keys.push(k);
+    var n = keys.length;
+    var bc = new Float64Array(n), br = new Float64Array(n), bg = new Float64Array(n), bb = new Float64Array(n), ba = new Float64Array(n);
+    keys.forEach(function (key, j) {
+      var c = cnt[key];
+      bc[j] = c; br[j] = sr[key] / c; bg[j] = sg[key] / c; bb[j] = sb[key] / c; ba[j] = sa[key] / c;
+    });
+    cnt = sr = sg = sb = sa = null;
+    var chans = [br, bg, bb, ba];
+    var maxColors = hasClear ? 255 : 256;
+
+    // Median cut over bucket indices; boxes are [start, end) ranges of `order`.
+    var order = new Uint32Array(n);
+    for (i = 0; i < n; i++) order[i] = i;
+    function boxInfo(start, end) {
+      var lo = [255, 255, 255, 255], hi = [0, 0, 0, 0], total = 0;
+      for (var p = start; p < end; p++) {
+        var id = order[p];
+        total += bc[id];
+        for (var c = 0; c < 4; c++) {
+          var x = chans[c][id];
+          if (x < lo[c]) lo[c] = x;
+          if (x > hi[c]) hi[c] = x;
+        }
+      }
+      var axis = 0, range = -1;
+      for (var c2 = 0; c2 < 4; c2++) if (hi[c2] - lo[c2] > range) { range = hi[c2] - lo[c2]; axis = c2; }
+      return { start: start, end: end, axis: axis, score: end - start > 1 ? range * range * total : -1, total: total };
+    }
+    var boxes = n ? [boxInfo(0, n)] : [];
+    while (boxes.length < maxColors) {
+      var bi = -1;
+      for (i = 0; i < boxes.length; i++) if (boxes[i].score > 0 && (bi < 0 || boxes[i].score > boxes[bi].score)) bi = i;
+      if (bi < 0) break;
+      var box = boxes[bi];
+      var ch = chans[box.axis];
+      order.subarray(box.start, box.end).sort(function (x, y) { return ch[x] - ch[y]; });
+      var half = box.total / 2, acc = 0, cut = box.end - 1;
+      for (var p = box.start; p < box.end - 1; p++) {
+        acc += bc[order[p]];
+        if (acc >= half) { cut = p + 1; break; }
+      }
+      boxes.splice(bi, 1, boxInfo(box.start, cut), boxInfo(cut, box.end));
+    }
+
+    var pr = [], pg = [], pb = [], pa = [];
+    boxes.forEach(function (bx) {
+      var t = 0, r0 = 0, g0 = 0, b0 = 0, a0 = 0;
+      for (var p = bx.start; p < bx.end; p++) {
+        var id = order[p], c = bc[id];
+        t += c; r0 += br[id] * c; g0 += bg[id] * c; b0 += bb[id] * c; a0 += ba[id] * c;
+      }
+      pr.push(r0 / t); pg.push(g0 / t); pb.push(b0 / t); pa.push(a0 / t);
+    });
+    var m = pr.length;
+    function nearest(r1, g1, b1, a1) {
+      var best = 0, bestD = Infinity;
+      for (var j = 0; j < m; j++) {
+        var dr = r1 - pr[j], dg = g1 - pg[j], db = b1 - pb[j], da = a1 - pa[j];
+        var d = dr * dr + dg * dg + db * db + da * da;
+        if (d < bestD) { bestD = d; best = j; }
+      }
+      return best;
+    }
+    // A couple of weighted k-means passes pull the median-cut colors onto the data.
+    var passes = n * m <= 40e6 ? 2 : (n * m <= 120e6 ? 1 : 0);
+    for (var pass = 0; pass < passes; pass++) {
+      var tr = new Float64Array(m), tg = new Float64Array(m), tb = new Float64Array(m), ta = new Float64Array(m), tc = new Float64Array(m);
+      for (i = 0; i < n; i++) {
+        var j = nearest(br[i], bg[i], bb[i], ba[i]), c = bc[i];
+        tc[j] += c; tr[j] += br[i] * c; tg[j] += bg[i] * c; tb[j] += bb[i] * c; ta[j] += ba[i] * c;
+      }
+      for (j = 0; j < m; j++) if (tc[j]) { pr[j] = tr[j] / tc[j]; pg[j] = tg[j] / tc[j]; pb[j] = tb[j] / tc[j]; pa[j] = ta[j] / tc[j]; }
+    }
+    var pal = new Uint32Array(m);
+    for (j = 0; j < m; j++) {
+      pr[j] = Math.round(pr[j]); pg[j] = Math.round(pg[j]); pb[j] = Math.round(pb[j]); pa[j] = Math.round(pa[j]);
+      pal[j] = (pr[j] | (pg[j] << 8) | (pb[j] << 16) | (pa[j] << 24)) >>> 0;
+    }
+
+    // Serpentine Floyd-Steinberg with a lazily filled 6-bit RGB + 4-bit alpha lookup.
+    var lut = new Int16Array(1 << 22).fill(-1);
+    var out = new Uint32Array(u32.length);
+    var errA = new Float32Array((w + 2) * 4), errB = new Float32Array((w + 2) * 4);
+    for (var y = 0; y < h; y++) {
+      var cur = errA, next = errB;
+      next.fill(0);
+      var ltr = (y & 1) === 0;
+      for (var s = 0; s < w; s++) {
+        var x = ltr ? s : w - 1 - s;
+        var idx = y * w + x;
+        v = u32[idx];
+        if ((v >>> 24) < 8) { out[idx] = 0; continue; }
+        var e = (x + 1) * 4;
+        r = Math.min(255, Math.max(0, (v & 255) + cur[e]));
+        g = Math.min(255, Math.max(0, ((v >>> 8) & 255) + cur[e + 1]));
+        b = Math.min(255, Math.max(0, ((v >>> 16) & 255) + cur[e + 2]));
+        a = Math.min(255, Math.max(8, (v >>> 24) + cur[e + 3]));
+        k = ((r >> 2) << 16) | ((g >> 2) << 10) | ((b >> 2) << 4) | (a >> 4);
+        var q = lut[k];
+        if (q < 0) q = lut[k] = nearest(r, g, b, a);
+        out[idx] = pal[q];
+        var er = (r - pr[q]) * QUANT_DITHER, eg = (g - pg[q]) * QUANT_DITHER, eb = (b - pb[q]) * QUANT_DITHER, ea = (a - pa[q]) * QUANT_DITHER;
+        var fwd = ltr ? 4 : -4;
+        // 7/16 ahead, 3/16 behind-below, 5/16 below, 1/16 ahead-below.
+        cur[e + fwd] += er * 0.4375; cur[e + fwd + 1] += eg * 0.4375; cur[e + fwd + 2] += eb * 0.4375; cur[e + fwd + 3] += ea * 0.4375;
+        next[e - fwd] += er * 0.1875; next[e - fwd + 1] += eg * 0.1875; next[e - fwd + 2] += eb * 0.1875; next[e - fwd + 3] += ea * 0.1875;
+        next[e] += er * 0.3125; next[e + 1] += eg * 0.3125; next[e + 2] += eb * 0.3125; next[e + 3] += ea * 0.3125;
+        next[e + fwd] += er * 0.0625; next[e + fwd + 1] += eg * 0.0625; next[e + fwd + 2] += eb * 0.0625; next[e + fwd + 3] += ea * 0.0625;
+      }
+      errA = next;
+      errB = cur;
+    }
+    return out;
+  }
+
+  async function optimizePng(b, lossy) {
+    var chunks = parsePngChunks(b);
+    if (!chunks) return null;
+    // Metadata-only pass: same pixel data, fewer chunks.
+    var stripped = concatBytes([PNG_SIGNATURE].concat(chunks.filter(keepPngChunk).map(function (c) { return c.raw; })));
+    var best = stripped;
+
+    var info = pngDecodeInfo(chunks[0].data);
+    var types = chunks.map(function (c) { return c.type; });
+    var unknownCritical = types.some(function (t) { return isCriticalChunk(t) && ['IHDR', 'PLTE', 'IDAT', 'IEND'].indexOf(t) === -1; });
+    var canEncode = window.CompressionStream && window.DecompressionStream && !unknownCritical &&
+      types.indexOf('acTL') === -1 && info.w > 0 && info.h > 0 && info.w * info.h <= COMPRESS_MAX_PIXELS;
+    if (!canEncode) return best;
+    var canRepack = info.interlace === 0 && PNG_CHANNELS[info.ct] &&
+      [1, 2, 4, 8].indexOf(info.depth) !== -1 && (info.depth === 8 || info.ct === 0 || info.ct === 3);
+
+    var u32 = null;
+    try {
+      if (canRepack) {
+        var plte = null, trns = null, idatParts = [];
+        chunks.forEach(function (c) {
+          if (c.type === 'PLTE') plte = c.data;
+          else if (c.type === 'tRNS') trns = c.data;
+          else if (c.type === 'IDAT') idatParts.push(c.data);
+        });
+        if (info.ct !== 3 || plte) {
+          var lay = pngLayout(info.w, info.depth, info.ct);
+          var raw = await inflateZlibLimited(concatBytes(idatParts), info.h * (lay.rowBytes + 1));
+          u32 = pngToRgba(info, raw, plte, trns);
+          raw = null;
+          best = await pngEncodeBest(u32, info, chunks, best);
+        }
+      }
+    } catch (err) {
+      console.warn('PNG repack skipped:', err && err.message);
+      u32 = null;
+    }
+    if (!lossy) return best;
+
+    try {
+      if (!u32) {
+        var dec = await decodeImageRgba(new Blob([b], { type: 'image/png' }));
+        u32 = dec.u32;
+      }
+      var quantized = quantizeRgba(u32, info.w, info.h);
+      u32 = null;
+      // Gamma/ICC chunks still describe the same color values, so they stay valid.
+      best = await pngEncodeBest(quantized, info, chunks, best);
+    } catch (err) {
+      console.warn('PNG quantize skipped:', err && err.message);
+    }
+    return best;
+  }
+
+  // Lossy re-encode for JPEG/WebP; EXIF orientation is baked into the pixels.
+  var COMPRESS_LOSSY_QUALITY = 0.82;
+  async function reencodeImage(file, mime) {
+    var bmp = await createImageBitmap(file);
+    try {
+      if (bmp.width * bmp.height > COMPRESS_MAX_PIXELS) throw new Error('รูปใหญ่เกินไป (เกิน 36 ล้านพิกเซล)');
+      var canvas = document.createElement('canvas');
+      canvas.width = bmp.width;
+      canvas.height = bmp.height;
+      var ctx = canvas.getContext('2d');
+      if (mime === 'image/jpeg') { ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, canvas.width, canvas.height); }
+      ctx.drawImage(bmp, 0, 0);
+      var blob = await canvasToBlob(canvas, mime, COMPRESS_LOSSY_QUALITY);
+      // Browsers without a WebP encoder silently fall back to PNG.
+      if (blob.type !== mime) return null;
+      return new Uint8Array(await blob.arrayBuffer());
+    } finally {
+      bmp.close();
+    }
+  }
+
+  async function compressImage(file, lossy) {
+    var bytes = new Uint8Array(await file.arrayBuffer());
+    var kind = sniffImageKind(bytes);
+    if (!kind) throw new Error('ไฟล์นี้ไม่ใช่ JPG, PNG หรือ WEBP');
+    var out = null;
+    if (kind === 'png') out = await optimizePng(bytes, lossy);
+    else {
+      out = kind === 'jpg' ? optimizeJpeg(bytes) : optimizeWebp(bytes);
+      if (lossy) {
+        try {
+          var re = await reencodeImage(file, COMPRESS_MIME[kind]);
+          if (re && (!out || re.length < out.length)) out = re;
+        } catch (err) {
+          console.warn('Re-encode skipped:', err && err.message);
+        }
+      }
+    }
+    if (!out || out.length >= bytes.length) return { kind: kind, blob: null };
+    return { kind: kind, blob: new Blob([out], { type: COMPRESS_MIME[kind] }) };
+  }
+
+  function initImageCompressView() {
+    var items = []; // { id, file, url, status: 'queued'|'working'|'done'|'same'|'error', blob, kind, error }
+    var nextId = 1;
+    var running = false;
+    var lossy = false;
+
+    var $dropzone = $('#imgc-dropzone');
+    var $fileInput = $('#imgc-file-input');
+    var $uploadError = $('#imgc-upload-error');
+    var $panel = $('#imgc-panel');
+    var $list = $('#imgc-list');
+    var $summary = $('#imgc-summary');
+    var $btnAll = $('#btn-imgc-download-all');
+    var $statusEl = $('#imgc-status');
+    var $modes = $('#imgc-mode button');
+    var $modeNote = $('#imgc-mode-note');
+
+    function setStatus(msg, kind) {
+      $statusEl.text(msg || '');
+      $statusEl.removeClass('text-good text-bad text-inksoft');
+      if (kind === 'good') $statusEl.addClass('text-good');
+      else if (kind === 'bad') $statusEl.addClass('text-bad');
+      else $statusEl.addClass('text-inksoft');
+    }
+    function renderMode() {
+      $modes.each(function () {
+        var on = ($(this).data('mode') === 'lossy') === lossy;
+        $(this).attr('aria-checked', on ? 'true' : 'false')
+          .toggleClass('bg-accent text-accentink shadow-sm', on)
+          .toggleClass('text-inksoft hover:text-ink', !on);
+      });
+      $modeNote.text(lossy
+        ? 'PNG ลดเหลือไม่เกิน 256 สีแบบกระจายสี (เหมือน TinyPNG) · JPG/WEBP บีบอัดใหม่ที่คุณภาพ 82% · ตาเปล่าแทบไม่เห็นความต่าง'
+        : 'พิกเซลเหมือนเดิมทุกจุด · ตัดข้อมูลแฝงและจัดเก็บ PNG ใหม่ · ภาพถ่ายจะลดได้น้อย');
+    }
+    function outputName(item) {
+      var name = item.file.name || 'image';
+      var dotIdx = name.lastIndexOf('.');
+      var base = dotIdx > 0 ? name.slice(0, dotIdx) : name;
+      return base + '-compressed.' + (item.kind === 'jpg' ? 'jpg' : item.kind);
+    }
+    function percentSaved(before, after) {
+      var pct = (1 - after / before) * 100;
+      return pct < 0.1 ? '<0.1%' : pct.toFixed(1) + '%';
+    }
+
+    function render() {
+      $list.empty();
+      var before = 0, after = 0, ready = 0, busy = 0;
+      items.forEach(function (item) {
+        var $row = $('<div>').addClass('flex items-center gap-3 bg-surface border border-line rounded-xl px-3 py-2.5 shadow-sm');
+        var $thumb = $('<span>').addClass('flex h-11 w-11 flex-none items-center justify-center rounded-lg overflow-hidden bg-surface2 ring-1 ring-line')
+          .append(item.status === 'error'
+            ? $('<i>').addClass('bi bi-file-earmark-x text-lg text-bad leading-none')
+            : $('<img>').attr({ src: item.url, alt: '' }).addClass('h-full w-full object-cover'));
+        var $meta = $('<div>').addClass('flex-1 min-w-0');
+        $meta.append($('<div>').addClass('font-semibold text-[13px] truncate').text(item.file.name || 'image'));
+        var $line = $('<div>').addClass('flex items-center gap-1.5 flex-wrap text-[11.5px] mt-0.5');
+        if (item.status === 'done') {
+          before += item.file.size;
+          after += item.blob.size;
+          ready++;
+          $line.append(
+            $('<span>').addClass('text-inksoft').text(formatSize(item.file.size) + ' → '),
+            $('<span>').addClass('font-bold text-ink').text(formatSize(item.blob.size)),
+            $('<span>').addClass('rounded-full bg-goodsoft text-good font-bold px-1.5 py-px text-[10.5px]').text('−' + percentSaved(item.file.size, item.blob.size))
+          );
+        } else if (item.status === 'same') {
+          $line.append($('<span>').addClass('text-inksoft').text(formatSize(item.file.size) + ' · ลดขนาดเพิ่มไม่ได้แล้ว' + (lossy ? '' : ' (ลองโหมด "ลดขนาดมากขึ้น")')));
+        } else if (item.status === 'error') {
+          $line.append($('<span>').addClass('text-bad').text(item.error));
+        } else {
+          busy++;
+          $line.append(
+            $('<span>').addClass('spinner inline-block w-[11px] h-[11px] rounded-full border-2 border-accent/30 border-t-accent animate-spin'),
+            $('<span>').addClass('text-inksoft').text(item.status === 'working' ? 'กำลังบีบอัด…' : 'รอคิว…')
+          );
+        }
+        $meta.append($line);
+
+        var $dl = $('<button>').attr({ type: 'button', title: 'ดาวน์โหลด', 'aria-label': 'ดาวน์โหลด' })
+          .addClass('flex h-8 w-8 flex-none items-center justify-center rounded-lg bg-accent text-accentink hover:bg-accentdeep disabled:bg-line disabled:text-inkfaint disabled:pointer-events-none')
+          .prop('disabled', item.status !== 'done')
+          .append($('<i>').addClass('bi bi-download text-sm leading-none'))
+          .on('click', function () { downloadItems([item]); });
+        var $remove = $('<button>').attr({ type: 'button', title: 'นำออก', 'aria-label': 'นำออก' })
+          .addClass('flex h-8 w-8 flex-none items-center justify-center rounded-lg text-inksoft hover:text-bad hover:bg-badsoft')
+          .append($('<i>').addClass('bi bi-x-lg text-sm leading-none'))
+          .on('click', function () { removeItem(item); });
+        $row.append($thumb, $meta, $dl, $remove);
+        $list.append($row);
+      });
+
+      $panel.css('display', items.length ? 'block' : 'none');
+      if (ready) {
+        $summary.text(items.length + ' ไฟล์ · ลดลงรวม ' + formatSize(before - after) + ' (−' + percentSaved(before, after) + ')');
+      } else {
+        $summary.text(items.length + ' ไฟล์' + (busy ? '' : ' · ไม่มีไฟล์ที่ลดขนาดได้'));
+      }
+      $btnAll.prop('disabled', !ready || busy > 0);
+      $btnAll.find('.btn-label').text(ready > 1 ? 'ดาวน์โหลดทั้งหมด (.zip)' : 'ดาวน์โหลด');
+    }
+
+    function removeItem(item) {
+      var idx = items.indexOf(item);
+      if (idx === -1) return;
+      items.splice(idx, 1);
+      URL.revokeObjectURL(item.url);
+      item.removed = true;
+      setStatus('', 'neutral');
+      render();
+    }
+
+    async function runQueue() {
+      if (running) return;
+      running = true;
+      try {
+        for (;;) {
+          var item = items.find(function (it) { return it.status === 'queued'; });
+          if (!item) break;
+          item.status = 'working';
+          render();
+          try {
+            var res = await compressImage(item.file, lossy);
+            item.kind = res.kind;
+            item.blob = res.blob;
+            item.status = res.blob ? 'done' : 'same';
+            // Mode changed mid-run: redo with the new setting.
+            if (item.redo) { item.redo = false; item.status = 'queued'; item.blob = null; }
+          } catch (err) {
+            console.error(err);
+            item.status = 'error';
+            item.error = (err && err.message) || 'บีบอัดไม่สำเร็จ';
+          }
+          if (!item.removed) render();
+        }
+      } finally {
+        running = false;
+      }
+    }
+
+    function addFiles(fileList) {
+      var files = Array.prototype.slice.call(fileList || []);
+      if (!files.length) return;
+      var errors = [];
+      files.forEach(function (file) {
+        var okType = /^image\/(jpeg|png|webp)$/i.test(file.type) || /\.(jpe?g|png|webp)$/i.test(file.name || '');
+        if (!okType) { errors.push((file.name || 'ไฟล์') + ': รองรับเฉพาะ JPG, PNG, WEBP'); return; }
+        if (file.size > COMPRESS_MAX_BYTES) { errors.push((file.name || 'ไฟล์') + ': ใหญ่เกิน 50 MB'); return; }
+        if (items.length >= COMPRESS_MAX_FILES) { errors.push('เพิ่มได้สูงสุด ' + COMPRESS_MAX_FILES + ' ไฟล์ต่อครั้ง'); return; }
+        items.push({ id: nextId++, file: file, url: URL.createObjectURL(file), status: 'queued' });
+      });
+      $uploadError.text(errors.length ? errors.filter(function (e, i) { return errors.indexOf(e) === i; }).join(' · ') : '');
+      setStatus('', 'neutral');
+      render();
+      runQueue();
+    }
+
+    async function downloadItems(list) {
+      var done = list.filter(function (it) { return it.status === 'done'; });
+      if (!done.length) return;
+      try {
+        var res = await deliverFiles(done.map(function (it) { return { name: outputName(it), blob: it.blob }; }),
+          'compressed-images-' + fileTimestamp(new Date()));
+        setStatus(res.status === 'saved' ? 'บันทึกไฟล์สำเร็จ' : 'ส่งไฟล์เรียบร้อย', 'good');
+      } catch (err) {
+        setStatus(describeDownloadError(err), err && err.code === 'declined' ? 'neutral' : 'bad');
+      }
+    }
+
+    $dropzone.on('click', function () { $fileInput.trigger('click'); });
+    $dropzone.on('keydown', function (e) {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); $fileInput.trigger('click'); }
+    });
+    $dropzone.on('dragenter dragover', function (e) {
+      e.preventDefault();
+      $dropzone.removeClass('border-line').addClass('border-accent bg-accentsoft');
+    });
+    $dropzone.on('dragleave drop', function (e) {
+      e.preventDefault();
+      $dropzone.removeClass('border-accent bg-accentsoft').addClass('border-line');
+    });
+    $dropzone.on('drop', function (e) {
+      var dt = e.originalEvent.dataTransfer;
+      if (dt && dt.files) addFiles(dt.files);
+    });
+    $fileInput.on('change', function () {
+      addFiles($fileInput[0].files);
+      $fileInput.val('');
+    });
+    $(document).on('paste', function (e) {
+      if ($viewImageCompress.attr('hidden') !== undefined) return;
+      var list = [];
+      var clip = (e.originalEvent.clipboardData && e.originalEvent.clipboardData.items) || [];
+      for (var i = 0; i < clip.length; i++) {
+        if (clip[i].kind !== 'file' || !/^image\//.test(clip[i].type)) continue;
+        var blob = clip[i].getAsFile();
+        if (!blob) continue;
+        var ext = (blob.type.split('/')[1] || 'png').replace('jpeg', 'jpg');
+        list.push(new File([blob], 'pasted-image-' + fileTimestamp(new Date()) + '.' + ext, { type: blob.type }));
+      }
+      if (list.length) { e.preventDefault(); addFiles(list); }
+    });
+    $btnAll.on('click', function () { downloadItems(items); });
+    $modes.on('click', function () {
+      var next = $(this).data('mode') === 'lossy';
+      if (next === lossy) return;
+      lossy = next;
+      renderMode();
+      items.forEach(function (it) {
+        if (it.status === 'working') it.redo = true;
+        else if (it.status !== 'error') { it.status = 'queued'; it.blob = null; }
+      });
+      setStatus('', 'neutral');
+      render();
+      runQueue();
+    });
+    renderMode();
+    $('#btn-imgc-clear').on('click', function () {
+      items.forEach(function (it) { URL.revokeObjectURL(it.url); it.removed = true; });
+      items = [];
+      $uploadError.text('');
+      setStatus('', 'neutral');
+      render();
+    });
+  }
+
+  // ---------- HTML preview ----------
+  // The preview is an iframe with srcdoc and a sandbox that never includes
+  // allow-same-origin, so previewed code gets an opaque origin and can't read
+  // this page, its storage or cookies.
+  var HTMLPV_MAX_BYTES = 2 * 1024 * 1024;
+  var BEAUTIFY_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/js-beautify/1.15.1/';
+  var beautifyPromise = null;
+  function loadScriptOnce(src) {
+    return new Promise(function (resolve, reject) {
+      var s = document.createElement('script');
+      s.src = src;
+      s.onload = resolve;
+      s.onerror = function () { reject(new Error('โหลดไลบรารีจัดรูปแบบโค้ดไม่สำเร็จ ตรวจสอบการเชื่อมต่ออินเทอร์เน็ต')); };
+      document.head.appendChild(s);
+    });
+  }
+  // js/css beautifiers first: html_beautify uses them for <script>/<style> blocks.
+  function loadBeautify() {
+    if (window.html_beautify) return Promise.resolve(window.html_beautify);
+    if (!beautifyPromise) {
+      beautifyPromise = loadScriptOnce(BEAUTIFY_BASE + 'beautify.min.js')
+        .then(function () { return loadScriptOnce(BEAUTIFY_BASE + 'beautify-css.min.js'); })
+        .then(function () { return loadScriptOnce(BEAUTIFY_BASE + 'beautify-html.min.js'); })
+        .then(function () {
+          if (!window.html_beautify) throw new Error('โหลดไลบรารีจัดรูปแบบโค้ดไม่สำเร็จ');
+          return window.html_beautify;
+        })
+        .catch(function (err) { beautifyPromise = null; throw err; });
+    }
+    return beautifyPromise;
+  }
+
+  function initHtmlPreviewView() {
+    var $code = $('#htmlpv-code');
+    var $meta = $('#htmlpv-meta');
+    var $frame = $('#htmlpv-frame');
+    var $btnBeautify = $('#btn-htmlpv-beautify');
+    var $fileInput = $('#htmlpv-file-input');
+    var $statusEl = $('#htmlpv-status');
+    var INDENT = '  ';
+    var fileName = null;
+    var timer = null;
+    var escPressed = false;
+
+    function setStatus(msg, kind) {
+      $statusEl.text(msg || '');
+      $statusEl.removeClass('text-good text-bad text-inksoft');
+      if (kind === 'good') $statusEl.addClass('text-good');
+      else if (kind === 'bad') $statusEl.addClass('text-bad');
+      else $statusEl.addClass('text-inksoft');
+    }
+    function updateMeta() {
+      var text = $code.val();
+      var lines = text ? text.split('\n').length : 0;
+      $meta.text('บรรทัด ' + lines.toLocaleString() + ' · ตัวอักษร ' + text.length.toLocaleString());
+    }
+    function renderPreview() {
+      timer = null;
+      $frame.attr('srcdoc', $code.val());
+    }
+    function schedulePreview() {
+      updateMeta();
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(renderPreview, $code.val().length > 200000 ? 800 : 300);
+    }
+    function setCode(text) {
+      $code.val(text);
+      schedulePreview();
+    }
+    async function beautify() {
+      var src = $code.val();
+      if (!src.trim()) { setStatus('ยังไม่มีโค้ดให้จัดรูปแบบ', 'bad'); return; }
+      $btnBeautify.prop('disabled', true).find('.spinner').removeClass('hidden').addClass('inline-block');
+      try {
+        var fmt = await loadBeautify();
+        var out = fmt(src, {
+          indent_size: INDENT.length,
+          indent_char: ' ',
+          wrap_line_length: 0,
+          preserve_newlines: true,
+          max_preserve_newlines: 1,
+          indent_inner_html: true,
+          extra_liners: [],
+          // true also leaves a blank line before </script> and </style>
+          end_with_newline: false
+        });
+        var el = $code[0];
+        // Replace through the editing API when possible so Ctrl+Z can undo it.
+        el.focus();
+        el.select();
+        if (!document.execCommand || !document.execCommand('insertText', false, out)) el.value = out;
+        el.setSelectionRange(0, 0);
+        el.scrollTop = 0;
+        schedulePreview();
+        setStatus('จัดรูปแบบโค้ดแล้ว (กด Ctrl+Z เพื่อย้อนกลับ)', 'good');
+      } catch (err) {
+        console.error(err);
+        setStatus((err && err.message) || 'จัดรูปแบบไม่สำเร็จ', 'bad');
+      } finally {
+        $btnBeautify.prop('disabled', false).find('.spinner').addClass('hidden').removeClass('inline-block');
+      }
+    }
+
+    $code.on('input', function () { setStatus('', 'neutral'); schedulePreview(); });
+    // Tab indents; press Esc first to let Tab move focus out of the editor.
+    $code.on('keydown', function (e) {
+      if (e.key === 'Escape') { escPressed = true; return; }
+      if (e.key === 'Tab' && !escPressed && !e.ctrlKey && !e.altKey && !e.metaKey && !e.shiftKey) {
+        e.preventDefault();
+        var el = this;
+        if (!document.execCommand || !document.execCommand('insertText', false, INDENT)) {
+          el.setRangeText(INDENT, el.selectionStart, el.selectionEnd, 'end');
+          schedulePreview();
+        }
+      }
+      if (e.key !== 'Tab') escPressed = false;
+      if (e.altKey && e.shiftKey && (e.key === 'F' || e.key === 'f')) { e.preventDefault(); beautify(); }
+    });
+    $code.on('blur', function () { escPressed = false; });
+    $btnBeautify.on('click', beautify);
+
+    $('#btn-htmlpv-open').on('click', function () { $fileInput.trigger('click'); });
+    $fileInput.on('change', function () {
+      var file = $fileInput[0].files[0];
+      $fileInput.val('');
+      if (!file) return;
+      if (file.size > HTMLPV_MAX_BYTES) { setStatus('ไฟล์ใหญ่เกิน 2 MB', 'bad'); return; }
+      var reader = new FileReader();
+      reader.onload = function () {
+        fileName = file.name;
+        setCode(String(reader.result || ''));
+        setStatus('เปิดไฟล์ ' + file.name + ' แล้ว', 'good');
+      };
+      reader.onerror = function () { setStatus('อ่านไฟล์ไม่สำเร็จ', 'bad'); };
+      reader.readAsText(file);
+    });
+    $('#btn-htmlpv-copy').on('click', async function () {
+      var text = $code.val();
+      if (!text) return;
+      try {
+        await navigator.clipboard.writeText(text);
+        setStatus('คัดลอกแล้ว', 'good');
+      } catch (err) {
+        $code.trigger('select');
+        setStatus('ไม่สามารถคัดลอกอัตโนมัติได้ ข้อความถูกเลือกไว้แล้ว กด Ctrl+C', 'bad');
+      }
+    });
+    $('#btn-htmlpv-download').on('click', async function () {
+      var text = $code.val();
+      if (!text) return;
+      var name = fileName || ('preview-' + fileTimestamp(new Date()) + '.html');
+      if (!/\.(html?|xhtml)$/i.test(name)) name += '.html';
+      try {
+        var res = await deliverFiles([{ name: name, blob: new Blob([text], { type: 'text/html;charset=utf-8' }) }], name);
+        setStatus(res.status === 'saved' ? 'บันทึกไฟล์สำเร็จ' : 'ส่งไฟล์เรียบร้อย', 'good');
+      } catch (err) {
+        setStatus(describeDownloadError(err), err && err.code === 'declined' ? 'neutral' : 'bad');
+      }
+    });
+    $('#btn-htmlpv-clear').on('click', function () {
+      fileName = null;
+      setCode('');
+      setStatus('', 'neutral');
+      $code.trigger('focus');
+    });
+
+    updateMeta();
+  }
+
+  // ---------- Convert case ----------
+  // Only letters with case change; Thai and other caseless scripts pass through.
+  var CASE_WORD_RE = /[\p{L}\p{N}][\p{L}\p{M}\p{N}'’]*/gu;
+  // Short words kept lowercase in Title Case unless first or last.
+  var TITLE_MINOR_WORDS = ['a', 'an', 'the', 'and', 'but', 'or', 'nor', 'for', 'so', 'yet', 'as', 'at', 'by', 'in', 'of', 'off', 'on', 'per', 'to', 'up', 'via', 'vs', 'from', 'into', 'onto', 'with', 'over'];
+
+  function capitalizeWord(w) {
+    var chars = Array.from(w.toLowerCase());
+    for (var i = 0; i < chars.length; i++) {
+      if (/\p{L}/u.test(chars[i])) { chars[i] = chars[i].toUpperCase(); break; }
+    }
+    return chars.join('');
+  }
+  var CASE_CONVERTERS = {
+    lower: function (t) { return t.toLowerCase(); },
+    upper: function (t) { return t.toUpperCase(); },
+    capitalized: function (t) { return t.replace(CASE_WORD_RE, capitalizeWord); },
+    sentence: function (t) {
+      var start = true;
+      var out = t.toLowerCase().replace(/[\s\S]/gu, function (ch) {
+        if (/[.!?]/.test(ch) || ch === '\n') { start = true; return ch; }
+        if (start && /\p{L}/u.test(ch)) { start = false; return ch.toUpperCase(); }
+        if (start && /[\p{N}]/u.test(ch)) start = false;
+        return ch;
+      });
+      // Standalone English "I" and its contractions stay capitalized.
+      return out.replace(/(^|[^\p{L}\p{N}])i(?=$|[^\p{L}\p{N}'’]|['’](?:m|d|ll|ve)\b)/gu, '$1I');
+    },
+    title: function (t) {
+      var words = [];
+      t.replace(CASE_WORD_RE, function (w, offset) { words.push(offset); return w; });
+      var first = words.length ? words[0] : -1;
+      var last = words.length ? words[words.length - 1] : -1;
+      return t.replace(CASE_WORD_RE, function (w, offset) {
+        var lower = w.toLowerCase();
+        // Capitalize after a colon or dash as well, e.g. "Part 2: The End".
+        var prev = t.slice(Math.max(0, offset - 40), offset);
+        var lineStart = /\n[^\S\n]*$/.test(prev) || (offset === prev.length && /^[^\S\n]*$/.test(prev));
+        var boundary = offset === first || offset === last || lineStart || /[:–—-]\s*$/.test(prev);
+        if (!boundary && TITLE_MINOR_WORDS.indexOf(lower) !== -1) return lower;
+        return capitalizeWord(w);
+      });
+    },
+    alternating: function (t) {
+      var n = 0;
+      return Array.from(t).map(function (ch) {
+        if (ch.toLowerCase() === ch.toUpperCase()) return ch;
+        return (n++ % 2) ? ch.toUpperCase() : ch.toLowerCase();
+      }).join('');
+    },
+    inverse: function (t) {
+      return Array.from(t).map(function (ch) {
+        var up = ch.toUpperCase();
+        return ch === up ? ch.toLowerCase() : up;
+      }).join('');
+    }
+  };
+
+  function initConvertCaseView() {
+    var $text = $('#case-text');
+    var $meta = $('#case-meta');
+    var $statusEl = $('#case-status');
+    var $buttons = $('#case-buttons button');
+
+    function setStatus(msg, kind) {
+      $statusEl.text(msg || '');
+      $statusEl.removeClass('text-good text-bad text-inksoft');
+      if (kind === 'good') $statusEl.addClass('text-good');
+      else if (kind === 'bad') $statusEl.addClass('text-bad');
+      else $statusEl.addClass('text-inksoft');
+    }
+    function countWords(text) {
+      if (diffWordSegmenter) {
+        var n = 0;
+        var it = diffWordSegmenter.segment(text)[Symbol.iterator]();
+        for (var r = it.next(); !r.done; r = it.next()) if (r.value.isWordLike) n++;
+        return n;
+      }
+      return (text.match(CASE_WORD_RE) || []).length;
+    }
+    function updateMeta() {
+      var text = $text.val();
+      var lines = text ? text.split('\n').length : 0;
+      $meta.text('ตัวอักษร ' + Array.from(text).length.toLocaleString() + ' · คำ ' + countWords(text).toLocaleString() + ' · บรรทัด ' + lines.toLocaleString());
+    }
+    function setActive(mode) {
+      $buttons.each(function () {
+        var on = $(this).data('case') === mode;
+        $(this).toggleClass('bg-accent text-accentink border-accent', on)
+          .toggleClass('bg-surface text-ink border-line hover:border-accent hover:text-accentdeep', !on);
+      });
+    }
+
+    $buttons.addClass('px-3 py-2.5 rounded-xl border text-[13px] font-bold cursor-pointer shadow-sm transition-colors duration-150 truncate');
+    setActive(null);
+
+    $buttons.on('click', function () {
+      var mode = $(this).data('case');
+      var el = $text[0];
+      var src = el.value;
+      if (!src) { setStatus('ยังไม่มีข้อความ', 'bad'); return; }
+      var out = CASE_CONVERTERS[mode](src);
+      if (out !== src) {
+        // Replace through the editing API so Ctrl+Z can undo the conversion.
+        el.focus();
+        el.select();
+        if (!document.execCommand || !document.execCommand('insertText', false, out)) el.value = out;
+        el.setSelectionRange(0, 0);
+        el.scrollTop = 0;
+      }
+      updateMeta();
+      setActive(mode);
+      setStatus('แปลงเป็น ' + $(this).text() + ' แล้ว (กด Ctrl+Z เพื่อย้อนกลับ)', 'good');
+    });
+    $text.on('input', function () {
+      updateMeta();
+      setActive(null);
+      setStatus('', 'neutral');
+    });
+
+    $('#btn-case-copy').on('click', async function () {
+      var text = $text.val();
+      if (!text) return;
+      try {
+        await navigator.clipboard.writeText(text);
+        setStatus('คัดลอกแล้ว', 'good');
+      } catch (err) {
+        $text.trigger('select');
+        setStatus('ไม่สามารถคัดลอกอัตโนมัติได้ ข้อความถูกเลือกไว้แล้ว กด Ctrl+C', 'bad');
+      }
+    });
+    $('#btn-case-download').on('click', async function () {
+      var text = $text.val();
+      if (!text) return;
+      var name = 'text-' + fileTimestamp(new Date()) + '.txt';
+      try {
+        var res = await deliverFiles([{ name: name, blob: new Blob([text], { type: 'text/plain;charset=utf-8' }) }], name);
+        setStatus(res.status === 'saved' ? 'บันทึกไฟล์สำเร็จ' : 'ส่งไฟล์เรียบร้อย', 'good');
+      } catch (err) {
+        setStatus(describeDownloadError(err), err && err.code === 'declined' ? 'neutral' : 'bad');
+      }
+    });
+    $('#btn-case-clear').on('click', function () {
+      $text.val('');
+      updateMeta();
+      setActive(null);
+      setStatus('', 'neutral');
+      $text.trigger('focus');
+    });
+    updateMeta();
   }
 
   // ---------- Text compare ----------

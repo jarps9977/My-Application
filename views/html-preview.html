@@ -1,0 +1,58 @@
+<section id="view-html-preview" class="animate-fade-in" hidden>
+  <div class="mt-4 mb-3">
+    <button class="inline-flex items-center gap-1.5 bg-transparent border-none text-inksoft text-sm font-semibold cursor-pointer py-1.5 hover:text-ink" id="btn-html-preview-back" type="button">
+      <i class="bi bi-chevron-left text-base leading-none"></i>
+      กลับหน้าหลัก
+    </button>
+  </div>
+
+  <div class="flex items-center justify-between flex-wrap gap-3 mb-3">
+    <div class="flex items-center gap-3">
+      <span class="flex h-9 w-9 flex-none items-center justify-center rounded-full bg-accentsoft text-accent">
+        <i class="bi bi-filetype-html text-lg leading-none"></i>
+      </span>
+      <h2 class="text-xl font-extrabold">พรีวิว HTML</h2>
+    </div>
+    <div class="flex items-center gap-2 flex-wrap">
+      <button type="button" id="btn-htmlpv-beautify" class="flex items-center gap-1.5 bg-accent text-accentink text-[12.5px] font-bold px-3 py-1.5 rounded-lg cursor-pointer hover:bg-accentdeep disabled:opacity-60 disabled:pointer-events-none">
+        <span class="spinner hidden w-[12px] h-[12px] rounded-full border-2 border-white/40 border-t-current animate-spin"></span>
+        <i class="bi bi-magic text-sm leading-none"></i> Beautify
+      </button>
+    </div>
+  </div>
+
+  <div class="grid grid-cols-1 md:grid-cols-2 bg-surface border border-line rounded-2xl shadow-sm overflow-hidden">
+    <div class="flex flex-col min-w-0 md:border-r border-line">
+      <div class="flex items-center justify-between gap-2 px-4 py-2.5 border-b border-line">
+        <label class="text-[13px] font-bold" for="htmlpv-code">โค้ด HTML</label>
+        <div class="flex items-center gap-3">
+          <button type="button" id="btn-htmlpv-open" class="flex items-center gap-1 bg-transparent border-none text-inksoft text-[12px] font-semibold cursor-pointer hover:text-accentdeep" title="เปิดไฟล์ .html">
+            <i class="bi bi-folder2-open text-sm leading-none"></i> เปิดไฟล์
+          </button>
+          <button type="button" id="btn-htmlpv-copy" class="flex items-center gap-1 bg-transparent border-none text-inksoft text-[12px] font-semibold cursor-pointer hover:text-accentdeep">
+            <i class="bi bi-clipboard text-sm leading-none"></i> คัดลอก
+          </button>
+          <button type="button" id="btn-htmlpv-download" class="flex items-center gap-1 bg-transparent border-none text-inksoft text-[12px] font-semibold cursor-pointer hover:text-accentdeep">
+            <i class="bi bi-download text-sm leading-none"></i> ดาวน์โหลด
+          </button>
+          <button type="button" id="btn-htmlpv-clear" class="flex items-center gap-1 bg-transparent border-none text-inksoft text-[12px] font-semibold cursor-pointer hover:text-bad">
+            <i class="bi bi-eraser text-sm leading-none"></i> ล้าง
+          </button>
+        </div>
+      </div>
+      <textarea id="htmlpv-code" spellcheck="false" wrap="off" class="w-full h-[calc(100vh-235px)] min-h-[360px] px-4 py-3 border-none bg-surface text-ink text-[12.5px] font-mono leading-relaxed resize-y outline-none" placeholder="วางหรือพิมพ์โค้ด HTML ที่นี่ แล้วดูผลทางขวาทันที..."></textarea>
+      <div class="px-4 py-1.5 border-t border-line text-[11.5px] text-inkfaint text-right font-mono" id="htmlpv-meta">บรรทัด 0 · ตัวอักษร 0</div>
+    </div>
+    <div class="flex flex-col min-w-0 border-t md:border-t-0 border-line">
+      <div class="flex items-center justify-between gap-2 px-4 py-2.5 border-b border-line">
+        <span class="text-[13px] font-bold">ผลลัพธ์</span>
+      </div>
+      <div class="relative flex-1 min-h-[360px] md:min-h-0 bg-white">
+        <!-- Sandboxed: never allow-same-origin, so previewed code can't reach this page. -->
+        <iframe id="htmlpv-frame" title="ผลลัพธ์ HTML" sandbox="allow-scripts" referrerpolicy="no-referrer" class="absolute inset-0 block h-full w-full bg-white border-none"></iframe>
+      </div>
+    </div>
+  </div>
+  <input type="file" id="htmlpv-file-input" accept=".html,.htm,.xhtml,.svg,text/html" class="sr-only" />
+  <div class="status-line mt-2.5 text-[12.5px] min-h-[16px]" id="htmlpv-status"></div>
+</section>

@@ -21,7 +21,6 @@ UI:
 - icon-settings.svg / .png
 - icon-search.svg / .png
 - icon-category.svg / .png
-- icon-arrow-right.svg / .png
 
 Recommended:
 - Header: logo-toolbox.svg

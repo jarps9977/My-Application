@@ -21,7 +21,7 @@
 
 <!-- ============ HOME VIEW (wide landing layout) ============ -->
 <section id="view-home" class="animate-fade-in">
-  <div class="max-w-6xl mx-auto px-5 sm:px-8 pt-6 pb-16">
+  <div class="max-w-[1500px] mx-auto px-5 sm:px-8 pt-6 pb-16">
 
     <header class="flex items-center justify-between gap-4 flex-wrap pb-6">
       <div class="flex items-center gap-2.5">
@@ -90,7 +90,7 @@
     <!-- Category filter chips, rendered by js/app.js (TOOL_CATEGORIES) -->
     <div class="flex flex-wrap gap-2 mb-4" id="category-filter" role="tablist" aria-label="หมวดหมู่เครื่องมือ"></div>
 
-    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3" id="category-grid"></div>
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3" id="category-grid"></div>
 
   </div>
 </section>
@@ -242,6 +242,21 @@
   <!-- Markup lives in views/text-compare.html — fetched and mounted at
        runtime by js/app.js, same pattern as views/merge.html. -->
   <div id="view-text-compare-mount"></div>
+
+  <!-- ============ IMAGE COMPRESS VIEW ============ -->
+  <!-- Markup lives in views/image-compress.html — fetched and mounted at
+       runtime by js/app.js, same pattern as views/merge.html. -->
+  <div id="view-image-compress-mount"></div>
+
+  <!-- ============ HTML PREVIEW VIEW ============ -->
+  <!-- Markup lives in views/html-preview.html — fetched and mounted at
+       runtime by js/app.js, same pattern as views/merge.html. -->
+  <div id="view-html-preview-mount"></div>
+
+  <!-- ============ CONVERT CASE VIEW ============ -->
+  <!-- Markup lives in views/convert-case.html — fetched and mounted at
+       runtime by js/app.js, same pattern as views/merge.html. -->
+  <div id="view-convert-case-mount"></div>
 
   <!-- ============ TEXT GENERATOR VIEW ============ -->
   <!-- Markup lives in views/text-gen.html — fetched and mounted at runtime
