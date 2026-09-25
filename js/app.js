@@ -4879,24 +4879,71 @@
     var scale = 1;
     if (longSide < OCR_MIN_SIDE) scale = Math.min(OCR_MAX_UPSCALE, OCR_MIN_SIDE / longSide);
     else if (longSide > OCR_MAX_SIDE) scale = OCR_MAX_SIDE / longSide;
+    var sw = Math.max(1, Math.round(w * scale));
+    var sh = Math.max(1, Math.round(h * scale));
+    // White margin: Tesseract drops glyphs that touch the image edge.
+    var pad = Math.round(Math.max(sw, sh) * 0.04) + 10;
     var canvas = document.createElement('canvas');
-    canvas.width = Math.max(1, Math.round(w * scale));
-    canvas.height = Math.max(1, Math.round(h * scale));
+    canvas.width = sw + pad * 2;
+    canvas.height = sh + pad * 2;
     var ctx = canvas.getContext('2d');
     ctx.fillStyle = '#ffffff'; // flatten transparency, otherwise it reads as black
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     ctx.imageSmoothingQuality = 'high';
-    ctx.drawImage(bmp, 0, 0, canvas.width, canvas.height);
+    ctx.drawImage(bmp, pad, pad, sw, sh);
     bmp.close();
-    toOcrGrayscale(ctx, canvas.width, canvas.height);
+    var img = ctx.getImageData(pad, pad, sw, sh);
+    if (!toOcrBackgroundDistance(img.data)) toOcrGrayscale(img.data);
+    ctx.putImageData(img, pad, pad);
     return canvas;
+  }
+
+  // Maps each pixel to its color distance from the dominant background color,
+  // so colored text (red on white, white on red, outlined/shadowed titles)
+  // becomes dark-on-light regardless of luminance. Returns false when no single
+  // background color dominates (photos), leaving the pixels untouched.
+  function toOcrBackgroundDistance(a) {
+    var n = a.length / 4;
+    var buckets = new Uint32Array(4096);
+    var i;
+    for (i = 0; i < a.length; i += 4) {
+      buckets[((a[i] >> 4) << 8) | ((a[i + 1] >> 4) << 4) | (a[i + 2] >> 4)]++;
+    }
+    var top = 0;
+    for (i = 1; i < 4096; i++) if (buckets[i] > buckets[top]) top = i;
+    if (buckets[top] < n * 0.2) return false;
+
+    var sr = 0, sg = 0, sb = 0;
+    for (i = 0; i < a.length; i += 4) {
+      if ((((a[i] >> 4) << 8) | ((a[i + 1] >> 4) << 4) | (a[i + 2] >> 4)) !== top) continue;
+      sr += a[i]; sg += a[i + 1]; sb += a[i + 2];
+    }
+    var br = sr / buckets[top], bg = sg / buckets[top], bb = sb / buckets[top];
+
+    var dist = new Uint16Array(n);
+    var hist = new Uint32Array(442);
+    for (i = 0; i < n; i++) {
+      var p = i * 4;
+      var dr = a[p] - br, dg = a[p + 1] - bg, db = a[p + 2] - bb;
+      var d = Math.round(Math.sqrt(dr * dr + dg * dg + db * db));
+      dist[i] = d;
+      hist[d]++;
+    }
+    // Stretch so the strongest ink hits black; floor keeps JPEG noise light.
+    var target = n * 0.995, acc = 0, high = 0;
+    for (i = 0; i < 442; i++) { acc += hist[i]; if (acc >= target) { high = i; break; } }
+    var k = 255 / Math.max(high, 60);
+    for (i = 0; i < n; i++) {
+      var v = 255 - Math.min(255, dist[i] * k);
+      var q = i * 4;
+      a[q] = v; a[q + 1] = v; a[q + 2] = v;
+    }
+    return true;
   }
 
   // Grayscale, inverted when the image is mostly dark (dark-mode screenshots):
   // Tesseract is trained on dark text over a light background.
-  function toOcrGrayscale(ctx, w, h) {
-    var img = ctx.getImageData(0, 0, w, h);
-    var a = img.data;
+  function toOcrGrayscale(a) {
     var total = 0;
     for (var i = 0; i < a.length; i += 4) {
       var l = 0.299 * a[i] + 0.587 * a[i + 1] + 0.114 * a[i + 2];
@@ -4908,7 +4955,6 @@
       var v = invert ? 255 - a[j] : a[j];
       a[j] = v; a[j + 1] = v; a[j + 2] = v;
     }
-    ctx.putImageData(img, 0, 0);
   }
 
   // Line-leading bullets (•, ▪, ●) are usually read as the Thai digit ๑ or ๐;
