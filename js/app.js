@@ -4871,31 +4871,91 @@
     return ocrWorker;
   }
 
-  async function prepareOcrImage(file) {
+  // Tesseract reads best at a fixed text size, not a fixed image size: large
+  // display text upscaled to 100px+ lines gets misread (มา -> มก). Target line
+  // heights (px, including Thai upper/lower marks), tried in order.
+  var OCR_LINE_TARGETS = [56, 38, 80];
+  var OCR_RETRY_BELOW_CONF = 88;
+  var OCR_RETRY_MAX_CHARS = 300; // only short text is cheap enough to re-run
+
+  // Normalizes colors once at native size; returns the gray canvas and its
+  // measured text line height (0 when none was found).
+  async function preprocessOcrImage(file) {
     var bmp = await createImageBitmap(file);
-    var w = bmp.width;
-    var h = bmp.height;
-    var longSide = Math.max(w, h);
-    var scale = 1;
-    if (longSide < OCR_MIN_SIDE) scale = Math.min(OCR_MAX_UPSCALE, OCR_MIN_SIDE / longSide);
-    else if (longSide > OCR_MAX_SIDE) scale = OCR_MAX_SIDE / longSide;
-    var sw = Math.max(1, Math.round(w * scale));
-    var sh = Math.max(1, Math.round(h * scale));
+    var scale = Math.min(1, OCR_MAX_SIDE / Math.max(bmp.width, bmp.height));
+    var w = Math.max(1, Math.round(bmp.width * scale));
+    var h = Math.max(1, Math.round(bmp.height * scale));
+    var canvas = document.createElement('canvas');
+    canvas.width = w;
+    canvas.height = h;
+    var ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#ffffff'; // flatten transparency, otherwise it reads as black
+    ctx.fillRect(0, 0, w, h);
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(bmp, 0, 0, w, h);
+    bmp.close();
+    var img = ctx.getImageData(0, 0, w, h);
+    if (!toOcrBackgroundDistance(img.data)) toOcrGrayscale(img.data);
+    ctx.putImageData(img, 0, 0);
+    return { canvas: canvas, lineHeight: measureOcrLineHeight(img.data, w, h) };
+  }
+
+  // Scales the preprocessed image so text lines are ~targetLine px tall.
+  function buildOcrInput(pre, targetLine) {
+    var src = pre.canvas;
+    var longSide = Math.max(src.width, src.height);
+    var scale;
+    if (pre.lineHeight) scale = targetLine / pre.lineHeight;
+    else scale = longSide < OCR_MIN_SIDE ? OCR_MIN_SIDE / longSide : 1;
+    scale = Math.max(0.25, Math.min(OCR_MAX_UPSCALE, scale, OCR_MAX_SIDE / longSide));
+    var sw = Math.max(1, Math.round(src.width * scale));
+    var sh = Math.max(1, Math.round(src.height * scale));
     // White margin: Tesseract drops glyphs that touch the image edge.
     var pad = Math.round(Math.max(sw, sh) * 0.04) + 10;
     var canvas = document.createElement('canvas');
     canvas.width = sw + pad * 2;
     canvas.height = sh + pad * 2;
     var ctx = canvas.getContext('2d');
-    ctx.fillStyle = '#ffffff'; // flatten transparency, otherwise it reads as black
+    ctx.fillStyle = '#ffffff';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     ctx.imageSmoothingQuality = 'high';
-    ctx.drawImage(bmp, pad, pad, sw, sh);
-    bmp.close();
-    var img = ctx.getImageData(pad, pad, sw, sh);
-    if (!toOcrBackgroundDistance(img.data)) toOcrGrayscale(img.data);
-    ctx.putImageData(img, pad, pad);
+    ctx.drawImage(src, pad, pad, sw, sh);
     return canvas;
+  }
+
+  // Median height of ink row-runs (horizontal projection). Runs far shorter
+  // than the tallest are Thai upper/lower marks split off by a gap, ignored.
+  function measureOcrLineHeight(a, w, h) {
+    var minInk = Math.max(2, Math.round(w * 0.002));
+    var runs = [];
+    var start = -1;
+    for (var y = 0; y <= h; y++) {
+      var ink = 0;
+      if (y < h) {
+        for (var x = 0, p = y * w * 4; x < w; x++, p += 4) if (a[p] < 128) ink++;
+      }
+      if (ink >= minInk) { if (start < 0) start = y; }
+      else if (start >= 0) { runs.push(y - start); start = -1; }
+    }
+    if (!runs.length) return 0;
+    var tallest = Math.max.apply(null, runs);
+    var lines = runs.filter(function (r) { return r >= tallest * 0.4; }).sort(function (x, y) { return x - y; });
+    var mid = lines[Math.floor(lines.length / 2)];
+    return mid >= 6 ? mid : 0;
+  }
+
+  // Re-runs short text at other sizes and keeps the most confident read.
+  async function recognizeOcr(worker, file) {
+    var pre = await preprocessOcrImage(file);
+    var best = null;
+    for (var i = 0; i < OCR_LINE_TARGETS.length; i++) {
+      var result = await worker.recognize(buildOcrInput(pre, OCR_LINE_TARGETS[i]));
+      if (!best || result.data.confidence > best.data.confidence) best = result;
+      if (!pre.lineHeight) break;
+      if (best.data.confidence >= OCR_RETRY_BELOW_CONF) break;
+      if ((best.data.text || '').length > OCR_RETRY_MAX_CHARS) break;
+    }
+    return best;
   }
 
   // Maps each pixel to its color distance from the dominant background color,
@@ -5201,8 +5261,7 @@
       };
       try {
         var worker = await getOcrWorker();
-        var canvas = await prepareOcrImage(state.file);
-        var result = await worker.recognize(canvas);
+        var result = await recognizeOcr(worker, state.file);
         var text = cleanOcrText(result.data.text || '');
         $output.val(text);
         updateCount();
