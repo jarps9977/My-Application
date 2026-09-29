@@ -672,10 +672,11 @@
         var $tile = makeToolTile(t).attr({ 'data-order-id': t.id, tabindex: 0, 'aria-label': t.label + ' — ลากหรือกดปุ่มลูกศรเพื่อย้าย' });
         $tile.find('button').attr('tabindex', -1);
         // Random speed, phase and swing per tile so they never jiggle in unison.
-        var dur = 0.22 + Math.random() * 0.1;
+        // Kept small and slow on purpose: a large, fast wobble on many tiles is dizzying.
+        var dur = 0.32 + Math.random() * 0.1;
         $tile[0].style.setProperty('--jiggle-dur', dur.toFixed(3) + 's');
         $tile[0].style.setProperty('--jiggle-delay', (-Math.random() * dur).toFixed(3) + 's');
-        $tile[0].style.setProperty('--jiggle-angle', (0.5 + Math.random() * 0.4).toFixed(2) + 'deg');
+        $tile[0].style.setProperty('--jiggle-angle', (0.25 + Math.random() * 0.15).toFixed(2) + 'deg');
         $categoryGrid.append($tile);
       });
       return;
@@ -730,6 +731,7 @@
     $('#home-section-title').text(HOME_SECTION_TEXT[mode][0]);
     $('#home-section-sub').text(arranging ? 'ลากเมนูไปวางตำแหน่งที่ต้องการ แล้วกด "เสร็จ"' : HOME_SECTION_TEXT[mode][1]);
     $categoryFilter.toggle(mode === 'home' && !arranging);
+    $('#home-filter-row').toggle(mode === 'home');
     $('#home-quote').toggleClass('md:block', mode === 'home' && !arranging);
     $('#btn-history-clear').css('display', mode === 'history' && historyList.length ? 'inline-flex' : 'none');
     $toolSearch.prop('disabled', arranging);

@@ -94,14 +94,6 @@
           <p class="text-[12px] text-inksoft" id="home-section-sub">เลือกหมวดหมู่ที่ต้องการใช้งาน</p>
         </div>
       </div>
-      <div class="flex items-center gap-2 ml-auto md:order-last md:ml-0">
-        <button type="button" id="btn-arrange-reset" class="items-center gap-1.5 bg-surface border border-line text-inksoft text-[12.5px] font-bold px-3 py-1.5 rounded-lg cursor-pointer hover:border-bad hover:text-bad disabled:opacity-50 disabled:pointer-events-none" style="display:none;">
-          <i class="bi bi-arrow-counterclockwise text-sm leading-none"></i> ค่าเริ่มต้น
-        </button>
-        <button type="button" id="btn-arrange" aria-pressed="false" class="items-center gap-1.5 border text-[12.5px] font-bold px-3 py-1.5 rounded-lg cursor-pointer transition-colors duration-150 bg-surface border-line text-inksoft hover:border-accent hover:text-accentdeep">
-          <i class="bi bi-arrows-move text-sm leading-none"></i> <span>จัดเรียง</span>
-        </button>
-      </div>
       <button type="button" id="btn-history-clear" class="items-center gap-1.5 bg-surface border border-line text-inksoft text-[12.5px] font-bold px-3 py-1.5 rounded-lg cursor-pointer hover:border-bad hover:text-bad" style="display:none;">
         <i class="bi bi-trash3 text-sm leading-none"></i> ล้างประวัติ
       </button>
@@ -110,8 +102,18 @@
       </div>
     </div>
 
-    <!-- Category filter chips, rendered by js/app.js (TOOL_CATEGORIES) -->
-    <div class="flex flex-wrap gap-2 mb-4" id="category-filter" role="tablist" aria-label="หมวดหมู่เครื่องมือ"></div>
+    <!-- Category filter chips (rendered by js/app.js from TOOL_CATEGORIES) with the arrange controls on the same row -->
+    <div class="flex items-start gap-2 mb-4" id="home-filter-row">
+      <div class="flex flex-wrap gap-2 flex-1 min-w-0" id="category-filter" role="tablist" aria-label="หมวดหมู่เครื่องมือ"></div>
+      <div class="flex flex-none items-center gap-2 ml-auto">
+        <button type="button" id="btn-arrange-reset" class="items-center gap-1.5 bg-surface border border-line text-inksoft text-[12.5px] font-bold px-3.5 py-1.5 rounded-full whitespace-nowrap cursor-pointer hover:border-bad hover:text-bad disabled:opacity-50 disabled:pointer-events-none" style="display:none;">
+          <i class="bi bi-arrow-counterclockwise text-[13px] leading-none"></i> ค่าเริ่มต้น
+        </button>
+        <button type="button" id="btn-arrange" aria-pressed="false" class="items-center gap-1.5 border text-[12.5px] font-bold px-3.5 py-1.5 rounded-full whitespace-nowrap cursor-pointer transition-colors duration-150 bg-surface border-line text-inksoft hover:border-accent hover:text-accentdeep">
+          <i class="bi bi-arrows-move text-[13px] leading-none"></i> <span>จัดเรียง</span>
+        </button>
+      </div>
+    </div>
 
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3" id="category-grid"></div>
 

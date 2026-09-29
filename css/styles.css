@@ -97,14 +97,12 @@ body::before {
 /* Home arrange mode: iOS-style jiggle. Uses the `rotate` property so it does
    not fight the inline `transform` used for dragging and FLIP slides. */
 @keyframes tile-jiggle {
-  0%, 100% { rotate: calc(-1 * var(--jiggle-angle, 0.7deg)); translate: 0 0; }
-  25% { translate: 0 -0.5px; }
-  50% { rotate: var(--jiggle-angle, 0.7deg); translate: 0 0; }
-  75% { translate: 0 0.5px; }
+  0%, 100% { rotate: calc(-1 * var(--jiggle-angle, 0.35deg)); }
+  50% { rotate: var(--jiggle-angle, 0.35deg); }
 }
 /* Per-tile duration, phase and angle come from js/app.js so tiles drift out of sync like iOS. */
 #category-grid.is-arranging .tool-tile {
-  animation: tile-jiggle var(--jiggle-dur, 0.26s) ease-in-out var(--jiggle-delay, 0s) infinite;
+  animation: tile-jiggle var(--jiggle-dur, 0.36s) ease-in-out var(--jiggle-delay, 0s) infinite;
   cursor: grab;
   touch-action: none;
   user-select: none;
