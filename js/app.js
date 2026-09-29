@@ -54,6 +54,7 @@
   var $viewCodeFormat = $(); // populated once views/code-format.html is fetched and mounted
   var $viewJsonFormat = $(); // populated once views/json-format.html is fetched and mounted
   var $viewColorPicker = $(); // populated once views/color-picker.html is fetched and mounted
+  var $viewVideoCompress = $(); // populated once views/video-compress.html is fetched and mounted
   function openView($view) {
     $viewHome.attr('hidden', true);
     $viewPdf.attr('hidden', true);
@@ -74,8 +75,9 @@
     $viewCodeFormat.attr('hidden', true);
     $viewJsonFormat.attr('hidden', true);
     $viewColorPicker.attr('hidden', true);
+    $viewVideoCompress.attr('hidden', true);
     // Side-by-side views need more width than the 640px tool column.
-    $('.app').toggleClass('app-wide', $view.is($viewConvertCase))
+    $('.app').toggleClass('app-wide', $view.is($viewConvertCase) || $view.is($viewColorPicker))
       .toggleClass('app-full', $view.is($viewHtmlPreview) || $view.is($viewCodeFormat) || $view.is($viewJsonFormat) || $view.is($viewTextCompare) || $view.is($viewOcr) || $view.is($viewTextGen))
       .toggleClass('app-flush', $view.is($viewOcr) || $view.is($viewTextGen));
     $view.removeAttr('hidden');
@@ -169,6 +171,20 @@
     initVideoConvertView();
   }).fail(function () {
     console.error('ไม่สามารถโหลด views/video-convert.html ได้');
+  });
+
+  // Same fetch-and-mount pattern for the "video compress" view
+  // (views/video-compress.html).
+  var videoCompressViewReady = $.get('views/video-compress.html').done(function (html) {
+    $('#view-video-compress-mount').replaceWith(html);
+    $viewVideoCompress = $('#view-video-compress');
+    $('#btn-video-compress-back').on('click', function () {
+      $viewVideoCompress.attr('hidden', true);
+      $viewHome.removeAttr('hidden');
+    });
+    initVideoCompressView();
+  }).fail(function () {
+    console.error('ไม่สามารถโหลด views/video-compress.html ได้');
   });
 
   // Same fetch-and-mount pattern for the "file resize" view
@@ -334,6 +350,7 @@
     { id: 'merge', label: 'รวมไฟล์ PDF', desc: 'รวมหลายไฟล์เป็นไฟล์เดียว', enabled: true, img: 'assets/merge-pdf.png', cats: ['pdf'] },
     { id: 'convert-files', label: 'แปลงไฟล์', desc: 'แปลงไฟล์ได้หลากหลายรูปแบบ', enabled: true, img: 'assets/convert-file.png', cats: ['convert'] },
     { id: 'video-convert', label: 'แปลงวิดีโอ', desc: 'แปลงวิดีโอไปมาระหว่างฟอร์แมต', enabled: true, img: 'assets/convert-video.png', cats: ['convert'] },
+    { id: 'video-compress', label: 'ลดขนาดวิดีโอ', desc: 'บีบอัดวิดีโอให้เล็กลง ความละเอียดเท่าเดิม', enabled: true, img: 'assets/convert-video.png', cats: ['convert', 'file'] },
     { id: 'text-gen', label: 'สร้างข้อความ', desc: 'สร้างและแก้ไขข้อความออนไลน์', enabled: true, img: 'assets/create-text.png', cats: ['text'] },
     { id: 'convert-case', label: 'แปลงตัวพิมพ์', desc: 'เปลี่ยนตัวพิมพ์เล็ก/ใหญ่ เช่น UPPER, Title Case', enabled: true, img: 'assets/convert-case.png', cats: ['text'] },
     { id: 'html-preview', label: 'พรีวิว HTML', desc: 'ดูผลลัพธ์ HTML ทันที พร้อมจัดรูปแบบโค้ด', enabled: true, img: 'assets/html-preview.png', cats: ['text'] },
@@ -530,6 +547,10 @@
     } else if (tool.id === 'video-convert') {
       $el.on('click', function () {
         $.when(videoConvertViewReady).done(function () { openView($viewVideoConvert); });
+      });
+    } else if (tool.id === 'video-compress') {
+      $el.on('click', function () {
+        $.when(videoCompressViewReady).done(function () { openView($viewVideoCompress); });
       });
     } else if (tool.id === 'text-gen') {
       $el.on('click', function () {
@@ -4314,6 +4335,192 @@
         ffmpegProgressHandler = null;
         if (ffmpeg && inputName) { try { await ffmpeg.deleteFile(inputName); } catch (e) { /* best-effort cleanup */ } }
         if (ffmpeg && outputName) { try { await ffmpeg.deleteFile(outputName); } catch (e) { /* best-effort cleanup */ } }
+        setBusy(false);
+      }
+    });
+  }
+
+  // ---------- Video compress (Mediabunny / WebCodecs) ----------
+  // Re-encodes video to H.264 MP4 at a constant quantizer (like FFmpeg CRF)
+  // through the browser's WebCodecs encoder, usually hardware accelerated and
+  // far faster than ffmpeg.wasm. Resolution and frame rate stay the same;
+  // audio is copied untouched when MP4 can hold it. Phone/camera footage is
+  // recorded at a much higher bitrate than needed and shrinks a lot; an
+  // already well-compressed file may not, and a larger result is never delivered.
+  var MEDIABUNNY_URL = 'https://cdn.jsdelivr.net/npm/mediabunny@1.60.0/dist/bundles/mediabunny.min.mjs';
+  var VCOMP_MAX_BYTES = 2 * 1024 * 1024 * 1024; // input is streamed, but the MP4 output is built in memory
+  var VCOMP_MODES = {
+    // ratio: fallback bitrate vs. the source, used only when the encoder has no quantizer mode.
+    quality: { quantizer: 22, ratio: 0.6, note: 'ตาเปล่าแทบแยกไม่ออกจากต้นฉบับ · เหมาะกับวิดีโอจากมือถือ/กล้องที่ไฟล์ใหญ่' },
+    balanced: { quantizer: 27, ratio: 0.4, note: 'เล็กลงมากขึ้น · คุณภาพใกล้เคียงเดิม เหมาะกับส่งต่อ/อัปโหลด' },
+    small: { quantizer: 31, ratio: 0.25, note: 'เล็กที่สุด · อาจเห็นความต่างในฉากที่เคลื่อนไหวเร็ว' }
+  };
+
+  var mediabunnyPromise = null;
+  function loadMediabunny() {
+    if (!mediabunnyPromise) {
+      mediabunnyPromise = import(/* webpackIgnore: true */ MEDIABUNNY_URL).catch(function (err) {
+        mediabunnyPromise = null;
+        throw err;
+      });
+    }
+    return mediabunnyPromise;
+  }
+
+  function initVideoCompressView() {
+    var state = { file: null, mode: 'quality', busy: false };
+
+    var $dropzone = $('#vcomp-dropzone');
+    var $fileInput = $('#vcomp-file-input');
+    var $uploadError = $('#vcomp-upload-error');
+    var $docCard = $('#vcomp-doc-card');
+    var $docName = $('#vcomp-doc-name');
+    var $docMeta = $('#vcomp-doc-meta');
+    var $panel = $('#vcomp-panel');
+    var $modes = $('#vcomp-mode [data-mode]');
+    var $modeNote = $('#vcomp-mode-note');
+    var $btnRun = $('#btn-vcomp-run');
+    var $progress = $('#vcomp-progress');
+    var $statusEl = $('#vcomp-status');
+
+    function setStatus(msg, kind) {
+      $statusEl.text(msg || '');
+      $statusEl.removeClass('text-good text-bad text-inksoft');
+      if (kind === 'good') $statusEl.addClass('text-good');
+      else if (kind === 'bad') $statusEl.addClass('text-bad');
+      else $statusEl.addClass('text-inksoft');
+    }
+    function setBusy(busy) {
+      state.busy = busy;
+      $btnRun.prop('disabled', busy);
+      $btnRun.toggleClass('busy', busy);
+      $btnRun.find('.spinner').toggleClass('hidden', !busy).toggleClass('inline-block', busy);
+      $modes.prop('disabled', busy);
+      $progress.toggleClass('hidden', !busy);
+      if (!busy) $progress.find('.progress-fill').css('width', '0%');
+    }
+    function updateProgress(e) {
+      var frac = e && typeof e.progress === 'number' ? e.progress : 0;
+      var pct = Math.max(0, Math.min(100, Math.round(frac * 100)));
+      $progress.find('.progress-fill').css('width', pct + '%');
+      setStatus('กำลังบีบอัด… ' + pct + '%', 'neutral');
+    }
+    function renderMode() {
+      $modes.each(function () {
+        var on = $(this).data('mode') === state.mode;
+        $(this).attr('aria-checked', on ? 'true' : 'false')
+          .toggleClass('bg-accent text-accentink shadow-sm', on)
+          .toggleClass('text-inksoft hover:text-ink', !on);
+      });
+      $modeNote.text(VCOMP_MODES[state.mode].note);
+    }
+    renderMode();
+    $modes.on('click', function () {
+      if (state.busy) return;
+      state.mode = $(this).data('mode');
+      renderMode();
+      setStatus('', 'neutral');
+    });
+
+    function handleFile(file) {
+      var ext = (file.name.split('.').pop() || '').toLowerCase();
+      var okType = /^video\//i.test(file.type) || ['mp4', 'mov', 'mkv', 'webm', 'm4v', '3gp', 'ts', 'mts', 'm2ts'].indexOf(ext) !== -1;
+      if (!okType) { $uploadError.text('รองรับเฉพาะไฟล์วิดีโอ'); return; }
+      if (file.size > VCOMP_MAX_BYTES) { $uploadError.text('ไฟล์ใหญ่เกิน 2 GB — เบราว์เซอร์ประมวลผลไม่ไหว'); return; }
+      $uploadError.text('');
+      state.file = file;
+      $docName.text(file.name);
+      $docMeta.text((ext ? ext.toUpperCase() + ' · ' : '') + formatSize(file.size));
+      $docCard.css('display', 'flex');
+      $panel.css('display', 'block');
+      setStatus('', 'neutral');
+    }
+
+    $dropzone.on('click', function () { $fileInput.trigger('click'); });
+    $dropzone.on('keydown', function (e) {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); $fileInput.trigger('click'); }
+    });
+    $dropzone.on('dragenter dragover', function (e) {
+      e.preventDefault();
+      $dropzone.removeClass('border-line').addClass('border-accent bg-accentsoft');
+    });
+    $dropzone.on('dragleave drop', function (e) {
+      e.preventDefault();
+      $dropzone.removeClass('border-accent bg-accentsoft').addClass('border-line');
+    });
+    $dropzone.on('drop', function (e) {
+      if (state.busy) return;
+      var dt = e.originalEvent.dataTransfer;
+      var f = dt && dt.files && dt.files[0];
+      if (f) handleFile(f);
+    });
+    $fileInput.on('change', function () {
+      if (!state.busy && $fileInput[0].files[0]) handleFile($fileInput[0].files[0]);
+      $fileInput.val('');
+    });
+    $('#vcomp-doc-clear').on('click', function () {
+      if (state.busy) return;
+      state.file = null;
+      $docCard.css('display', 'none');
+      $panel.css('display', 'none');
+      setStatus('', 'neutral');
+    });
+
+    $btnRun.on('click', async function () {
+      if (!state.file || state.busy) return;
+      var file = state.file;
+      var mode = VCOMP_MODES[state.mode];
+      if (typeof VideoEncoder === 'undefined') {
+        setStatus('เบราว์เซอร์นี้ไม่รองรับการบีบอัดวิดีโอ (WebCodecs) — ใช้ Chrome, Edge หรือ Safari เวอร์ชันล่าสุด', 'bad');
+        return;
+      }
+      setBusy(true);
+      setStatus('กำลังเตรียมตัวบีบอัดวิดีโอ…', 'neutral');
+      var input = null;
+      try {
+        var MB = await loadMediabunny();
+        if (!(await MB.canEncode('avc'))) throw new Error('เบราว์เซอร์นี้เข้ารหัส H.264 ไม่ได้');
+        input = new MB.Input({ source: new MB.BlobSource(file), formats: MB.ALL_FORMATS });
+        var videoTrack = await input.getPrimaryVideoTrack();
+        if (!videoTrack) throw new Error('ไม่พบภาพวิดีโอในไฟล์นี้');
+        if (!(await videoTrack.canDecode())) throw new Error('เบราว์เซอร์นี้เปิด codec วิดีโอของไฟล์นี้ไม่ได้ (' + (videoTrack.codec || 'ไม่ทราบ codec') + ')');
+
+        var duration = await input.computeDuration();
+        var srcBitrate = duration > 0 ? (file.size * 8) / duration : 0;
+        var fallbackBitrate = Math.max(300000, Math.round(srcBitrate * mode.ratio));
+        var output = new MB.Output({ format: new MB.Mp4OutputFormat({ fastStart: 'in-memory' }), target: new MB.BufferTarget() });
+        var conversion = await MB.Conversion.init({
+          input: input,
+          output: output,
+          tracks: 'primary',
+          video: { codec: 'avc', forceTranscode: true, quality: new MB.Quality({ quantizer: mode.quantizer, bitrate: fallbackBitrate }) },
+          // AAC audio is copied as-is; other codecs (Opus from WebM) become AAC so
+          // every player can open the MP4. Without an AAC encoder, keep the default.
+          audio: (await MB.canEncode('aac')) ? { codec: 'aac' } : undefined,
+          showWarnings: false
+        });
+        if (!conversion.isValid) throw new Error('ไฟล์วิดีโอนี้ไม่รองรับ');
+        var audioLost = conversion.discardedTracks.some(function (d) { return d.track.type === 'audio'; });
+        conversion.onProgress = function (p) { updateProgress({ progress: p }); };
+        await conversion.execute();
+
+        var outBuf = output.target.buffer;
+        if (!outBuf || !outBuf.byteLength) throw new Error('ได้ไฟล์ผลลัพธ์ว่างเปล่า');
+        if (outBuf.byteLength >= file.size) {
+          setStatus('ไฟล์นี้ถูกบีบอัดมาดีแล้ว ลดขนาดเพิ่มไม่ได้ในระดับนี้ (ได้ ' + formatSize(outBuf.byteLength) + ') — ลองโหมด "สมดุล" หรือ "เล็กสุด"', 'bad');
+          return;
+        }
+        var saved = Math.round((1 - outBuf.byteLength / file.size) * 100);
+        var baseName = file.name.replace(/\.[^.]+$/, '') || 'video';
+        var res = await deliverFiles([{ name: baseName + '-compressed.mp4', blob: new Blob([outBuf], { type: 'video/mp4' }) }], baseName + '-compressed');
+        var sizes = formatSize(file.size) + ' → ' + formatSize(outBuf.byteLength) + ' (เล็กลง ' + saved + '%)';
+        setStatus((res.status === 'saved' ? 'บันทึกไฟล์สำเร็จ · ' : 'ส่งไฟล์เรียบร้อย · ') + sizes + (audioLost ? ' · เบราว์เซอร์นี้แปลงเสียงไม่ได้ ไฟล์จึงไม่มีเสียง' : ''), audioLost ? 'bad' : 'good');
+      } catch (err) {
+        console.error(err);
+        setStatus(err && err.code ? describeDownloadError(err) : 'บีบอัดไม่สำเร็จ — ' + ((err && err.message) || 'ไฟล์วิดีโอนี้อาจเสียหายหรือไม่รองรับ'),
+          err && err.code === 'declined' ? 'neutral' : 'bad');
+      } finally {
+        if (input && input.dispose) input.dispose();
         setBusy(false);
       }
     });

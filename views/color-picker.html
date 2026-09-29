@@ -33,23 +33,28 @@
       </button>
     </div>
 
+    <!-- Image left, colors right on wide screens; stacked on mobile. -->
+    <div class="grid gap-4 lg:grid-cols-[minmax(0,1.7fr)_minmax(0,1fr)] lg:items-start">
+    <div class="min-w-0">
     <div class="relative rounded-xl overflow-hidden border border-line bg-surface2 flex justify-center">
-      <canvas id="cp-canvas" class="block max-w-full h-auto cursor-crosshair" aria-label="คลิกบนรูปเพื่อดูดสี"></canvas>
+      <canvas id="cp-canvas" class="block w-auto h-auto max-w-full max-h-[70vh] cursor-crosshair" aria-label="คลิกบนรูปเพื่อดูดสี"></canvas>
       <div id="cp-hover" class="pointer-events-none absolute left-2 top-2 flex items-center gap-2 rounded-lg bg-surface border border-line px-2 py-1 text-[12px] font-mono font-bold shadow-sm" style="display:none;">
         <span id="cp-hover-swatch" class="h-4 w-4 rounded border border-line"></span>
         <span id="cp-hover-hex"></span>
       </div>
     </div>
     <p class="text-[12px] text-inksoft mt-1.5">คลิกบนรูปเพื่อดูดสี</p>
+    </div>
 
-    <div class="mt-4">
+    <div class="min-w-0">
+    <div>
       <div class="flex items-center justify-between gap-2 mb-2">
         <span class="text-[13px] font-bold">ชุดสีหลักในรูป</span>
         <button type="button" id="btn-cp-copy-palette" class="flex items-center gap-1.5 bg-transparent border-none text-inksoft text-[12.5px] font-semibold cursor-pointer hover:text-accentdeep">
           <i class="bi bi-clipboard text-sm leading-none"></i> <span>คัดลอกทั้งหมด</span>
         </button>
       </div>
-      <div class="grid grid-cols-4 sm:grid-cols-8 gap-2" id="cp-palette"></div>
+      <div class="grid grid-cols-4 sm:grid-cols-8 lg:grid-cols-4 gap-2" id="cp-palette"></div>
     </div>
 
     <div class="mt-4" id="cp-picked-wrap" style="display:none;">
@@ -59,7 +64,7 @@
           <i class="bi bi-eraser text-sm leading-none"></i> ล้าง
         </button>
       </div>
-      <div class="grid grid-cols-4 sm:grid-cols-8 gap-2" id="cp-picked"></div>
+      <div class="grid grid-cols-4 sm:grid-cols-8 lg:grid-cols-4 gap-2" id="cp-picked"></div>
     </div>
 
     <div class="mt-4 rounded-xl border border-line bg-surface2 p-3 flex gap-3 items-stretch" id="cp-detail" style="display:none;">
@@ -68,5 +73,7 @@
     </div>
 
     <div class="status-line mt-2.5 text-[12.5px] min-h-[16px]" id="cp-status"></div>
+    </div>
+    </div>
   </div>
 </section>
