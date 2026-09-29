@@ -1,0 +1,107 @@
+<section id="view-json-format" class="animate-fade-in" hidden>
+  <div class="mt-4 mb-3">
+    <button class="inline-flex items-center gap-1.5 bg-transparent border-none text-inksoft text-sm font-semibold cursor-pointer py-1.5 hover:text-ink" id="btn-json-format-back" type="button">
+      <i class="bi bi-chevron-left text-base leading-none"></i>
+      กลับหน้าหลัก
+    </button>
+  </div>
+
+  <div class="flex items-center justify-between flex-wrap gap-3 mb-3">
+    <div class="flex items-center gap-3">
+      <span class="flex h-9 w-9 flex-none items-center justify-center rounded-full bg-accentsoft text-accent">
+        <i class="bi bi-filetype-json text-lg leading-none"></i>
+      </span>
+      <h2 class="text-xl font-extrabold">JSON Formatter</h2>
+    </div>
+    <div class="flex items-center gap-2 flex-wrap">
+      <label class="flex items-center gap-1.5 text-[12px] font-semibold text-inksoft whitespace-nowrap">ย่อหน้า
+        <select id="jsonfmt-indent" class="rounded-lg border border-line bg-surface2 text-ink text-[12.5px] font-semibold px-2 py-1.5 focus:outline focus:outline-2 focus:outline-accent focus:outline-offset-1">
+          <option value="2" selected>2 ช่องว่าง</option>
+          <option value="4">4 ช่องว่าง</option>
+          <option value="tab">Tab</option>
+        </select>
+      </label>
+      <button type="button" id="btn-jsonfmt-beautify" class="flex items-center gap-1.5 bg-accent text-accentink text-[12.5px] font-bold px-3 py-1.5 rounded-lg cursor-pointer hover:bg-accentdeep">
+        <i class="bi bi-magic text-sm leading-none"></i> Beautify
+      </button>
+      <button type="button" id="btn-jsonfmt-minify" class="flex items-center gap-1.5 bg-surface border border-line text-ink text-[12.5px] font-bold px-3 py-1.5 rounded-lg cursor-pointer hover:border-accent hover:text-accentdeep">
+        <i class="bi bi-arrows-collapse text-sm leading-none"></i> Minify
+      </button>
+    </div>
+  </div>
+
+  <div class="grid grid-cols-1 md:grid-cols-2 bg-surface border border-line rounded-2xl shadow-sm overflow-hidden">
+    <div class="flex flex-col min-w-0 md:border-r border-line">
+      <div class="flex items-center justify-between gap-2 px-4 py-2.5 border-b border-line min-h-[49px]">
+        <label class="text-[13px] font-bold whitespace-nowrap" for="jsonfmt-input">JSON ต้นฉบับ</label>
+        <div class="flex items-center gap-3">
+          <button type="button" id="btn-jsonfmt-sample" title="ตัวอย่าง" aria-label="ใส่ JSON ตัวอย่าง" class="flex items-center gap-1 bg-transparent border-none text-inksoft text-[12px] font-semibold cursor-pointer hover:text-accentdeep">
+            <i class="bi bi-lightbulb text-sm leading-none"></i><span class="hidden sm:inline">ตัวอย่าง</span>
+          </button>
+          <button type="button" id="btn-jsonfmt-open" title="เปิดไฟล์" aria-label="เปิดไฟล์" class="flex items-center gap-1 bg-transparent border-none text-inksoft text-[12px] font-semibold cursor-pointer hover:text-accentdeep">
+            <i class="bi bi-folder2-open text-sm leading-none"></i><span class="hidden sm:inline">เปิดไฟล์</span>
+          </button>
+          <button type="button" id="btn-jsonfmt-clear" title="ล้าง" aria-label="ล้าง" class="flex items-center gap-1 bg-transparent border-none text-inksoft text-[12px] font-semibold cursor-pointer hover:text-bad">
+            <i class="bi bi-eraser text-sm leading-none"></i><span class="hidden sm:inline">ล้าง</span>
+          </button>
+        </div>
+      </div>
+      <textarea id="jsonfmt-input" spellcheck="false" wrap="off" class="w-full h-[45vh] md:h-[calc(100vh-235px)] min-h-[260px] md:min-h-[360px] px-4 py-3 border-none bg-surface text-ink text-[12.5px] font-mono leading-relaxed resize-y outline-none" placeholder='วาง JSON ที่นี่ เช่น [{"id": 1, "name": "Alice"}]'></textarea>
+      <div class="px-4 py-1.5 border-t border-line text-[11.5px] text-inkfaint text-right font-mono" id="jsonfmt-input-meta">บรรทัด 0 · ตัวอักษร 0</div>
+    </div>
+
+    <div class="flex flex-col min-w-0 border-t md:border-t-0 border-line">
+      <div class="flex items-center justify-between gap-2 px-4 py-2 border-b border-line flex-wrap min-h-[49px]">
+        <!-- Both panes stay mounted; tabs only toggle visibility. -->
+        <div class="inline-grid grid-cols-2 gap-1 p-0.5 rounded-lg bg-surface2 border border-line" id="jsonfmt-tabs" role="tablist" aria-label="รูปแบบผลลัพธ์">
+          <button type="button" role="tab" data-tab="code" aria-selected="true" aria-controls="jsonfmt-pane-code" class="flex items-center justify-center gap-1.5 px-3 py-1 rounded-md border-none text-[12px] font-bold cursor-pointer transition-colors duration-150">
+            <i class="bi bi-braces text-sm leading-none"></i> โค้ด
+          </button>
+          <button type="button" role="tab" data-tab="table" aria-selected="false" aria-controls="jsonfmt-pane-table" class="flex items-center justify-center gap-1.5 px-3 py-1 rounded-md border-none text-[12px] font-bold cursor-pointer transition-colors duration-150">
+            <i class="bi bi-table text-sm leading-none"></i> ตาราง
+          </button>
+        </div>
+        <div class="flex items-center gap-3">
+          <button type="button" id="btn-jsonfmt-copy" title="คัดลอก" aria-label="คัดลอก" class="flex items-center gap-1 bg-transparent border-none text-inksoft text-[12px] font-semibold cursor-pointer hover:text-accentdeep">
+            <i class="bi bi-clipboard text-sm leading-none"></i><span class="hidden sm:inline">คัดลอก</span>
+          </button>
+          <button type="button" id="btn-jsonfmt-download" title="ดาวน์โหลด JSON" aria-label="ดาวน์โหลด JSON" class="flex items-center gap-1 bg-transparent border-none text-inksoft text-[12px] font-semibold cursor-pointer hover:text-accentdeep">
+            <i class="bi bi-download text-sm leading-none"></i><span class="hidden sm:inline">ดาวน์โหลด</span>
+          </button>
+          <button type="button" id="btn-jsonfmt-csv" title="ดาวน์โหลด CSV" aria-label="ดาวน์โหลด CSV" class="items-center gap-1 bg-transparent border-none text-inksoft text-[12px] font-semibold cursor-pointer hover:text-accentdeep" style="display:none;">
+            <i class="bi bi-filetype-csv text-sm leading-none"></i><span class="hidden sm:inline">CSV</span>
+          </button>
+          <button type="button" id="btn-jsonfmt-xlsx" title="ดาวน์โหลด Excel" aria-label="ดาวน์โหลด Excel" class="items-center gap-1 bg-transparent border-none text-inksoft text-[12px] font-semibold cursor-pointer hover:text-accentdeep" style="display:none;">
+            <i class="bi bi-file-earmark-excel text-sm leading-none"></i><span class="hidden sm:inline">Excel</span>
+          </button>
+        </div>
+      </div>
+
+      <div id="jsonfmt-pane-code" role="tabpanel" class="flex flex-col">
+        <textarea id="jsonfmt-output" readonly spellcheck="false" wrap="off" class="w-full h-[45vh] md:h-[calc(100vh-235px)] min-h-[260px] md:min-h-[360px] px-4 py-3 border-none bg-surface2 text-ink text-[12.5px] font-mono leading-relaxed resize-y outline-none" placeholder="JSON ที่จัดรูปแบบแล้วจะแสดงที่นี่"></textarea>
+      </div>
+
+      <div id="jsonfmt-pane-table" role="tabpanel" class="flex flex-col bg-surface2" hidden>
+        <div class="flex items-center gap-3 flex-wrap px-4 py-2 border-b border-line text-[12px] font-semibold text-inksoft">
+          <label class="flex items-center gap-1.5 whitespace-nowrap min-w-0">ข้อมูลจาก
+            <select id="jsonfmt-path" class="max-w-[220px] rounded-lg border border-line bg-surface text-ink text-[12px] font-semibold font-mono px-2 py-1 focus:outline focus:outline-2 focus:outline-accent focus:outline-offset-1"></select>
+          </label>
+          <label class="flex items-center gap-1.5 whitespace-nowrap cursor-pointer">
+            <input type="checkbox" id="jsonfmt-flatten" class="accent-[var(--accent)]" checked />
+            แตกออบเจกต์ซ้อน (a.b)
+          </label>
+          <button type="button" id="btn-jsonfmt-clear-filter" class="ml-auto items-center gap-1 bg-transparent border-none text-accentdeep text-[12px] font-bold cursor-pointer hover:text-bad" style="display:none;">
+            <i class="bi bi-funnel text-sm leading-none"></i> ล้างตัวกรองทั้งหมด
+          </button>
+        </div>
+        <div id="jsonfmt-table-wrap" class="jsonfmt-table-wrap overflow-auto h-[calc(45vh-41px)] md:h-[calc(100vh-276px)] min-h-[219px] md:min-h-[319px]">
+          <div class="px-4 py-3 text-[12.5px] text-inkfaint" id="jsonfmt-table-empty">ตารางจะแสดงที่นี่</div>
+        </div>
+      </div>
+
+      <div class="px-4 py-1.5 border-t border-line text-[11.5px] text-inkfaint text-right font-mono" id="jsonfmt-output-meta">บรรทัด 0 · ตัวอักษร 0</div>
+    </div>
+  </div>
+  <input type="file" id="jsonfmt-file-input" accept=".json,.txt,application/json" class="sr-only" />
+  <div class="status-line mt-2.5 text-[12.5px] min-h-[16px]" id="jsonfmt-status"></div>
+</section>

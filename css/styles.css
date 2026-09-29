@@ -123,6 +123,55 @@ body::before {
 .diff-fold { display: block; width: 100%; padding: 3px 12px; text-align: center; border: none; cursor: pointer;
   background: var(--surface-2); color: var(--ink-soft); font: inherit; }
 .diff-fold:hover { color: var(--accent-deep); }
+/* JSON to table (views/json-format.html) */
+.jsonfmt-table { border-collapse: separate; border-spacing: 0; font-size: 12px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+.jsonfmt-table th, .jsonfmt-table td { padding: 5px 10px; border-bottom: 1px solid var(--line); border-right: 1px solid var(--line);
+  text-align: left; white-space: nowrap; max-width: 320px; overflow: hidden; text-overflow: ellipsis; }
+.jsonfmt-table th { position: sticky; top: 0; z-index: 1; background: var(--accent-soft); color: var(--ink); font-weight: 700; }
+.jsonfmt-table tbody tr { background: var(--surface); }
+.jsonfmt-table tbody tr:nth-child(even) { background: var(--surface-2); }
+.jsonfmt-table tbody tr:hover { background: color-mix(in srgb, var(--accent-soft) 60%, var(--surface)); }
+.jsonfmt-table .jsonfmt-num, .jsonfmt-table th:first-child { position: sticky; left: 0; color: var(--ink-faint); text-align: right; background: var(--surface-2); }
+.jsonfmt-table th:first-child { z-index: 2; background: var(--accent-soft); }
+.jsonfmt-table .jsonfmt-null { color: var(--ink-faint); font-style: italic; }
+.jsonfmt-table .jsonfmt-scalar { color: var(--accent-deep); }
+.jsonfmt-table .jsonfmt-nested { color: var(--ink-soft); }
+.jsonfmt-th { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.jsonfmt-th > span { overflow: hidden; text-overflow: ellipsis; }
+.jsonfmt-filter-btn { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; margin-left: auto;
+  border: 1px solid var(--line); border-radius: 5px; background: var(--surface); color: var(--ink-faint); font-size: 10px; cursor: pointer; }
+.jsonfmt-filter-btn:hover { color: var(--accent-deep); border-color: var(--accent); }
+.jsonfmt-filter-btn.is-active { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+
+/* Column filter popover, appended to body so the table's overflow can't clip it. */
+.jsonfmt-pop { position: fixed; z-index: 60; width: 270px; max-width: calc(100vw - 16px); padding: 6px; border: 1px solid var(--line);
+  border-radius: 12px; background: var(--surface); color: var(--ink); font-size: 12.5px;
+  box-shadow: 0 12px 32px color-mix(in srgb, var(--accent-deep) 22%, transparent); }
+.jsonfmt-pop-item { display: flex; align-items: center; gap: 8px; width: 100%; padding: 6px 8px; border: none; border-radius: 7px;
+  background: transparent; color: var(--ink); font: inherit; font-weight: 600; text-align: left; cursor: pointer; }
+.jsonfmt-pop-item:hover:not(:disabled) { background: var(--surface-2); color: var(--accent-deep); }
+.jsonfmt-pop-item.is-active { color: var(--accent-deep); background: var(--accent-soft); }
+.jsonfmt-pop-item:disabled { color: var(--ink-faint); cursor: default; }
+.jsonfmt-pop-sep { height: 1px; margin: 5px 2px; background: var(--line); }
+.jsonfmt-pop-search { width: 100%; margin: 2px 0 4px; padding: 6px 9px; border: 1px solid var(--line); border-radius: 8px;
+  background: var(--surface-2); color: var(--ink); font: inherit; outline: none; }
+.jsonfmt-pop-search:focus { border-color: var(--accent); }
+.jsonfmt-pop-list { max-height: 220px; overflow: auto; border: 1px solid var(--line); border-radius: 8px; padding: 2px 0; }
+.jsonfmt-pop-row { display: flex; align-items: center; gap: 8px; padding: 4px 8px; cursor: pointer; }
+.jsonfmt-pop-row:hover { background: var(--surface-2); }
+.jsonfmt-pop-row input { accent-color: var(--accent); flex: none; }
+.jsonfmt-pop-allrow { font-weight: 700; }
+.jsonfmt-pop-val { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; }
+.jsonfmt-pop-val.is-blank { color: var(--ink-faint); font-style: italic; }
+.jsonfmt-pop-count { flex: none; color: var(--ink-faint); font-size: 11px; }
+.jsonfmt-pop-note { padding: 4px 4px 0; color: var(--ink-faint); font-size: 11.5px; }
+.jsonfmt-pop-note:empty { display: none; }
+.jsonfmt-pop-actions { display: flex; justify-content: flex-end; gap: 6px; margin-top: 6px; }
+.jsonfmt-pop-ok, .jsonfmt-pop-cancel { padding: 5px 14px; border-radius: 8px; font: inherit; font-weight: 700; cursor: pointer; }
+.jsonfmt-pop-ok { border: 1px solid var(--accent); background: var(--accent); color: var(--accent-ink); }
+.jsonfmt-pop-ok:hover { background: var(--accent-deep); border-color: var(--accent-deep); }
+.jsonfmt-pop-cancel { border: 1px solid var(--line); background: var(--surface); color: var(--ink); }
+.jsonfmt-pop-cancel:hover { border-color: var(--accent); color: var(--accent-deep); }
 ::placeholder { color: var(--ink-faint); }
 
 @media (prefers-reduced-motion: reduce) {

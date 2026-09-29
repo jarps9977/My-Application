@@ -52,6 +52,7 @@
   var $viewHtmlPreview = $(); // populated once views/html-preview.html is fetched and mounted
   var $viewConvertCase = $(); // populated once views/convert-case.html is fetched and mounted
   var $viewCodeFormat = $(); // populated once views/code-format.html is fetched and mounted
+  var $viewJsonFormat = $(); // populated once views/json-format.html is fetched and mounted
   function openView($view) {
     $viewHome.attr('hidden', true);
     $viewPdf.attr('hidden', true);
@@ -70,9 +71,10 @@
     $viewHtmlPreview.attr('hidden', true);
     $viewConvertCase.attr('hidden', true);
     $viewCodeFormat.attr('hidden', true);
+    $viewJsonFormat.attr('hidden', true);
     // Side-by-side views need more width than the 640px tool column.
     $('.app').toggleClass('app-wide', $view.is($viewConvertCase))
-      .toggleClass('app-full', $view.is($viewHtmlPreview) || $view.is($viewCodeFormat) || $view.is($viewTextCompare) || $view.is($viewOcr) || $view.is($viewTextGen))
+      .toggleClass('app-full', $view.is($viewHtmlPreview) || $view.is($viewCodeFormat) || $view.is($viewJsonFormat) || $view.is($viewTextCompare) || $view.is($viewOcr) || $view.is($viewTextGen))
       .toggleClass('app-flush', $view.is($viewOcr) || $view.is($viewTextGen));
     $view.removeAttr('hidden');
   }
@@ -292,6 +294,20 @@
     console.error('ไม่สามารถโหลด views/code-format.html ได้');
   });
 
+  // Same fetch-and-mount pattern for the "JSON formatter" view
+  // (views/json-format.html).
+  var jsonFormatViewReady = $.get('views/json-format.html').done(function (html) {
+    $('#view-json-format-mount').replaceWith(html);
+    $viewJsonFormat = $('#view-json-format');
+    $('#btn-json-format-back').on('click', function () {
+      $viewJsonFormat.attr('hidden', true);
+      $viewHome.removeAttr('hidden');
+    });
+    initJsonFormatView();
+  }).fail(function () {
+    console.error('ไม่สามารถโหลด views/json-format.html ได้');
+  });
+
   // ---------- Category tiles ----------
   // Each tool's home tile now carries only an icon + short bold label (no
   // description, no status tag) — disabled tools are still distinguished
@@ -306,6 +322,7 @@
     { id: 'convert-case', label: 'แปลงตัวพิมพ์', desc: 'เปลี่ยนตัวพิมพ์เล็ก/ใหญ่ เช่น UPPER, Title Case', enabled: true, img: 'assets/convert-case.png', cats: ['text'] },
     { id: 'html-preview', label: 'พรีวิว HTML', desc: 'ดูผลลัพธ์ HTML ทันที พร้อมจัดรูปแบบโค้ด', enabled: true, img: 'assets/html-preview.png', cats: ['text'] },
     { id: 'code-format', label: 'จัดรูปแบบโค้ด', desc: 'Beautify HTML, CSS, JavaScript, JSON และจัดรูปแบบ SQL', enabled: true, img: 'assets/html-preview.png', cats: ['text'] },
+    { id: 'json-format', label: 'JSON Formatter', desc: 'Beautify / Minify JSON และแปลง JSON เป็นตาราง', enabled: true, img: 'assets/html-preview.png', cats: ['text', 'convert'] },
     { id: 'text-compare', label: 'เปรียบเทียบข้อความ', desc: 'หาจุดที่ต่างกันระหว่างข้อความสองชุด', enabled: true, img: 'assets/compare-text.png', cats: ['text'] },
     { id: 'test-file', label: 'สร้างไฟล์ทดสอบ', desc: 'สร้างไฟล์ตัวอย่างสำหรับทดสอบ', enabled: true, img: 'assets/create-test.png', cats: ['file'] },
     { id: 'file-resize', label: 'ปรับขนาดไฟล์', desc: 'เพิ่มหรือลดขนาดไฟล์ตามที่กำหนด', enabled: true, img: 'assets/resize-file.png', cats: ['file'] },
@@ -536,6 +553,10 @@
     } else if (tool.id === 'code-format') {
       $el.on('click', function () {
         $.when(codeFormatViewReady).done(function () { openView($viewCodeFormat); });
+      });
+    } else if (tool.id === 'json-format') {
+      $el.on('click', function () {
+        $.when(jsonFormatViewReady).done(function () { openView($viewJsonFormat); });
       });
     } else if (tool.id === 'compress') {
       $el.on('click', function () {
@@ -4896,8 +4917,90 @@
     bmp.close();
     var img = ctx.getImageData(0, 0, w, h);
     if (!toOcrBackgroundDistance(img.data)) toOcrGrayscale(img.data);
+    var ink = removeOcrRuleLines(img.data, w, h);
     ctx.putImageData(img, 0, 0);
-    return { canvas: canvas, lineHeight: measureOcrLineHeight(img.data, w, h) };
+    return { canvas: canvas, lineHeight: measureOcrLineHeight(ink, w, h) };
+  }
+
+  // Box borders and table rules are read as a line of junk glyphs (or "|"), so
+  // thin ink runs much longer than a glyph are whitened. Returns the ink mask.
+  function removeOcrRuleLines(a, w, h) {
+    var n = w * h;
+    var ink = new Uint8Array(n);
+    var i, x, y, s, k;
+    // Tesseract binarizes with Otsu, so a light gray margin next to a colored
+    // box can turn black there; detect rules at the same threshold.
+    var cut = Math.max(128, Math.min(224, otsuThreshold(a, n)));
+    for (i = 0; i < n; i++) ink[i] = a[i * 4] < cut ? 1 : 0;
+    var maxThick = Math.max(6, Math.round(Math.min(w, h) * 0.004));
+
+    // Ink thickness through (x, y) along (dx, dy), capped at maxThick + 1.
+    function thickness(x, y, dx, dy) {
+      var t = 1, px, py;
+      for (px = x - dx, py = y - dy; t <= maxThick && px >= 0 && py >= 0 && ink[py * w + px]; px -= dx, py -= dy) t++;
+      for (px = x + dx, py = y + dy; t <= maxThick && px < w && py < h && ink[py * w + px]; px += dx, py += dy) t++;
+      return t;
+    }
+    function whiten(idx) {
+      ink[idx] = 0;
+      var p = idx * 4;
+      a[p] = 255; a[p + 1] = 255; a[p + 2] = 255;
+    }
+
+    // Horizontal rules: no glyph row is this long without a gap.
+    var minRun = Math.max(40, Math.round(w * 0.1));
+    var hits = [];
+    for (y = 0; y < h; y++) {
+      for (x = 0; x < w;) {
+        if (!ink[y * w + x]) { x++; continue; }
+        for (s = x; x < w && ink[y * w + x]; x++);
+        if (x - s < minRun) continue;
+        for (k = s; k < x; k++) if (thickness(k, y, 0, 1) <= maxThick) hits.push(y * w + k);
+      }
+    }
+    hits.forEach(whiten);
+
+    // Vertical rules: glyph strokes (l, 1, |) are shorter than a text line, so
+    // candidates are dropped first to measure the line height, then only runs
+    // clearly taller than a line are removed.
+    var cands = [];
+    for (x = 0; x < w; x++) {
+      for (y = 0; y < h;) {
+        if (!ink[y * w + x]) { y++; continue; }
+        for (s = y; y < h && ink[y * w + x]; y++);
+        if (y - s < 24) continue;
+        var px = [];
+        for (k = s; k < y; k++) if (thickness(x, k, 1, 0) <= maxThick) px.push(k * w + x);
+        cands.push({ len: y - s, px: px });
+      }
+    }
+    if (cands.length) {
+      cands.forEach(function (c) { c.px.forEach(function (idx) { ink[idx] = 0; }); });
+      var lh = measureOcrLineHeight(ink, w, h);
+      var minCol = Math.max(24, Math.round(lh ? lh * 1.6 : h * 0.6));
+      cands.forEach(function (c) { if (c.len >= minCol) c.px.forEach(whiten); });
+    }
+    for (i = 0; i < n; i++) ink[i] = a[i * 4] < 128 ? 1 : 0;
+    return ink;
+  }
+
+  function otsuThreshold(a, n) {
+    var hist = new Uint32Array(256);
+    var i, sum = 0;
+    for (i = 0; i < n; i++) hist[a[i * 4]]++;
+    for (i = 0; i < 256; i++) sum += i * hist[i];
+    var sumB = 0, wB = 0, best = 0, cut = 128;
+    for (i = 0; i < 256; i++) {
+      wB += hist[i];
+      if (!wB) continue;
+      var wF = n - wB;
+      if (!wF) break;
+      sumB += i * hist[i];
+      var mB = sumB / wB, mF = (sum - sumB) / wF;
+      var v = wB * wF * (mB - mF) * (mB - mF);
+      if (v > best) { best = v; cut = i + 1; }
+    }
+    return cut;
   }
 
   // Scales the preprocessed image so text lines are ~targetLine px tall.
@@ -4925,14 +5028,14 @@
 
   // Median height of ink row-runs (horizontal projection). Runs far shorter
   // than the tallest are Thai upper/lower marks split off by a gap, ignored.
-  function measureOcrLineHeight(a, w, h) {
+  function measureOcrLineHeight(mask, w, h) {
     var minInk = Math.max(2, Math.round(w * 0.002));
     var runs = [];
     var start = -1;
     for (var y = 0; y <= h; y++) {
       var ink = 0;
       if (y < h) {
-        for (var x = 0, p = y * w * 4; x < w; x++, p += 4) if (a[p] < 128) ink++;
+        for (var x = 0, p = y * w; x < w; x++, p++) if (mask[p]) ink++;
       }
       if (ink >= minInk) { if (start < 0) start = y; }
       else if (start >= 0) { runs.push(y - start); start = -1; }
@@ -4982,12 +5085,27 @@
 
     var dist = new Uint16Array(n);
     var hist = new Uint32Array(442);
+    var inkBuckets = new Uint32Array(4096);
     for (i = 0; i < n; i++) {
       var p = i * 4;
       var dr = a[p] - br, dg = a[p + 1] - bg, db = a[p + 2] - bb;
       var d = Math.round(Math.sqrt(dr * dr + dg * dg + db * db));
       dist[i] = d;
-      hist[d]++;
+      if (d > 120) inkBuckets[((a[p] >> 4) << 8) | ((a[p + 1] >> 4) << 4) | (a[p + 2] >> 4)]++;
+    }
+    // Colored text with a gray drop shadow: the shadow merges glyphs (มา -> มูก),
+    // so mid-gray pixels are treated as background. Near-black text is kept.
+    var inkTop = 0;
+    for (i = 1; i < 4096; i++) if (inkBuckets[i] > inkBuckets[inkTop]) inkTop = i;
+    var ir = (inkTop >> 8) << 4, ig = ((inkTop >> 4) & 15) << 4, ib = (inkTop & 15) << 4;
+    var colorInk = inkBuckets[inkTop] > 0 && Math.max(ir, ig, ib) - Math.min(ir, ig, ib) >= 96;
+    for (i = 0; i < n; i++) {
+      if (colorInk) {
+        var q0 = i * 4;
+        var mx = Math.max(a[q0], a[q0 + 1], a[q0 + 2]), mn = Math.min(a[q0], a[q0 + 1], a[q0 + 2]);
+        if (mx - mn < 24 && mn >= 80) dist[i] = 0;
+      }
+      hist[dist[i]]++;
     }
     // Stretch so the strongest ink hits black; floor keeps JPEG noise light.
     var target = n * 0.995, acc = 0, high = 0;
@@ -5024,6 +5142,8 @@
     var bullets = text.match(OCR_BULLET_RE);
     if (bullets && bullets.length >= 2) text = text.replace(OCR_BULLET_RE, '• ');
     return fixOcrLatinLookalikes(text)
+      // Sara am is often read as nikhahit + sara aa (บํารุง), which breaks search/copy.
+      .replace(/([่-๋]?)ํ([่-๋]?)า/g, '$1$2ำ')
       .replace(/[ \t]+$/gm, '')
       .replace(/\n{2,}/g, '\n')
       .trim();
@@ -6692,6 +6812,685 @@
         setStatus(describeDownloadError(err), err && err.code === 'declined' ? 'neutral' : 'bad');
       }
     });
+  }
+
+  // ---------- JSON formatter ----------
+  var JSONFMT_MAX_BYTES = 5 * 1024 * 1024;
+  var JSONFMT_AUTO_MAX_CHARS = 1000000;
+  var JSONFMT_TABLE_MAX_ROWS = 1000; // rendered rows only; exports include every row
+  var JSONFMT_PATH_MAX = 50;
+  var XLSX_CELL_MAX = 32767;
+  var JSONFMT_SAMPLE = '[{"id":1,"name":"Alice","email":"alice@example.com","active":true,"address":{"city":"Bangkok","zip":"10110"},"tags":["admin","dev"]},' +
+    '{"id":2,"name":"Bob","email":"bob@example.com","active":false,"address":{"city":"Chiang Mai","zip":"50000"},"tags":[]},' +
+    '{"id":3,"name":"Chai","email":null,"active":true,"address":{"city":"Phuket","zip":"83000"},"tags":["sales"]}]';
+
+  // Re-indents valid JSON token by token so number literals are kept exactly
+  // as written (JSON.stringify would round big integers). indent '' minifies.
+  function reindentJson(text, indent) {
+    var out = [];
+    var depth = 0;
+    var n = text.length;
+    var i = 0;
+    function brk(d) { return indent ? '\n' + indent.repeat(d) : ''; }
+    function isWs(c) { return c === ' ' || c === '\t' || c === '\n' || c === '\r'; }
+    while (i < n) {
+      var ch = text.charAt(i);
+      if (ch === '"') {
+        var j = i + 1;
+        while (j < n) {
+          var c = text.charAt(j);
+          if (c === '\\') j += 2;
+          else if (c === '"') break;
+          else j++;
+        }
+        out.push(text.slice(i, j + 1));
+        i = j + 1;
+      } else if (isWs(ch)) {
+        i++;
+      } else if (ch === '{' || ch === '[') {
+        var close = ch === '{' ? '}' : ']';
+        var k = i + 1;
+        while (k < n && isWs(text.charAt(k))) k++;
+        if (text.charAt(k) === close) { out.push(ch + close); i = k + 1; continue; }
+        depth++;
+        out.push(ch + brk(depth));
+        i++;
+      } else if (ch === '}' || ch === ']') {
+        depth--;
+        out.push(brk(depth) + ch);
+        i++;
+      } else if (ch === ',') {
+        out.push(',' + brk(depth));
+        i++;
+      } else if (ch === ':') {
+        out.push(indent ? ': ' : ':');
+        i++;
+      } else {
+        var e = i + 1;
+        while (e < n && !/[\s{}\[\],:"]/.test(text.charAt(e))) e++;
+        out.push(text.slice(i, e));
+        i = e;
+      }
+    }
+    return out.join('');
+  }
+
+  function jsonErrorMessage(text, err) {
+    var msg = (err && err.message) || '';
+    var m = /line (\d+) column (\d+)/i.exec(msg);
+    var where = '';
+    if (m) {
+      where = 'บรรทัด ' + m[1] + ' คอลัมน์ ' + m[2];
+    } else if ((m = /position (\d+)/i.exec(msg))) {
+      var before = text.slice(0, Number(m[1]));
+      where = 'บรรทัด ' + before.split('\n').length + ' คอลัมน์ ' + (before.length - before.lastIndexOf('\n'));
+    }
+    return 'JSON ไม่ถูกต้อง' + (where ? ' (' + where + ')' : '') + ': ' + msg;
+  }
+
+  // Accepts fragments copied out of a larger array: a trailing comma, or
+  // several comma-separated values ({...},{...}) which get wrapped in [].
+  // Throws the original error so the reported position matches the input.
+  function parseJsonLenient(text) {
+    try {
+      return { value: JSON.parse(text), text: text, fixed: '' };
+    } catch (err) {
+      var trimmed = text.trim().replace(/,$/, '').trim();
+      if (trimmed !== text.trim()) {
+        try { return { value: JSON.parse(trimmed), text: trimmed, fixed: 'ตัดจุลภาคท้ายข้อความออกให้แล้ว' }; } catch (e) { /* try wrapping next */ }
+      }
+      var wrapped = '[' + trimmed + ']';
+      try { return { value: JSON.parse(wrapped), text: wrapped, fixed: 'ครอบ [ ] ให้เป็น array แล้ว' }; } catch (e) { /* report original */ }
+      throw err;
+    }
+  }
+
+  function isPlainJsonObject(v) { return v !== null && typeof v === 'object' && !Array.isArray(v); }
+
+  // Arrays reachable from the root, offered as table sources ($ = root).
+  // A null path segment means "every element" ([*]), so arrays nested inside
+  // array items (e.g. value[*].items) are found and merged across parents.
+  var JSONFMT_SCAN_SAMPLE = 200;
+  function findJsonArrayPaths(root) {
+    var paths = [];
+    function objectsOf(values) {
+      var out = [];
+      for (var i = 0; i < values.length && out.length < JSONFMT_SCAN_SAMPLE; i++) {
+        if (isPlainJsonObject(values[i])) out.push(values[i]);
+      }
+      return out;
+    }
+    function walk(objs, keys, depth) {
+      if (depth > 5 || !objs.length) return;
+      var seen = Object.create(null);
+      var names = [];
+      objs.forEach(function (o) {
+        Object.keys(o).forEach(function (k) { if (!seen[k]) { seen[k] = true; names.push(k); } });
+      });
+      names.forEach(function (key) {
+        if (paths.length >= JSONFMT_PATH_MAX) return;
+        var children = objs.map(function (o) { return o[key]; });
+        var arrays = children.filter(Array.isArray);
+        var next = keys.concat([key]);
+        if (arrays.length) {
+          paths.push(next);
+          var elems = [];
+          arrays.forEach(function (a) { if (elems.length < JSONFMT_SCAN_SAMPLE) elems = elems.concat(a.slice(0, JSONFMT_SCAN_SAMPLE)); });
+          walk(objectsOf(elems), next.concat([null]), depth + 1);
+        } else {
+          walk(objectsOf(children), next, depth + 1);
+        }
+      });
+    }
+    if (Array.isArray(root)) {
+      paths.push([]);
+      walk(objectsOf(root), [null], 0);
+    } else {
+      walk(objectsOf([root]), [], 0);
+    }
+    return paths;
+  }
+  function jsonPathLabel(keys) {
+    return '$' + keys.map(function (k) {
+      if (k === null) return '[*]';
+      return /^[A-Za-z_$][\w$]*$/.test(k) ? '.' + k : '[' + JSON.stringify(k) + ']';
+    }).join('');
+  }
+  // Returns every array element the path reaches, merged into one list.
+  function jsonAtPath(root, keys) {
+    var cur = [root];
+    keys.forEach(function (k) {
+      var next = [];
+      cur.forEach(function (v) {
+        if (k === null) { if (Array.isArray(v)) next.push.apply(next, v); }
+        else if (isPlainJsonObject(v) && v[k] !== undefined) next.push(v[k]);
+      });
+      cur = next;
+    });
+    var out = [];
+    cur.forEach(function (v) {
+      if (Array.isArray(v)) { for (var i = 0; i < v.length; i++) out.push(v[i]); }
+      else out.push(v);
+    });
+    return out;
+  }
+
+  // Rows use null-prototype maps so keys like "__proto__" stay plain columns.
+  function jsonToTable(data, flatten) {
+    var items = Array.isArray(data) ? data : [data];
+    var columns = [];
+    var seen = Object.create(null);
+    function put(row, key, v) {
+      if (!seen[key]) { seen[key] = true; columns.push(key); }
+      row[key] = v;
+    }
+    function flat(row, obj, prefix, depth) {
+      Object.keys(obj).forEach(function (key) {
+        var v = obj[key];
+        if (flatten && depth < 10 && isPlainJsonObject(v) && Object.keys(v).length) flat(row, v, prefix + key + '.', depth + 1);
+        else put(row, prefix + key, v);
+      });
+    }
+    var rows = items.map(function (item) {
+      var row = Object.create(null);
+      if (isPlainJsonObject(item)) flat(row, item, '', 0);
+      else put(row, '(value)', item);
+      return row;
+    });
+    return { columns: columns, rows: rows };
+  }
+  function jsonCellText(v) {
+    if (v === undefined) return '';
+    if (v === null) return 'null';
+    if (typeof v === 'object') return JSON.stringify(v);
+    return String(v);
+  }
+
+  function initJsonFormatView() {
+    var $input = $('#jsonfmt-input');
+    var $output = $('#jsonfmt-output');
+    var $indent = $('#jsonfmt-indent');
+    var $tabs = $('#jsonfmt-tabs [role="tab"]');
+    var $paneCode = $('#jsonfmt-pane-code');
+    var $paneTable = $('#jsonfmt-pane-table');
+    var $path = $('#jsonfmt-path');
+    var $flatten = $('#jsonfmt-flatten');
+    var $tableWrap = $('#jsonfmt-table-wrap');
+    var $clearFilter = $('#btn-jsonfmt-clear-filter');
+    var $btnDownload = $('#btn-jsonfmt-download');
+    var $btnCsv = $('#btn-jsonfmt-csv');
+    var $btnXlsx = $('#btn-jsonfmt-xlsx');
+    var $fileInput = $('#jsonfmt-file-input');
+    var $inMeta = $('#jsonfmt-input-meta');
+    var $outMeta = $('#jsonfmt-output-meta');
+    var $statusEl = $('#jsonfmt-status');
+    var timer = null;
+    var mode = 'beautify';
+    var tab = 'code';
+    var parsed; // undefined while the input is empty or invalid
+    var arrayPaths = [];
+    var table = null;
+    var tableDirty = true;
+    var fileBase = null;
+
+    function setStatus(msg, kind) {
+      $statusEl.text(msg || '');
+      $statusEl.removeClass('text-good text-bad text-inksoft');
+      if (kind === 'good') $statusEl.addClass('text-good');
+      else if (kind === 'bad') $statusEl.addClass('text-bad');
+      else $statusEl.addClass('text-inksoft');
+    }
+    function metaText(text) {
+      var lines = text ? text.split('\n').length : 0;
+      return 'บรรทัด ' + lines.toLocaleString() + ' · ตัวอักษร ' + text.length.toLocaleString();
+    }
+    function indentUnit() {
+      var v = $indent.val();
+      return v === 'tab' ? '\t' : v === '4' ? '    ' : '  ';
+    }
+    function updateOutMeta() {
+      if (tab === 'table') {
+        var shown = table && filterCount() ? viewRows().length.toLocaleString() + ' / ' : '';
+        $outMeta.text(table ? 'แถว ' + shown + table.rows.length.toLocaleString() + ' · คอลัมน์ ' + table.columns.length.toLocaleString() : 'แถว 0 · คอลัมน์ 0');
+      }
+      else $outMeta.text(metaText($output.val()));
+    }
+
+    function setTab(next) {
+      tab = next;
+      $tabs.each(function () {
+        var on = $(this).data('tab') === tab;
+        $(this).attr('aria-selected', on ? 'true' : 'false')
+          .toggleClass('bg-accent text-accentink shadow-sm', on)
+          .toggleClass('bg-transparent text-inksoft hover:text-ink hover:bg-surface', !on);
+      });
+      $paneCode.attr('hidden', tab !== 'code' ? true : null);
+      $paneTable.attr('hidden', tab !== 'table' ? true : null);
+      $btnDownload.css('display', tab === 'code' ? 'flex' : 'none');
+      $btnCsv.add($btnXlsx).css('display', tab === 'table' ? 'flex' : 'none');
+      if (tab === 'table' && tableDirty) renderTable();
+      updateOutMeta();
+    }
+
+    function fillPathOptions() {
+      var prev = $path.val();
+      arrayPaths = parsed === undefined ? [] : findJsonArrayPaths(parsed);
+      $path.empty();
+      if (!Array.isArray(parsed)) $path.append($('<option>').val('root').text('$ (ทั้งออบเจกต์)'));
+      arrayPaths.forEach(function (keys, idx) {
+        $path.append($('<option>').val(String(idx)).text(jsonPathLabel(keys)));
+      });
+      if (prev !== null && $path.find('option').filter(function () { return this.value === prev; }).length) {
+        $path.val(prev);
+      } else if (!Array.isArray(parsed)) {
+        // Prefer the first array of objects, e.g. {"data": [...]}.
+        var best = -1;
+        arrayPaths.some(function (keys, idx) {
+          var arr = jsonAtPath(parsed, keys);
+          if (arr.some(isPlainJsonObject)) { best = idx; return true; }
+          return false;
+        });
+        $path.val(best !== -1 ? String(best) : 'root');
+      }
+      $path.prop('disabled', $path.find('option').length < 2);
+    }
+    function selectedTableData() {
+      var v = $path.val();
+      if (v === 'root' || v === null) return parsed;
+      var keys = arrayPaths[Number(v)];
+      return keys ? jsonAtPath(parsed, keys) : parsed;
+    }
+
+    // Excel-style column filters: col -> null-prototype set of allowed cell texts.
+    var filters = Object.create(null);
+    var sortState = null; // { col, dir: 1 | -1 }
+    var $filterPop = null;
+
+    function filterCount() { return Object.keys(filters).length; }
+    function rowPasses(row, skipCol) {
+      for (var col in filters) {
+        if (col !== skipCol && !filters[col][jsonCellText(row[col])]) return false;
+      }
+      return true;
+    }
+    function isBlankCell(v) { return v === null || v === undefined || v === ''; }
+    function compareCells(a, b) {
+      if (typeof a === 'number' && typeof b === 'number') return a - b;
+      return jsonCellText(a).localeCompare(jsonCellText(b), 'th', { numeric: true, sensitivity: 'base' });
+    }
+    // Indexes into table.rows after filters and sort; blanks stay last either way.
+    function viewRows() {
+      var idx = [];
+      for (var i = 0; i < table.rows.length; i++) if (rowPasses(table.rows[i])) idx.push(i);
+      if (sortState) {
+        var col = sortState.col, dir = sortState.dir;
+        idx.sort(function (x, y) {
+          var a = table.rows[x][col], b = table.rows[y][col];
+          var blank = isBlankCell(a) - isBlankCell(b);
+          return blank || (compareCells(a, b) * dir) || (x - y);
+        });
+      }
+      return idx;
+    }
+
+    function renderTable() {
+      tableDirty = false;
+      filters = Object.create(null);
+      sortState = null;
+      closeFilterPop();
+      table = null;
+      if (parsed !== undefined) {
+        table = jsonToTable(selectedTableData(), $flatten.prop('checked'));
+        if (!table.rows.length || !table.columns.length) table = null;
+      }
+      drawTable();
+    }
+
+    function drawTable() {
+      var wrap = $tableWrap[0];
+      wrap.textContent = '';
+      $clearFilter.css('display', filterCount() || sortState ? 'flex' : 'none');
+      if (!table) {
+        wrap.appendChild($('<div>').addClass('px-4 py-3 text-[12.5px] text-inkfaint')
+          .text(parsed === undefined ? 'ตารางจะแสดงที่นี่' : 'ไม่มีข้อมูลสำหรับแสดงเป็นตาราง')[0]);
+        updateOutMeta();
+        return;
+      }
+      var view = viewRows();
+      // Built with textContent only; JSON values are never parsed as HTML.
+      var el = document.createElement('table');
+      el.className = 'jsonfmt-table';
+      var thead = el.createTHead().insertRow();
+      var th0 = document.createElement('th');
+      th0.textContent = '#';
+      thead.appendChild(th0);
+      table.columns.forEach(function (col) {
+        var sorted = sortState && sortState.col === col;
+        var th = document.createElement('th');
+        th.title = col;
+        var inner = document.createElement('div');
+        inner.className = 'jsonfmt-th';
+        var label = document.createElement('span');
+        label.textContent = col;
+        var btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'jsonfmt-filter-btn' + (filters[col] || sorted ? ' is-active' : '');
+        btn.setAttribute('aria-label', 'ตัวกรองคอลัมน์ ' + col);
+        btn.setAttribute('aria-haspopup', 'dialog');
+        var icon = document.createElement('i');
+        icon.className = 'bi ' + (filters[col] ? 'bi-funnel-fill' : sorted ? (sortState.dir === 1 ? 'bi-sort-down-alt' : 'bi-sort-up') : 'bi-caret-down-fill');
+        btn.appendChild(icon);
+        btn.addEventListener('click', function (e) { e.stopPropagation(); openFilterPop(col, btn); });
+        inner.appendChild(label);
+        inner.appendChild(btn);
+        th.appendChild(inner);
+        thead.appendChild(th);
+      });
+      var tbody = el.createTBody();
+      var limit = Math.min(view.length, JSONFMT_TABLE_MAX_ROWS);
+      for (var r = 0; r < limit; r++) {
+        var tr = tbody.insertRow();
+        var num = tr.insertCell();
+        num.className = 'jsonfmt-num';
+        num.textContent = String(view[r] + 1);
+        var row = table.rows[view[r]];
+        for (var c = 0; c < table.columns.length; c++) {
+          var v = row[table.columns[c]];
+          var td = tr.insertCell();
+          td.textContent = jsonCellText(v);
+          if (v === null || v === undefined) td.className = 'jsonfmt-null';
+          else if (typeof v === 'number' || typeof v === 'boolean') td.className = 'jsonfmt-scalar';
+          else if (typeof v === 'object') td.className = 'jsonfmt-nested';
+        }
+      }
+      wrap.appendChild(el);
+      if (!view.length) {
+        wrap.appendChild($('<div>').addClass('px-4 py-3 text-[12.5px] text-inkfaint').text('ไม่มีแถวที่ตรงกับตัวกรอง')[0]);
+      } else if (view.length > limit) {
+        wrap.appendChild($('<div>').addClass('px-4 py-2 text-[12px] text-inksoft')
+          .text('แสดง ' + limit.toLocaleString() + ' จาก ' + view.length.toLocaleString() + ' แถว (ดาวน์โหลด CSV/Excel ได้ครบทุกแถว)')[0]);
+      }
+      updateOutMeta();
+    }
+
+    function closeFilterPop() {
+      if ($filterPop) { $filterPop.remove(); $filterPop = null; }
+      $(document).off('.jsonfmtpop');
+      $(window).off('.jsonfmtpop');
+      $tableWrap.off('.jsonfmtpop');
+    }
+    function openFilterPop(col, anchor) {
+      var reopen = $filterPop && $filterPop.data('col') === col;
+      closeFilterPop();
+      if (reopen) return;
+
+      // Like Excel, the list only offers values left by the other columns' filters.
+      var counts = Object.create(null);
+      var values = [];
+      table.rows.forEach(function (row) {
+        if (!rowPasses(row, col)) return;
+        var t = jsonCellText(row[col]);
+        if (!(t in counts)) { counts[t] = 0; values.push({ text: t, raw: row[col] }); }
+        counts[t]++;
+      });
+      values.sort(function (a, b) { return (isBlankCell(a.raw) - isBlankCell(b.raw)) || compareCells(a.raw, b.raw); });
+      var checked = Object.create(null);
+      values.forEach(function (v) { checked[v.text] = !filters[col] || !!filters[col][v.text]; });
+
+      var LIST_MAX = 500;
+      var $pop = $('<div>').addClass('jsonfmt-pop').attr({ role: 'dialog', 'aria-label': 'ตัวกรอง ' + col }).data('col', col);
+      var $search = $('<input type="search">').addClass('jsonfmt-pop-search').attr({ placeholder: 'ค้นหา...', 'aria-label': 'ค้นหาค่า' });
+      var $list = $('<div>').addClass('jsonfmt-pop-list');
+      var $all = $('<input type="checkbox">');
+      var $note = $('<div>').addClass('jsonfmt-pop-note');
+
+      function sortBtn(dir, icon, text) {
+        return $('<button type="button">').addClass('jsonfmt-pop-item')
+          .toggleClass('is-active', !!(sortState && sortState.col === col && sortState.dir === dir))
+          .append($('<i>').addClass('bi ' + icon), $('<span>').text(text))
+          .on('click', function () {
+            sortState = sortState && sortState.col === col && sortState.dir === dir ? null : { col: col, dir: dir };
+            closeFilterPop();
+            drawTable();
+          });
+      }
+      function visibleValues() {
+        var q = $search.val().trim().toLowerCase();
+        return q ? values.filter(function (v) { return v.text.toLowerCase().indexOf(q) !== -1; }) : values;
+      }
+      function syncAll() {
+        var vis = visibleValues();
+        var on = vis.filter(function (v) { return checked[v.text]; }).length;
+        $all.prop('checked', vis.length > 0 && on === vis.length).prop('indeterminate', on > 0 && on < vis.length);
+      }
+      function drawList() {
+        $list.empty();
+        var vis = visibleValues();
+        vis.slice(0, LIST_MAX).forEach(function (v) {
+          var $cb = $('<input type="checkbox">').prop('checked', checked[v.text]).on('change', function () {
+            checked[v.text] = this.checked;
+            syncAll();
+          });
+          var blank = v.text === '';
+          $list.append($('<label>').addClass('jsonfmt-pop-row').append(
+            $cb,
+            $('<span>').addClass('jsonfmt-pop-val').toggleClass('is-blank', blank || v.raw === null).text(blank ? '(ว่าง)' : v.text),
+            $('<span>').addClass('jsonfmt-pop-count').text(counts[v.text].toLocaleString())
+          ));
+        });
+        $note.text(vis.length > LIST_MAX ? 'แสดง ' + LIST_MAX + ' จาก ' + vis.length.toLocaleString() + ' ค่า ใช้ช่องค้นหาเพื่อหาค่าอื่น' : (vis.length ? '' : 'ไม่พบค่า'));
+        syncAll();
+      }
+      $all.on('change', function () {
+        var on = this.checked;
+        visibleValues().forEach(function (v) { checked[v.text] = on; });
+        drawList();
+      });
+      $search.on('input', drawList);
+
+      var $ok = $('<button type="button">').addClass('jsonfmt-pop-ok').text('ตกลง').on('click', function () {
+        var q = $search.val().trim();
+        // With a search term, Excel keeps only the ticked values that match it.
+        var keep = (q ? visibleValues() : values).filter(function (v) { return checked[v.text]; });
+        if (!q && keep.length === values.length) {
+          delete filters[col];
+        } else {
+          var set = Object.create(null);
+          keep.forEach(function (v) { set[v.text] = true; });
+          filters[col] = set;
+        }
+        closeFilterPop();
+        drawTable();
+      });
+      var $cancel = $('<button type="button">').addClass('jsonfmt-pop-cancel').text('ยกเลิก').on('click', closeFilterPop);
+      var $clearCol = $('<button type="button">').addClass('jsonfmt-pop-item').prop('disabled', !filters[col])
+        .append($('<i>').addClass('bi bi-funnel'), $('<span>').text('ล้างตัวกรองคอลัมน์นี้'))
+        .on('click', function () { delete filters[col]; closeFilterPop(); drawTable(); });
+
+      $pop.append(
+        sortBtn(1, 'bi-sort-down-alt', 'เรียง A → Z / น้อย → มาก'),
+        sortBtn(-1, 'bi-sort-up', 'เรียง Z → A / มาก → น้อย'),
+        $clearCol,
+        $('<div>').addClass('jsonfmt-pop-sep'),
+        $search,
+        $('<label>').addClass('jsonfmt-pop-row jsonfmt-pop-allrow').append($all, $('<span>').text('(เลือกทั้งหมด)')),
+        $list,
+        $note,
+        $('<div>').addClass('jsonfmt-pop-actions').append($cancel, $ok)
+      );
+      $('body').append($pop);
+      $filterPop = $pop;
+      drawList();
+
+      var r = anchor.getBoundingClientRect();
+      var w = $pop.outerWidth();
+      var h = $pop.outerHeight();
+      var left = Math.max(8, Math.min(r.right - w, window.innerWidth - w - 8));
+      var top = r.bottom + 4;
+      if (top + h > window.innerHeight - 8) top = Math.max(8, r.top - h - 4);
+      $pop.css({ left: left + 'px', top: top + 'px' });
+      $search.trigger('focus');
+
+      $(document).on('mousedown.jsonfmtpop', function (e) {
+        if (!$pop[0].contains(e.target) && !anchor.contains(e.target)) closeFilterPop();
+      }).on('keydown.jsonfmtpop', function (e) {
+        if (e.key === 'Escape') { closeFilterPop(); anchor.focus(); }
+        else if (e.key === 'Enter' && $pop[0].contains(e.target)) { e.preventDefault(); $ok.trigger('click'); }
+      });
+      $(window).on('resize.jsonfmtpop scroll.jsonfmtpop', closeFilterPop);
+      $tableWrap.on('scroll.jsonfmtpop', closeFilterPop);
+    }
+
+    function run() {
+      if (timer) { clearTimeout(timer); timer = null; }
+      var text = $input.val().replace(/^﻿/, '');
+      tableDirty = true;
+      if (!text.trim()) {
+        parsed = undefined;
+        $output.val('');
+        setStatus('', 'neutral');
+      } else {
+        try {
+          var res = parseJsonLenient(text);
+          parsed = res.value;
+          $output.val(reindentJson(res.text, mode === 'minify' ? '' : indentUnit()));
+          setStatus((mode === 'minify' ? 'Minify แล้ว' : 'Beautify แล้ว') + (res.fixed ? ' (' + res.fixed + ')' : ''), 'good');
+        } catch (err) {
+          parsed = undefined;
+          $output.val('');
+          setStatus(jsonErrorMessage(text, err), 'bad');
+        }
+      }
+      fillPathOptions();
+      if (tab === 'table') renderTable();
+      updateOutMeta();
+    }
+    function schedule() {
+      $inMeta.text(metaText($input.val()));
+      if (timer) clearTimeout(timer);
+      timer = null;
+      if ($input.val().length > JSONFMT_AUTO_MAX_CHARS) {
+        setStatus('JSON ยาวเกินกว่าจะจัดรูปแบบอัตโนมัติ กดปุ่ม "Beautify" หรือ "Minify"', 'neutral');
+        return;
+      }
+      timer = setTimeout(run, 400);
+    }
+    function loadText(text) {
+      $input.val(text);
+      $inMeta.text(metaText(text));
+      run();
+    }
+
+    $input.on('input', schedule);
+    $indent.on('change', function () { if (mode === 'beautify' && $input.val().trim()) run(); });
+    $('#btn-jsonfmt-beautify').on('click', function () { mode = 'beautify'; run(); });
+    $('#btn-jsonfmt-minify').on('click', function () { mode = 'minify'; run(); });
+    $tabs.on('click', function () { setTab($(this).data('tab')); });
+    $path.add($flatten).on('change', function () { renderTable(); updateOutMeta(); });
+    $clearFilter.on('click', function () {
+      filters = Object.create(null);
+      sortState = null;
+      closeFilterPop();
+      drawTable();
+    });
+
+    $('#btn-jsonfmt-sample').on('click', function () {
+      fileBase = null;
+      mode = 'beautify';
+      loadText(JSONFMT_SAMPLE);
+    });
+    $('#btn-jsonfmt-open').on('click', function () { $fileInput.trigger('click'); });
+    $fileInput.on('change', function () {
+      var file = $fileInput[0].files[0];
+      $fileInput.val('');
+      if (!file) return;
+      if (file.size > JSONFMT_MAX_BYTES) { setStatus('ไฟล์ใหญ่เกิน 5 MB', 'bad'); return; }
+      file.text().then(function (text) {
+        fileBase = file.name.replace(/\.[^.]+$/, '') || null;
+        loadText(text);
+      }).catch(function () {
+        setStatus('อ่านไฟล์ไม่สำเร็จ', 'bad');
+      });
+    });
+    $('#btn-jsonfmt-clear').on('click', function () {
+      fileBase = null;
+      loadText('');
+      $input.trigger('focus');
+    });
+
+    function tableToAoa(forCsv) {
+      var aoa = [table.columns.slice()];
+      // Exports follow the current filters and sort, like copying a filtered range in Excel.
+      viewRows().map(function (i) { return table.rows[i]; }).forEach(function (row) {
+        aoa.push(table.columns.map(function (col) {
+          var v = row[col];
+          if (v === undefined || v === null) return '';
+          if (typeof v === 'number' || typeof v === 'boolean') return v;
+          var s = typeof v === 'object' ? JSON.stringify(v) : v;
+          // Neutralize spreadsheet formulas in exported text (CSV injection).
+          if (forCsv && /^[=+\-@\t\r]/.test(s)) s = "'" + s;
+          return s.length > XLSX_CELL_MAX ? s.slice(0, XLSX_CELL_MAX) : s;
+        }));
+      });
+      return aoa;
+    }
+    function csvField(v) {
+      var s = String(v);
+      return /[",\r\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+    }
+    function outName(ext) {
+      return (fileBase ? fileBase + (ext === 'json' ? '-formatted' : '') : 'json-' + fileTimestamp(new Date())) + '.' + ext;
+    }
+    async function save(name, blob) {
+      try {
+        var res = await deliverFiles([{ name: name, blob: blob }], name);
+        setStatus(res.status === 'saved' ? 'บันทึกไฟล์สำเร็จ' : 'ส่งไฟล์เรียบร้อย', 'good');
+      } catch (err) {
+        setStatus(describeDownloadError(err), err && err.code === 'declined' ? 'neutral' : 'bad');
+      }
+    }
+
+    $('#btn-jsonfmt-copy').on('click', async function () {
+      var text;
+      if (tab === 'table') {
+        if (!table || !table.rows.length) return;
+        text = tableToAoa(false).map(function (r) {
+          return r.map(function (v) { return String(v).replace(/[\t\r\n]+/g, ' '); }).join('\t');
+        }).join('\n');
+      } else {
+        text = $output.val();
+      }
+      if (!text) return;
+      try {
+        await navigator.clipboard.writeText(text);
+        setStatus(tab === 'table' ? 'คัดลอกตารางแล้ว วางใน Excel / Google Sheets ได้ทันที' : 'คัดลอกแล้ว', 'good');
+      } catch (err) {
+        if (tab === 'code') $output.trigger('select');
+        setStatus('ไม่สามารถคัดลอกอัตโนมัติได้', 'bad');
+      }
+    });
+    $btnDownload.on('click', function () {
+      var text = $output.val();
+      if (!text) return;
+      save(outName('json'), new Blob([text], { type: 'application/json;charset=utf-8' }));
+    });
+    $btnCsv.on('click', function () {
+      if (!table || !table.rows.length) return;
+      var csv = tableToAoa(true).map(function (r) { return r.map(csvField).join(','); }).join('\r\n');
+      // BOM so Excel opens Thai text as UTF-8.
+      save(outName('csv'), new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' }));
+    });
+    $btnXlsx.on('click', function () {
+      if (!table || !table.rows.length) return;
+      if (!window.XLSX) { setStatus('ไม่สามารถโหลดไลบรารีสร้างไฟล์ Excel ได้ ลองรีเฟรชหน้านี้', 'bad'); return; }
+      var wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(tableToAoa(false)), 'Sheet1');
+      var out = XLSX.write(wb, { type: 'array', bookType: 'xlsx' });
+      save(outName('xlsx'), new Blob([out], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
+    });
+
+    setTab('code');
+    fillPathOptions();
   }
 
   // ---------- Convert case ----------
