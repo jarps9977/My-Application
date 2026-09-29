@@ -639,12 +639,47 @@
   // Home grid modes: 'home' (categories), 'favorites', 'history'.
   var homeMode = 'home';
   function toolById(id) { return TOOLS.filter(function (t) { return t.id === id; })[0]; }
+
+  // User-arranged home tile order (per browser). Tools added later that are
+  // not in the saved list go last, in their default order.
+  var ORDER_KEY = 'toolbox.order';
+  function loadOrder() {
+    try {
+      var list = JSON.parse(storeGet(ORDER_KEY) || '[]');
+      return Array.isArray(list) ? list.filter(function (id, i) { return typeof id === 'string' && isToolId(id) && list.indexOf(id) === i; }) : [];
+    } catch (e) { return []; }
+  }
+  var toolOrder = loadOrder();
+  function orderedTools() {
+    if (!toolOrder.length) return TOOLS;
+    function rank(t) {
+      var i = toolOrder.indexOf(t.id);
+      return i === -1 ? toolOrder.length + TOOLS.indexOf(t) : i;
+    }
+    return TOOLS.slice().sort(function (a, b) { return rank(a) - rank(b); });
+  }
+  var arranging = false;
+
   function renderCategories() {
     var query = $toolSearch.val().trim().toLowerCase();
     var matches = function (t) { return !query || (t.label + ' ' + t.desc).toLowerCase().indexOf(query) !== -1; };
     $categoryGrid.empty();
     var items;
     var empty;
+    if (arranging) {
+      // Every tool is shown while arranging so the saved order is complete.
+      orderedTools().forEach(function (t) {
+        var $tile = makeToolTile(t).attr({ 'data-order-id': t.id, tabindex: 0, 'aria-label': t.label + ' — ลากหรือกดปุ่มลูกศรเพื่อย้าย' });
+        $tile.find('button').attr('tabindex', -1);
+        // Random speed, phase and swing per tile so they never jiggle in unison.
+        var dur = 0.22 + Math.random() * 0.1;
+        $tile[0].style.setProperty('--jiggle-dur', dur.toFixed(3) + 's');
+        $tile[0].style.setProperty('--jiggle-delay', (-Math.random() * dur).toFixed(3) + 's');
+        $tile[0].style.setProperty('--jiggle-angle', (0.5 + Math.random() * 0.4).toFixed(2) + 'deg');
+        $categoryGrid.append($tile);
+      });
+      return;
+    }
     if (homeMode === 'favorites') {
       items = favorites.map(toolById).filter(function (t) { return t && matches(t); }).map(function (t) { return { tool: t }; });
       empty = query ? 'ไม่พบเครื่องมือที่ค้นหาในรายการโปรด' : 'ยังไม่มีรายการโปรด กดรูปหัวใจที่มุมไอคอนเครื่องมือเพื่อเพิ่ม';
@@ -653,7 +688,7 @@
         .filter(function (it) { return it.tool && matches(it.tool); });
       empty = query ? 'ไม่พบเครื่องมือที่ค้นหาในประวัติ' : (historyEnabled() ? 'ยังไม่มีประวัติการใช้งาน' : 'ปิดการบันทึกประวัติอยู่ เปิดได้ที่ ตั้งค่า');
     } else {
-      items = TOOLS.filter(function (t) { return inCategory(t, activeCategory) && matches(t); }).map(function (t) { return { tool: t }; });
+      items = orderedTools().filter(function (t) { return inCategory(t, activeCategory) && matches(t); }).map(function (t) { return { tool: t }; });
       empty = query ? (activeCategory === 'all' ? 'ไม่พบเครื่องมือที่ค้นหา' : 'ไม่พบเครื่องมือที่ค้นหาในหมวดนี้') : 'ยังไม่มีเครื่องมือในหมวดนี้';
     }
     if (!items.length) {
@@ -685,6 +720,7 @@
   var $homeNavBtns = $('#home-nav [data-nav]');
   function setHomeMode(mode) {
     homeMode = mode;
+    if (mode !== 'home') arranging = false;
     $homeNavBtns.each(function () {
       var on = $(this).data('nav') === mode;
       $(this).attr('aria-current', on ? 'page' : null)
@@ -692,12 +728,167 @@
         .toggleClass('text-inksoft hover:text-ink hover:bg-surface2', !on);
     });
     $('#home-section-title').text(HOME_SECTION_TEXT[mode][0]);
-    $('#home-section-sub').text(HOME_SECTION_TEXT[mode][1]);
-    $categoryFilter.toggle(mode === 'home');
-    $('#home-quote').toggleClass('md:block', mode === 'home');
+    $('#home-section-sub').text(arranging ? 'ลากเมนูไปวางตำแหน่งที่ต้องการ แล้วกด "เสร็จ"' : HOME_SECTION_TEXT[mode][1]);
+    $categoryFilter.toggle(mode === 'home' && !arranging);
+    $('#home-quote').toggleClass('md:block', mode === 'home' && !arranging);
     $('#btn-history-clear').css('display', mode === 'history' && historyList.length ? 'inline-flex' : 'none');
+    $toolSearch.prop('disabled', arranging);
+    $categoryGrid.toggleClass('is-arranging', arranging);
+    $('#btn-arrange').css('display', mode === 'home' ? 'inline-flex' : 'none')
+      .attr('aria-pressed', arranging ? 'true' : 'false')
+      .toggleClass('bg-accent border-accent text-accentink hover:bg-accentdeep', arranging)
+      .toggleClass('bg-surface border-line text-inksoft hover:border-accent hover:text-accentdeep', !arranging)
+      .find('span').text(arranging ? 'เสร็จ' : 'จัดเรียง');
+    $('#btn-arrange i').toggleClass('bi-arrows-move', !arranging).toggleClass('bi-check-lg', arranging);
+    $('#btn-arrange-reset').css('display', arranging ? 'inline-flex' : 'none').prop('disabled', !toolOrder.length);
     renderCategories();
   }
+
+  // ----- Arrange mode: iOS-style jiggle, drag (mouse/touch) or arrow keys -----
+  function setArranging(on) {
+    if (on) $toolSearch.val('');
+    arranging = on;
+    setHomeMode('home');
+  }
+  function saveOrderFromDom() {
+    toolOrder = $categoryGrid.children('[data-order-id]').map(function () { return $(this).attr('data-order-id'); }).get();
+    storeSet(ORDER_KEY, JSON.stringify(toolOrder));
+    $('#btn-arrange-reset').prop('disabled', false);
+  }
+  $('#btn-arrange').on('click', function () { setArranging(!arranging); });
+  $('#btn-arrange-reset').on('click', function () {
+    if (!window.confirm('คืนลำดับเมนูเป็นค่าเริ่มต้น?')) return;
+    toolOrder = [];
+    storeSet(ORDER_KEY, null);
+    setHomeMode('home');
+  });
+  $(document).on('keydown', function (e) {
+    if (e.key === 'Escape' && arranging && $settings.attr('hidden') !== undefined) setArranging(false);
+  });
+
+  var gridEl = $categoryGrid[0];
+  var drag = null;
+  // Tiles open their tool on click; arrange mode swallows those clicks.
+  gridEl.addEventListener('click', function (e) {
+    if (arranging) { e.preventDefault(); e.stopPropagation(); }
+  }, true);
+
+  // Layout position of a tile, ignoring an in-flight FLIP transform.
+  function layoutRect(el) {
+    var r = el.getBoundingClientRect();
+    var tf = getComputedStyle(el).transform;
+    if (!tf || tf === 'none') return r;
+    var m = new DOMMatrixReadOnly(tf);
+    return { left: r.left - m.m41, top: r.top - m.m42, right: r.right - m.m41, bottom: r.bottom - m.m42 };
+  }
+  // Moves a tile in the DOM and slides the other tiles from where they were.
+  function moveTileTo(tile, index) {
+    var tiles = $categoryGrid.children('[data-order-id]').get();
+    var from = tiles.indexOf(tile);
+    if (index < 0 || index >= tiles.length || index === from) return false;
+    var before = tiles.map(function (t) { return t.getBoundingClientRect(); });
+    gridEl.insertBefore(tile, from < index ? tiles[index].nextSibling : tiles[index]);
+    tiles.forEach(function (t, i) {
+      if (t === tile && drag) return;
+      t.style.transition = 'none';
+      t.style.transform = '';
+      var now = t.getBoundingClientRect();
+      var dx = before[i].left - now.left, dy = before[i].top - now.top;
+      if (!dx && !dy) return;
+      t.style.transform = 'translate(' + dx + 'px,' + dy + 'px)';
+      void t.offsetWidth; // commit the start position before transitioning
+      t.style.transition = 'transform 200ms ease';
+      t.style.transform = '';
+    });
+    return true;
+  }
+  function positionDragged() {
+    var t = drag.tile;
+    t.style.transform = 'none';
+    var r = t.getBoundingClientRect();
+    t.style.transform = 'translate(' + (drag.x - drag.offX - r.left) + 'px,' + (drag.y - drag.offY - r.top) + 'px)';
+  }
+  function tileAt(x, y) {
+    var hit = null;
+    $categoryGrid.children('[data-order-id]').each(function () {
+      if (this === drag.tile) return;
+      var r = layoutRect(this);
+      if (x >= r.left && x <= r.right && y >= r.top && y <= r.bottom) { hit = this; return false; }
+    });
+    return hit;
+  }
+
+  var scrollRaf = 0;
+  var scrollSpeed = 0;
+  function autoScroll(y) {
+    var edge = 70, h = window.innerHeight;
+    scrollSpeed = y < edge ? -Math.ceil((edge - y) / 5) : (y > h - edge ? Math.ceil((y - (h - edge)) / 5) : 0);
+    if (scrollSpeed && !scrollRaf) scrollRaf = requestAnimationFrame(stepScroll);
+  }
+  function stepScroll() {
+    scrollRaf = 0;
+    if (!drag || !scrollSpeed) return;
+    window.scrollBy(0, scrollSpeed);
+    positionDragged();
+    scrollRaf = requestAnimationFrame(stepScroll);
+  }
+
+  gridEl.addEventListener('pointerdown', function (e) {
+    if (!arranging || drag || e.button > 0) return;
+    var tile = e.target.closest('[data-order-id]');
+    if (!tile) return;
+    e.preventDefault();
+    tile.focus({ preventScroll: true });
+    var r = tile.getBoundingClientRect();
+    drag = { tile: tile, id: e.pointerId, offX: e.clientX - r.left, offY: e.clientY - r.top, x: e.clientX, y: e.clientY };
+    tile.style.transition = 'none';
+    tile.classList.add('is-dragging');
+  });
+  window.addEventListener('pointermove', function (e) {
+    if (!drag || e.pointerId !== drag.id) return;
+    drag.x = e.clientX;
+    drag.y = e.clientY;
+    positionDragged();
+    var target = tileAt(e.clientX, e.clientY);
+    if (target) {
+      moveTileTo(drag.tile, $categoryGrid.children('[data-order-id]').index(target));
+      positionDragged();
+    }
+    autoScroll(e.clientY);
+  });
+  function endDrag(e) {
+    if (!drag || e.pointerId !== drag.id) return;
+    var t = drag.tile;
+    drag = null;
+    scrollSpeed = 0;
+    var from = t.getBoundingClientRect();
+    t.classList.remove('is-dragging');
+    t.style.transform = 'none';
+    var home = t.getBoundingClientRect();
+    t.style.transform = 'translate(' + (from.left - home.left) + 'px,' + (from.top - home.top) + 'px)';
+    void t.offsetWidth;
+    t.style.transition = 'transform 200ms ease';
+    t.style.transform = '';
+    saveOrderFromDom();
+  }
+  window.addEventListener('pointerup', endDrag);
+  window.addEventListener('pointercancel', endDrag);
+  gridEl.addEventListener('transitionend', function (e) {
+    if (e.propertyName === 'transform' && e.target.hasAttribute('data-order-id')) e.target.style.transition = '';
+  });
+  gridEl.addEventListener('keydown', function (e) {
+    if (!arranging || drag) return;
+    var tile = e.target.closest('[data-order-id]');
+    if (!tile) return;
+    var step = { ArrowLeft: -1, ArrowUp: -1, ArrowRight: 1, ArrowDown: 1 }[e.key];
+    if (!step) return;
+    e.preventDefault();
+    var index = $categoryGrid.children('[data-order-id]').index(tile);
+    if (moveTileTo(tile, index + step)) {
+      saveOrderFromDom();
+      tile.focus({ preventScroll: true });
+    }
+  });
   function clearHistory() {
     historyList = [];
     saveHistory();
@@ -726,6 +917,7 @@
       .find('span').text('ล้างรายการโปรด' + (favorites.length ? ' (' + favorites.length + ')' : ''));
     $('#btn-settings-clear-history').prop('disabled', !historyList.length)
       .find('span').text('ล้างประวัติ' + (historyList.length ? ' (' + historyList.length + ')' : ''));
+    $('#btn-settings-reset-order').prop('disabled', !toolOrder.length);
   }
   function openSettings() {
     settingsReturnFocus = document.activeElement;
@@ -802,6 +994,12 @@
   $('#btn-settings-clear-history').on('click', function () {
     if (!window.confirm('ล้างประวัติการใช้งานทั้งหมด?')) return;
     clearHistory();
+    renderSettings();
+  });
+  $('#btn-settings-reset-order').on('click', function () {
+    if (!window.confirm('คืนลำดับเมนูเป็นค่าเริ่มต้น?')) return;
+    toolOrder = [];
+    storeSet(ORDER_KEY, null);
     renderSettings();
   });
   setHomeMode('home');
@@ -4134,7 +4332,18 @@
         var workerRes = await fetch(FFMPEG_BASE + 'worker.js');
         if (!workerRes.ok) throw new Error('ไม่สามารถโหลดตัวแปลงวิดีโอได้ (worker.js)');
         var workerText = await workerRes.text();
-        workerText = workerText.replace(/from\s*(["'])\.\//g, 'from $1' + FFMPEG_BASE);
+        // The CSP (worker-src 'self' blob:) also covers a module worker's own
+        // imports, so its CDN deps (./const.js, ./errors.js) are re-served as
+        // blob: URLs too instead of absolute CDN URLs.
+        var depNames = [];
+        workerText.replace(/from\s*["']\.\/([\w-]+\.js)["']/g, function (m, name) { depNames.push(name); return m; });
+        var depUrls = {};
+        for (var d = 0; d < depNames.length; d++) {
+          var depRes = await fetch(FFMPEG_BASE + depNames[d]);
+          if (!depRes.ok) throw new Error('ไม่สามารถโหลดตัวแปลงวิดีโอได้ (' + depNames[d] + ')');
+          depUrls[depNames[d]] = URL.createObjectURL(new Blob([await depRes.text()], { type: 'text/javascript' }));
+        }
+        workerText = workerText.replace(/from\s*(["'])\.\/([\w-]+\.js)\1/g, function (m, q, name) { return 'from ' + q + depUrls[name] + q; });
         var workerBlobUrl = URL.createObjectURL(new Blob([workerText], { type: 'text/javascript' }));
 
         var ffmpegMod = await import(/* webpackIgnore: true */ FFMPEG_JS_URL);
@@ -4147,7 +4356,10 @@
           wasmURL: await utilMod.toBlobURL(FFMPEG_CORE_BASE + '/ffmpeg-core.wasm', 'application/wasm')
         });
         return ffmpeg;
-      })();
+      })().catch(function (err) {
+        ffmpegLoadPromise = null; // allow a retry instead of caching the failure
+        throw err;
+      });
     }
     return ffmpegLoadPromise;
   }
@@ -4205,8 +4417,10 @@
       $progress.toggleClass('hidden', !busy);
       if (!busy) $progress.find('.progress-fill').css('width', '0%');
     }
-    function updateProgress(frac) {
-      var pct = Math.max(0, Math.min(100, Math.round((frac || 0) * 100)));
+    function updateProgress(e) {
+      // ffmpeg.wasm passes { progress, time }; progress can be outside 0..1 for some inputs.
+      var frac = e && typeof e.progress === 'number' ? e.progress : 0;
+      var pct = Math.max(0, Math.min(100, Math.round(frac * 100)));
       $progress.find('.progress-fill').css('width', pct + '%');
       setStatus('กำลังแปลงไฟล์… ' + pct + '%', 'neutral');
     }

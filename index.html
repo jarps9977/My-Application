@@ -94,6 +94,14 @@
           <p class="text-[12px] text-inksoft" id="home-section-sub">เลือกหมวดหมู่ที่ต้องการใช้งาน</p>
         </div>
       </div>
+      <div class="flex items-center gap-2 ml-auto md:order-last md:ml-0">
+        <button type="button" id="btn-arrange-reset" class="items-center gap-1.5 bg-surface border border-line text-inksoft text-[12.5px] font-bold px-3 py-1.5 rounded-lg cursor-pointer hover:border-bad hover:text-bad disabled:opacity-50 disabled:pointer-events-none" style="display:none;">
+          <i class="bi bi-arrow-counterclockwise text-sm leading-none"></i> ค่าเริ่มต้น
+        </button>
+        <button type="button" id="btn-arrange" aria-pressed="false" class="items-center gap-1.5 border text-[12.5px] font-bold px-3 py-1.5 rounded-lg cursor-pointer transition-colors duration-150 bg-surface border-line text-inksoft hover:border-accent hover:text-accentdeep">
+          <i class="bi bi-arrows-move text-sm leading-none"></i> <span>จัดเรียง</span>
+        </button>
+      </div>
       <button type="button" id="btn-history-clear" class="items-center gap-1.5 bg-surface border border-line text-inksoft text-[12.5px] font-bold px-3 py-1.5 rounded-lg cursor-pointer hover:border-bad hover:text-bad" style="display:none;">
         <i class="bi bi-trash3 text-sm leading-none"></i> ล้างประวัติ
       </button>
@@ -145,8 +153,11 @@
       <button type="button" id="btn-settings-clear-history" class="flex items-center justify-center gap-1.5 bg-surface border border-line text-ink text-[12.5px] font-bold px-3 py-2 rounded-lg cursor-pointer hover:border-bad hover:text-bad disabled:opacity-50 disabled:pointer-events-none">
         <i class="bi bi-clock-history text-sm leading-none"></i> <span>ล้างประวัติ</span>
       </button>
+      <button type="button" id="btn-settings-reset-order" class="col-span-2 flex items-center justify-center gap-1.5 bg-surface border border-line text-ink text-[12.5px] font-bold px-3 py-2 rounded-lg cursor-pointer hover:border-bad hover:text-bad disabled:opacity-50 disabled:pointer-events-none">
+        <i class="bi bi-arrow-counterclockwise text-sm leading-none"></i> <span>คืนลำดับเมนูเป็นค่าเริ่มต้น</span>
+      </button>
     </div>
-    <p class="text-[11.5px] text-inkfaint mt-3">การตั้งค่า รายการโปรด และประวัติ เก็บไว้ในเบราว์เซอร์เครื่องนี้เท่านั้น ไม่ได้ส่งไปที่ใด</p>
+    <p class="text-[11.5px] text-inkfaint mt-3">การตั้งค่า รายการโปรด ประวัติ และลำดับเมนู เก็บไว้ในเบราว์เซอร์เครื่องนี้เท่านั้น ไม่ได้ส่งไปที่ใด</p>
   </div>
 </div>
 

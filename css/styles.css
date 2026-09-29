@@ -94,6 +94,38 @@ body::before {
   box-shadow: none;
 }
 
+/* Home arrange mode: iOS-style jiggle. Uses the `rotate` property so it does
+   not fight the inline `transform` used for dragging and FLIP slides. */
+@keyframes tile-jiggle {
+  0%, 100% { rotate: calc(-1 * var(--jiggle-angle, 0.7deg)); translate: 0 0; }
+  25% { translate: 0 -0.5px; }
+  50% { rotate: var(--jiggle-angle, 0.7deg); translate: 0 0; }
+  75% { translate: 0 0.5px; }
+}
+/* Per-tile duration, phase and angle come from js/app.js so tiles drift out of sync like iOS. */
+#category-grid.is-arranging .tool-tile {
+  animation: tile-jiggle var(--jiggle-dur, 0.26s) ease-in-out var(--jiggle-delay, 0s) infinite;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+#category-grid.is-arranging .tool-tile.is-dragging {
+  animation: none;
+  cursor: grabbing;
+  position: relative;
+  z-index: 30;
+  scale: 1.04;
+  box-shadow: 0 18px 40px rgb(0 0 0 / 0.22);
+}
+#category-grid.is-arranging .tool-tile:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+#category-grid.is-arranging .fav-btn { display: none; }
+#category-grid.is-arranging img { pointer-events: none; -webkit-user-drag: none; }
+@media (prefers-reduced-motion: reduce) {
+  #category-grid.is-arranging .tool-tile { animation: none; }
+}
+
 /* Text compare side-by-side diff (views/text-compare.html) */
 .app.app-wide { max-width: 72rem; }
 /* HTML preview, code format and text compare use the whole viewport */
