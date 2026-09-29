@@ -350,12 +350,12 @@
     { id: 'merge', label: 'รวมไฟล์ PDF', desc: 'รวมหลายไฟล์เป็นไฟล์เดียว', enabled: true, img: 'assets/merge-pdf.png', cats: ['pdf'] },
     { id: 'convert-files', label: 'แปลงไฟล์', desc: 'แปลงไฟล์ได้หลากหลายรูปแบบ', enabled: true, img: 'assets/convert-file.png', cats: ['convert'] },
     { id: 'video-convert', label: 'แปลงวิดีโอ', desc: 'แปลงวิดีโอไปมาระหว่างฟอร์แมต', enabled: true, img: 'assets/convert-video.png', cats: ['convert'] },
-    { id: 'video-compress', label: 'ลดขนาดวิดีโอ', desc: 'บีบอัดวิดีโอให้เล็กลง ความละเอียดเท่าเดิม', enabled: true, img: 'assets/convert-video.png', cats: ['convert', 'file'] },
+    { id: 'video-compress', label: 'ลดขนาดวิดีโอ', desc: 'บีบอัดวิดีโอให้เล็กลง ความละเอียดเท่าเดิม', enabled: true, img: 'assets/compress-video.png', cats: ['convert', 'file'] },
     { id: 'text-gen', label: 'สร้างข้อความ', desc: 'สร้างและแก้ไขข้อความออนไลน์', enabled: true, img: 'assets/create-text.png', cats: ['text'] },
     { id: 'convert-case', label: 'แปลงตัวพิมพ์', desc: 'เปลี่ยนตัวพิมพ์เล็ก/ใหญ่ เช่น UPPER, Title Case', enabled: true, img: 'assets/convert-case.png', cats: ['text'] },
     { id: 'html-preview', label: 'พรีวิว HTML', desc: 'ดูผลลัพธ์ HTML ทันที พร้อมจัดรูปแบบโค้ด', enabled: true, img: 'assets/html-preview.png', cats: ['text'] },
-    { id: 'code-format', label: 'จัดรูปแบบโค้ด', desc: 'Beautify HTML, CSS, JavaScript, JSON และจัดรูปแบบ SQL', enabled: true, img: 'assets/html-preview.png', cats: ['text'] },
-    { id: 'json-format', label: 'JSON Formatter', desc: 'Beautify / Minify JSON และแปลง JSON เป็นตาราง', enabled: true, img: 'assets/html-preview.png', cats: ['text', 'convert'] },
+    { id: 'code-format', label: 'จัดรูปแบบโค้ด', desc: 'Beautify HTML, CSS, JavaScript, JSON และจัดรูปแบบ SQL', enabled: true, img: 'assets/format-code.png', cats: ['text'] },
+    { id: 'json-format', label: 'JSON Formatter', desc: 'Beautify / Minify JSON และแปลง JSON เป็นตาราง', enabled: true, img: 'assets/json-formatter.png', cats: ['text', 'convert'] },
     { id: 'text-compare', label: 'เปรียบเทียบข้อความ', desc: 'หาจุดที่ต่างกันระหว่างข้อความสองชุด', enabled: true, img: 'assets/compare-text.png', cats: ['text'] },
     { id: 'test-file', label: 'สร้างไฟล์ทดสอบ', desc: 'สร้างไฟล์ตัวอย่างสำหรับทดสอบ', enabled: true, img: 'assets/create-test.png', cats: ['file'] },
     { id: 'file-resize', label: 'ปรับขนาดไฟล์', desc: 'เพิ่มหรือลดขนาดไฟล์ตามที่กำหนด', enabled: true, img: 'assets/resize-file.png', cats: ['file'] },
@@ -363,7 +363,7 @@
     { id: 'file-decrypt', label: 'ถอดรหัสไฟล์', desc: 'ปลดรหัสผ่านไฟล์ด้วยรหัสที่ถูกต้อง', enabled: true, img: 'assets/unlock-file.png', cats: ['security'] },
     { id: 'compress', label: 'บีบอัดรูปภาพ', desc: 'ลดขนาดไฟล์รูปภาพ แบบไม่เสียคุณภาพ', enabled: true, img: 'assets/compress-image.png', cats: ['image'] },
     { id: 'ocr', label: 'อ่านข้อความจากภาพ', desc: 'ดึงข้อความจากรูปภาพ (OCR)', enabled: true, img: 'assets/ocr.png', cats: ['image', 'text'] },
-    { id: 'color-picker', label: 'ดึงสีจากรูป', desc: 'ดูดสีและชุดสีหลักจากรูป ได้ค่า HEX, RGB, HSL', enabled: true, img: 'assets/compress-image.png', cats: ['image'] }
+    { id: 'color-picker', label: 'ดึงสีจากรูป', desc: 'ดูดสีและชุดสีหลักจากรูป ได้ค่า HEX, RGB, HSL', enabled: true, img: 'assets/pick-color.png', cats: ['image'] }
   ];
   // Home-page category filter; a tool can sit in more than one category.
   var TOOL_CATEGORIES = [
