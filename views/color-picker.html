@@ -1,0 +1,72 @@
+<section id="view-color-picker" class="animate-fade-in" hidden>
+  <div class="mt-9 mb-5">
+    <button class="inline-flex items-center gap-1.5 bg-transparent border-none text-inksoft text-sm font-semibold cursor-pointer py-1.5 hover:text-ink" id="btn-color-picker-back" type="button">
+      <i class="bi bi-chevron-left text-base leading-none"></i>
+      กลับหน้าหลัก
+    </button>
+  </div>
+
+  <div class="flex items-center gap-3 mb-5">
+    <span class="flex h-9 w-9 flex-none items-center justify-center rounded-full bg-accentsoft text-accent">
+      <i class="bi bi-eyedropper text-lg leading-none"></i>
+    </span>
+    <h2 class="text-xl font-extrabold">ดึงสีจากรูป</h2>
+  </div>
+
+  <p class="text-[12.5px] text-inksoft -mt-3 mb-4 leading-relaxed">
+    ดูชุดสีหลักของรูปอัตโนมัติ หรือคลิกบนรูปเพื่อดูดสีจุดที่ต้องการ ได้ค่า HEX, RGB, HSL ประมวลผลในเบราว์เซอร์ทั้งหมด ไม่มีการส่งรูปออกนอกเครื่อง
+  </p>
+
+  <div id="cp-dropzone" class="border-2 border-dashed border-line rounded-2xl bg-surface px-6 py-7 text-center cursor-pointer transition-colors duration-150" tabindex="0" role="button" aria-label="อัปโหลดรูปภาพ">
+    <i class="bi bi-cloud-arrow-up text-2xl text-inkfaint mb-2 block"></i>
+    <div><strong class="text-sm font-bold">ลากรูปภาพมาวางที่นี่ หรือกด Ctrl+V เพื่อวางรูป</strong></div>
+    <p class="text-[12.5px] text-inksoft mt-1">หรือ <span class="text-accentdeep font-semibold underline underline-offset-2">เลือกไฟล์จากเครื่อง</span> (JPG, PNG, WEBP, BMP, GIF)</p>
+    <div class="text-bad text-[12.5px] mt-2 text-center" id="cp-upload-error"></div>
+  </div>
+  <input type="file" id="cp-file-input" accept="image/jpeg,image/png,image/webp,image/bmp,image/gif" class="sr-only" />
+
+  <div class="panel bg-surface border border-line rounded-2xl p-4 shadow-sm" id="cp-panel" style="display:none;">
+    <div class="flex items-center justify-between flex-wrap gap-2 mb-3">
+      <span class="text-[13px] font-bold truncate min-w-0" id="cp-file-name"></span>
+      <button type="button" id="btn-cp-change" class="flex items-center gap-1.5 bg-surface2 border border-line text-ink text-[12.5px] font-bold px-3 py-1.5 rounded-lg cursor-pointer hover:border-accent hover:text-accentdeep">
+        <i class="bi bi-arrow-repeat text-sm leading-none"></i> เปลี่ยนรูป
+      </button>
+    </div>
+
+    <div class="relative rounded-xl overflow-hidden border border-line bg-surface2 flex justify-center">
+      <canvas id="cp-canvas" class="block max-w-full h-auto cursor-crosshair" aria-label="คลิกบนรูปเพื่อดูดสี"></canvas>
+      <div id="cp-hover" class="pointer-events-none absolute left-2 top-2 flex items-center gap-2 rounded-lg bg-surface border border-line px-2 py-1 text-[12px] font-mono font-bold shadow-sm" style="display:none;">
+        <span id="cp-hover-swatch" class="h-4 w-4 rounded border border-line"></span>
+        <span id="cp-hover-hex"></span>
+      </div>
+    </div>
+    <p class="text-[12px] text-inksoft mt-1.5">คลิกบนรูปเพื่อดูดสี</p>
+
+    <div class="mt-4">
+      <div class="flex items-center justify-between gap-2 mb-2">
+        <span class="text-[13px] font-bold">ชุดสีหลักในรูป</span>
+        <button type="button" id="btn-cp-copy-palette" class="flex items-center gap-1.5 bg-transparent border-none text-inksoft text-[12.5px] font-semibold cursor-pointer hover:text-accentdeep">
+          <i class="bi bi-clipboard text-sm leading-none"></i> <span>คัดลอกทั้งหมด</span>
+        </button>
+      </div>
+      <div class="grid grid-cols-4 sm:grid-cols-8 gap-2" id="cp-palette"></div>
+    </div>
+
+    <div class="mt-4" id="cp-picked-wrap" style="display:none;">
+      <div class="flex items-center justify-between gap-2 mb-2">
+        <span class="text-[13px] font-bold">สีที่ดูดไว้</span>
+        <button type="button" id="btn-cp-clear-picked" class="flex items-center gap-1.5 bg-transparent border-none text-inksoft text-[12.5px] font-semibold cursor-pointer hover:text-bad">
+          <i class="bi bi-eraser text-sm leading-none"></i> ล้าง
+        </button>
+      </div>
+      <div class="grid grid-cols-4 sm:grid-cols-8 gap-2" id="cp-picked"></div>
+    </div>
+
+    <div class="mt-4 rounded-xl border border-line bg-surface2 p-3 flex gap-3 items-stretch" id="cp-detail" style="display:none;">
+      <span class="w-16 flex-none rounded-lg border border-line" id="cp-detail-swatch"></span>
+      <div class="flex-1 min-w-0 flex flex-col gap-1.5" id="cp-detail-values"></div>
+    </div>
+
+    <div class="status-line mt-2.5 text-[12.5px] min-h-[16px]" id="cp-status"></div>
+  </div>
+</section>

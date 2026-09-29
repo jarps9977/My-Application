@@ -53,6 +53,7 @@
   var $viewConvertCase = $(); // populated once views/convert-case.html is fetched and mounted
   var $viewCodeFormat = $(); // populated once views/code-format.html is fetched and mounted
   var $viewJsonFormat = $(); // populated once views/json-format.html is fetched and mounted
+  var $viewColorPicker = $(); // populated once views/color-picker.html is fetched and mounted
   function openView($view) {
     $viewHome.attr('hidden', true);
     $viewPdf.attr('hidden', true);
@@ -72,6 +73,7 @@
     $viewConvertCase.attr('hidden', true);
     $viewCodeFormat.attr('hidden', true);
     $viewJsonFormat.attr('hidden', true);
+    $viewColorPicker.attr('hidden', true);
     // Side-by-side views need more width than the 640px tool column.
     $('.app').toggleClass('app-wide', $view.is($viewConvertCase))
       .toggleClass('app-full', $view.is($viewHtmlPreview) || $view.is($viewCodeFormat) || $view.is($viewJsonFormat) || $view.is($viewTextCompare) || $view.is($viewOcr) || $view.is($viewTextGen))
@@ -308,6 +310,20 @@
     console.error('ไม่สามารถโหลด views/json-format.html ได้');
   });
 
+  // Same fetch-and-mount pattern for the "color picker" view
+  // (views/color-picker.html).
+  var colorPickerViewReady = $.get('views/color-picker.html').done(function (html) {
+    $('#view-color-picker-mount').replaceWith(html);
+    $viewColorPicker = $('#view-color-picker');
+    $('#btn-color-picker-back').on('click', function () {
+      $viewColorPicker.attr('hidden', true);
+      $viewHome.removeAttr('hidden');
+    });
+    initColorPickerView();
+  }).fail(function () {
+    console.error('ไม่สามารถโหลด views/color-picker.html ได้');
+  });
+
   // ---------- Category tiles ----------
   // Each tool's home tile now carries only an icon + short bold label (no
   // description, no status tag) — disabled tools are still distinguished
@@ -329,7 +345,8 @@
     { id: 'file-encrypt', label: 'เข้ารหัสไฟล์', desc: 'ใส่รหัสผ่านป้องกันไฟล์', enabled: true, img: 'assets/protect-file.png', cats: ['security'] },
     { id: 'file-decrypt', label: 'ถอดรหัสไฟล์', desc: 'ปลดรหัสผ่านไฟล์ด้วยรหัสที่ถูกต้อง', enabled: true, img: 'assets/unlock-file.png', cats: ['security'] },
     { id: 'compress', label: 'บีบอัดรูปภาพ', desc: 'ลดขนาดไฟล์รูปภาพ แบบไม่เสียคุณภาพ', enabled: true, img: 'assets/compress-image.png', cats: ['image'] },
-    { id: 'ocr', label: 'อ่านข้อความจากภาพ', desc: 'ดึงข้อความจากรูปภาพ (OCR)', enabled: true, img: 'assets/ocr.png', cats: ['image', 'text'] }
+    { id: 'ocr', label: 'อ่านข้อความจากภาพ', desc: 'ดึงข้อความจากรูปภาพ (OCR)', enabled: true, img: 'assets/ocr.png', cats: ['image', 'text'] },
+    { id: 'color-picker', label: 'ดึงสีจากรูป', desc: 'ดูดสีและชุดสีหลักจากรูป ได้ค่า HEX, RGB, HSL', enabled: true, img: 'assets/compress-image.png', cats: ['image'] }
   ];
   // Home-page category filter; a tool can sit in more than one category.
   var TOOL_CATEGORIES = [
@@ -561,6 +578,10 @@
     } else if (tool.id === 'compress') {
       $el.on('click', function () {
         $.when(imageCompressViewReady).done(function () { openView($viewImageCompress); });
+      });
+    } else if (tool.id === 'color-picker') {
+      $el.on('click', function () {
+        $.when(colorPickerViewReady).done(function () { openView($viewColorPicker); });
       });
     }
     return $el;
@@ -6130,6 +6151,262 @@
     }
     if (!out || out.length >= bytes.length) return { kind: kind, blob: null };
     return { kind: kind, blob: new Blob([out], { type: COMPRESS_MIME[kind] }) };
+  }
+
+  // ---------- Color picker ----------
+  var CP_MAX_BYTES = 30 * 1024 * 1024;
+  var CP_MAX_SIDE = 1600; // display canvas cap; picks are still exact at this size
+  var CP_PALETTE_SIZE = 8;
+  var CP_PICKED_MAX = 16;
+
+  function cpHex(r, g, b) {
+    return '#' + [r, g, b].map(function (v) { return ('0' + v.toString(16)).slice(-2); }).join('').toUpperCase();
+  }
+  function cpHsl(r, g, b) {
+    r /= 255; g /= 255; b /= 255;
+    var mx = Math.max(r, g, b), mn = Math.min(r, g, b);
+    var h = 0, s = 0, l = (mx + mn) / 2, d = mx - mn;
+    if (d) {
+      s = d / (1 - Math.abs(2 * l - 1));
+      if (mx === r) h = ((g - b) / d) % 6;
+      else if (mx === g) h = (b - r) / d + 2;
+      else h = (r - g) / d + 4;
+      h = Math.round(h * 60);
+      if (h < 0) h += 360;
+    }
+    return 'hsl(' + h + ', ' + Math.round(s * 100) + '%, ' + Math.round(l * 100) + '%)';
+  }
+  function cpTextOn(r, g, b) {
+    return 0.299 * r + 0.587 * g + 0.114 * b > 150 ? '#111111' : '#ffffff';
+  }
+
+  // Dominant colors: 4-bit-per-channel histogram on a downscaled copy, then
+  // the most frequent bucket means, skipping ones too close to a pick.
+  function extractPalette(canvas, count) {
+    var scale = Math.min(1, 160 / Math.max(canvas.width, canvas.height));
+    var w = Math.max(1, Math.round(canvas.width * scale));
+    var h = Math.max(1, Math.round(canvas.height * scale));
+    var small = document.createElement('canvas');
+    small.width = w;
+    small.height = h;
+    var sctx = small.getContext('2d');
+    sctx.imageSmoothingQuality = 'high';
+    sctx.drawImage(canvas, 0, 0, w, h);
+    var a = sctx.getImageData(0, 0, w, h).data;
+    var cnt = new Uint32Array(4096), sr = new Float64Array(4096), sg = new Float64Array(4096), sb = new Float64Array(4096);
+    var i;
+    for (i = 0; i < a.length; i += 4) {
+      if (a[i + 3] < 128) continue; // transparent pixels are not part of the image colors
+      var k = ((a[i] >> 4) << 8) | ((a[i + 1] >> 4) << 4) | (a[i + 2] >> 4);
+      cnt[k]++; sr[k] += a[i]; sg[k] += a[i + 1]; sb[k] += a[i + 2];
+    }
+    var buckets = [];
+    for (i = 0; i < 4096; i++) {
+      if (cnt[i]) buckets.push({ n: cnt[i], r: Math.round(sr[i] / cnt[i]), g: Math.round(sg[i] / cnt[i]), b: Math.round(sb[i] / cnt[i]) });
+    }
+    buckets.sort(function (x, y) { return y.n - x.n; });
+    var picks = [];
+    [56, 28, 0].some(function (minDist) {
+      buckets.forEach(function (c) {
+        if (picks.length >= count || picks.indexOf(c) !== -1) return;
+        var near = picks.some(function (p) {
+          var dr = p.r - c.r, dg = p.g - c.g, db = p.b - c.b;
+          return Math.sqrt(dr * dr + dg * dg + db * db) < minDist;
+        });
+        if (!near) picks.push(c);
+      });
+      return picks.length >= count;
+    });
+    return picks;
+  }
+
+  function initColorPickerView() {
+    var state = { file: null, picked: [] };
+
+    var $dropzone = $('#cp-dropzone');
+    var $fileInput = $('#cp-file-input');
+    var $uploadError = $('#cp-upload-error');
+    var $panel = $('#cp-panel');
+    var $fileName = $('#cp-file-name');
+    var canvas = document.getElementById('cp-canvas');
+    var ctx = canvas.getContext('2d', { willReadFrequently: true });
+    var $hover = $('#cp-hover');
+    var $hoverSwatch = $('#cp-hover-swatch');
+    var $hoverHex = $('#cp-hover-hex');
+    var $palette = $('#cp-palette');
+    var $pickedWrap = $('#cp-picked-wrap');
+    var $picked = $('#cp-picked');
+    var $detail = $('#cp-detail');
+    var $detailSwatch = $('#cp-detail-swatch');
+    var $detailValues = $('#cp-detail-values');
+    var $statusEl = $('#cp-status');
+    var $btnCopyPalette = $('#btn-cp-copy-palette');
+    var palette = [];
+
+    function setStatus(msg, kind) {
+      $statusEl.text(msg || '');
+      $statusEl.removeClass('text-good text-bad text-inksoft');
+      if (kind === 'good') $statusEl.addClass('text-good');
+      else if (kind === 'bad') $statusEl.addClass('text-bad');
+      else $statusEl.addClass('text-inksoft');
+    }
+    async function copy(text, label) {
+      try {
+        await navigator.clipboard.writeText(text);
+        setStatus('คัดลอก ' + label + ' แล้ว', 'good');
+      } catch (err) {
+        setStatus('คัดลอกไม่สำเร็จ', 'bad');
+      }
+    }
+
+    function makeSwatch(c) {
+      var hex = cpHex(c.r, c.g, c.b);
+      return $('<button>').attr({ type: 'button', title: hex, 'aria-label': 'สี ' + hex })
+        .addClass('flex flex-col rounded-lg overflow-hidden border border-line bg-surface cursor-pointer transition duration-150 hover:-translate-y-0.5 hover:border-accent')
+        .append(
+          $('<span>').addClass('block h-10 w-full').css('background-color', hex),
+          $('<span>').addClass('block px-1 py-1 text-[11px] font-mono font-bold text-center text-ink').text(hex)
+        )
+        .on('click', function () { showDetail(c); copy(hex, hex); });
+    }
+    function showDetail(c) {
+      var hex = cpHex(c.r, c.g, c.b);
+      var rows = [
+        ['HEX', hex],
+        ['RGB', 'rgb(' + c.r + ', ' + c.g + ', ' + c.b + ')'],
+        ['HSL', cpHsl(c.r, c.g, c.b)]
+      ];
+      $detailSwatch.css({ 'background-color': hex, color: cpTextOn(c.r, c.g, c.b) });
+      $detailValues.empty();
+      rows.forEach(function (row) {
+        $detailValues.append(
+          $('<div>').addClass('flex items-center gap-2').append(
+            $('<span>').addClass('w-9 flex-none text-[11.5px] font-bold text-inksoft').text(row[0]),
+            $('<span>').addClass('flex-1 min-w-0 truncate text-[12.5px] font-mono font-bold').text(row[1]),
+            $('<button>').attr({ type: 'button', title: 'คัดลอก ' + row[0], 'aria-label': 'คัดลอก ' + row[0] })
+              .addClass('flex-none bg-transparent border-none text-inksoft cursor-pointer hover:text-accentdeep')
+              .append($('<i>').addClass('bi bi-clipboard text-sm leading-none'))
+              .on('click', function () { copy(row[1], row[0]); })
+          )
+        );
+      });
+      $detail.css('display', '');
+    }
+    function renderPicked() {
+      $picked.empty();
+      state.picked.forEach(function (c) { $picked.append(makeSwatch(c)); });
+      $pickedWrap.css('display', state.picked.length ? '' : 'none');
+    }
+
+    function pixelAt(e) {
+      var rect = canvas.getBoundingClientRect();
+      if (!rect.width || !rect.height) return null;
+      var x = Math.floor((e.clientX - rect.left) / rect.width * canvas.width);
+      var y = Math.floor((e.clientY - rect.top) / rect.height * canvas.height);
+      if (x < 0 || y < 0 || x >= canvas.width || y >= canvas.height) return null;
+      var d = ctx.getImageData(x, y, 1, 1).data;
+      return { r: d[0], g: d[1], b: d[2] };
+    }
+
+    async function handleFile(file) {
+      var okType = /^image\/(jpeg|png|webp|bmp|gif)$/i.test(file.type) || /\.(jpe?g|png|webp|bmp|gif)$/i.test(file.name || '');
+      if (!okType) { $uploadError.text('รองรับเฉพาะไฟล์รูปภาพ JPG, PNG, WEBP, BMP หรือ GIF'); return; }
+      if (file.size > CP_MAX_BYTES) { $uploadError.text('ไฟล์ใหญ่เกิน 30 MB'); return; }
+      $uploadError.text('');
+      var bmp;
+      try {
+        bmp = await createImageBitmap(file);
+      } catch (err) {
+        $uploadError.text('เปิดรูปไม่สำเร็จ ไฟล์อาจเสียหาย');
+        if (state.file) setStatus('เปิดรูปไม่สำเร็จ ไฟล์อาจเสียหาย', 'bad');
+        return;
+      }
+      var scale = Math.min(1, CP_MAX_SIDE / Math.max(bmp.width, bmp.height));
+      canvas.width = Math.max(1, Math.round(bmp.width * scale));
+      canvas.height = Math.max(1, Math.round(bmp.height * scale));
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.imageSmoothingQuality = 'high';
+      ctx.drawImage(bmp, 0, 0, canvas.width, canvas.height);
+      var dims = bmp.width + ' × ' + bmp.height + ' px';
+      bmp.close();
+
+      state.file = file;
+      state.picked = [];
+      renderPicked();
+      $detail.css('display', 'none');
+      $fileName.text((file.name || 'รูปที่วาง') + ' · ' + dims);
+      palette = extractPalette(canvas, CP_PALETTE_SIZE);
+      $palette.empty();
+      palette.forEach(function (c) { $palette.append(makeSwatch(c)); });
+      $dropzone.css('display', 'none');
+      $panel.css('display', '');
+      setStatus(palette.length ? 'คลิกที่สีเพื่อคัดลอก HEX' : 'ไม่พบสีในรูป (รูปโปร่งใสทั้งหมด)', 'neutral');
+    }
+
+    $(canvas).on('mousemove', function (e) {
+      var c = pixelAt(e);
+      if (!c) { $hover.css('display', 'none'); return; }
+      var hex = cpHex(c.r, c.g, c.b);
+      $hoverSwatch.css('background-color', hex);
+      $hoverHex.text(hex);
+      $hover.css('display', '');
+    });
+    $(canvas).on('mouseleave', function () { $hover.css('display', 'none'); });
+    $(canvas).on('click', function (e) {
+      var c = pixelAt(e);
+      if (!c) return;
+      var hex = cpHex(c.r, c.g, c.b);
+      state.picked = state.picked.filter(function (p) { return cpHex(p.r, p.g, p.b) !== hex; });
+      state.picked.unshift(c);
+      state.picked = state.picked.slice(0, CP_PICKED_MAX);
+      renderPicked();
+      showDetail(c);
+      copy(hex, hex);
+    });
+
+    $btnCopyPalette.on('click', function () {
+      if (!palette.length) return;
+      copy(palette.map(function (c) { return cpHex(c.r, c.g, c.b); }).join('\n'), 'ชุดสี');
+    });
+    $('#btn-cp-clear-picked').on('click', function () {
+      state.picked = [];
+      renderPicked();
+    });
+    $('#btn-cp-change').on('click', function () { $fileInput.trigger('click'); });
+
+    $dropzone.on('click', function () { $fileInput.trigger('click'); });
+    $dropzone.on('keydown', function (e) {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); $fileInput.trigger('click'); }
+    });
+    $dropzone.add($panel).on('dragenter dragover', function (e) {
+      e.preventDefault();
+      $dropzone.removeClass('border-line').addClass('border-accent bg-accentsoft');
+    });
+    $dropzone.add($panel).on('dragleave drop', function (e) {
+      e.preventDefault();
+      $dropzone.removeClass('border-accent bg-accentsoft').addClass('border-line');
+    });
+    $dropzone.add($panel).on('drop', function (e) {
+      var dt = e.originalEvent.dataTransfer;
+      if (dt && dt.files && dt.files[0]) handleFile(dt.files[0]);
+    });
+    $fileInput.on('change', function () {
+      if ($fileInput[0].files[0]) handleFile($fileInput[0].files[0]);
+      $fileInput.val('');
+    });
+    $(document).on('paste', function (e) {
+      if ($viewColorPicker.attr('hidden') !== undefined) return;
+      var clip = (e.originalEvent.clipboardData && e.originalEvent.clipboardData.items) || [];
+      for (var i = 0; i < clip.length; i++) {
+        if (clip[i].kind !== 'file' || !/^image\//.test(clip[i].type)) continue;
+        var blob = clip[i].getAsFile();
+        if (!blob) continue;
+        e.preventDefault();
+        var ext = (blob.type.split('/')[1] || 'png').replace('jpeg', 'jpg');
+        handleFile(new File([blob], 'pasted-image-' + fileTimestamp(new Date()) + '.' + ext, { type: blob.type }));
+        return;
+      }
+    });
   }
 
   function initImageCompressView() {
