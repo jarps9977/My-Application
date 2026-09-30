@@ -1,0 +1,66 @@
+<section id="view-brick-breaker" class="animate-fade-in" hidden>
+  <div class="mt-4 mb-3">
+    <button class="inline-flex items-center gap-1.5 bg-transparent border-none text-inksoft text-sm font-semibold cursor-pointer py-1.5 hover:text-ink" id="btn-brick-breaker-back" type="button">
+      <i class="bi bi-chevron-left text-base leading-none"></i>
+      กลับหน้าหลัก
+    </button>
+  </div>
+
+  <div class="flex items-center justify-between flex-wrap gap-3 mb-3">
+    <div class="flex items-center gap-3">
+      <span class="flex h-9 w-9 flex-none items-center justify-center rounded-full bg-accentsoft text-accent">
+        <i class="bi bi-bricks text-lg leading-none"></i>
+      </span>
+      <div>
+        <h2 class="text-xl font-extrabold leading-tight">Brick Breaker</h2>
+        <span class="text-[12px] text-inksoft">เลื่อนเมาส์ / นิ้ว หรือปุ่ม ← → เพื่อขยับแท่น, Space เพื่อเริ่ม / หยุด</span>
+      </div>
+    </div>
+    <div class="flex items-center gap-2 flex-wrap">
+      <button type="button" id="bb-btn-pause" class="flex items-center gap-1.5 bg-surface border border-line text-ink text-[12.5px] font-bold px-3 py-1.5 rounded-lg cursor-pointer hover:border-accent hover:text-accentdeep">
+        <i class="bi bi-pause-fill text-sm leading-none"></i> หยุด / เล่นต่อ
+      </button>
+      <button type="button" id="bb-btn-restart" class="flex items-center gap-1.5 bg-surface border border-line text-ink text-[12.5px] font-bold px-3 py-1.5 rounded-lg cursor-pointer hover:border-bad hover:text-bad">
+        <i class="bi bi-arrow-counterclockwise text-sm leading-none"></i> เริ่มใหม่
+      </button>
+    </div>
+  </div>
+
+  <div class="grid grid-cols-4 gap-2 mb-3 text-center">
+    <div class="bg-surface border border-line rounded-xl py-1.5">
+      <div class="text-[11px] text-inksoft">คะแนน</div>
+      <div class="text-[15px] font-extrabold" id="bb-score">0</div>
+    </div>
+    <div class="bg-surface border border-line rounded-xl py-1.5">
+      <div class="text-[11px] text-inksoft">ลูกบอล</div>
+      <div class="text-[15px] font-extrabold" id="bb-balls">0</div>
+    </div>
+    <div class="bg-surface border border-line rounded-xl py-1.5">
+      <div class="text-[11px] text-inksoft">ชีวิต</div>
+      <div class="text-[15px] font-extrabold" id="bb-lives">0</div>
+    </div>
+    <div class="bg-surface border border-line rounded-xl py-1.5">
+      <div class="text-[11px] text-inksoft">สูงสุด</div>
+      <div class="text-[15px] font-extrabold" id="bb-best">0</div>
+    </div>
+  </div>
+
+  <!-- 3:5 board; the canvas keeps a fixed 360x600 logical size and is scaled by CSS. -->
+  <div id="bb-stage" class="relative mx-auto rounded-xl overflow-hidden shadow-sm ring-1 ring-line select-none" style="height:min(68vh,640px);aspect-ratio:3/5;max-width:100%;touch-action:none;background:#18181b;">
+    <canvas id="bb-canvas" class="block w-full h-full"></canvas>
+    <div id="bb-overlay" class="absolute inset-0 flex flex-col items-center justify-center gap-2 px-6 text-center" style="background:rgba(0,0,0,.55);">
+      <div class="text-xl font-extrabold text-white" id="bb-overlay-title"></div>
+      <div class="text-[12.5px] text-white/80 leading-relaxed" id="bb-overlay-sub"></div>
+      <button type="button" id="bb-btn-start" class="mt-2 bg-accent border-none text-accentink text-sm font-bold px-5 py-2 rounded-lg cursor-pointer hover:bg-accentdeep"></button>
+    </div>
+  </div>
+
+  <div class="flex items-center justify-center flex-wrap gap-x-4 gap-y-1.5 mt-3 text-[12px] text-inksoft">
+    <span class="inline-flex items-center gap-1.5"><span class="h-2.5 w-2.5 rounded-full" style="background:#22d3ee;"></span> ลูกบอล x3</span>
+    <span class="inline-flex items-center gap-1.5"><span class="h-2.5 w-2.5 rounded-full" style="background:#fb923c;"></span> เพิ่ม 3 ลูก</span>
+    <span class="inline-flex items-center gap-1.5"><span class="h-2.5 w-2.5 rounded-full" style="background:#4ade80;"></span> แท่นยาว 12 วิ</span>
+    <span class="inline-flex items-center gap-1.5"><span class="h-2.5 w-2.5 rounded-full" style="background:#f43f5e;"></span> ลูกไฟทะลุอิฐ 6 วิ</span>
+    <span class="inline-flex items-center gap-1.5"><span class="h-2.5 w-2.5 rounded-full" style="background:#f472b6;"></span> ชีวิต +1</span>
+    <span class="inline-flex items-center gap-1.5"><span class="h-2.5 w-2.5 rounded-full" style="background:#a78bfa;"></span> ระเบิด (โดนแล้วระเบิดทันที)</span>
+  </div>
+</section>

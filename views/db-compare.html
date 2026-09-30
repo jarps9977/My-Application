@@ -1,0 +1,159 @@
+<section id="view-db-compare" class="animate-fade-in" hidden>
+  <div class="mt-4 mb-3">
+    <button class="inline-flex items-center gap-1.5 bg-transparent border-none text-inksoft text-sm font-semibold cursor-pointer py-1.5 hover:text-ink" id="btn-db-compare-back" type="button">
+      <i class="bi bi-chevron-left text-base leading-none"></i>
+      กลับหน้าหลัก
+    </button>
+  </div>
+
+  <div class="flex items-center justify-between flex-wrap gap-3 mb-3">
+    <div class="flex items-center gap-3">
+      <span class="flex h-9 w-9 flex-none items-center justify-center rounded-full bg-accentsoft text-accent">
+        <i class="bi bi-database-gear text-lg leading-none"></i>
+      </span>
+      <div>
+        <h2 class="text-xl font-extrabold leading-tight">เปรียบเทียบฐานข้อมูล For SQL Server</h2>
+        <span class="text-[12px] text-inksoft">สร้าง script ตารางใหม่ คอลัมน์ใหม่ และแปลง script View/Procedure เป็น ALTER</span>
+      </div>
+    </div>
+    <div class="flex items-center gap-2 flex-wrap">
+      <button type="button" class="dbcmp-open flex items-center gap-1.5 bg-accent border-none text-accentink text-[12.5px] font-bold px-3 py-1.5 rounded-lg cursor-pointer hover:bg-accentdeep" data-target="mods" title="อัปโหลด script View / Procedure / Function เพื่อเปลี่ยน CREATE เป็น ALTER และเปลี่ยนชื่อ DB">
+        <i class="bi bi-upload text-sm leading-none"></i> อัปโหลด View / SP
+      </button>
+      <button type="button" id="btn-dbcmp-swap" class="flex items-center gap-1.5 bg-surface border border-line text-ink text-[12.5px] font-bold px-3 py-1.5 rounded-lg cursor-pointer hover:border-accent hover:text-accentdeep" title="สลับต้นทาง-ปลายทาง">
+        <i class="bi bi-arrow-left-right text-sm leading-none"></i> สลับ
+      </button>
+      <button type="button" id="btn-dbcmp-clear" class="flex items-center gap-1.5 bg-surface border border-line text-ink text-[12.5px] font-bold px-3 py-1.5 rounded-lg cursor-pointer hover:border-bad hover:text-bad">
+        <i class="bi bi-eraser text-sm leading-none"></i> ล้าง
+      </button>
+    </div>
+  </div>
+
+  <!-- Source / target files. Nothing is previewed; the files are only parsed. -->
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+    <div class="dbcmp-side bg-surface border border-line rounded-2xl shadow-sm px-4 py-3 min-w-0" data-side="source">
+      <div class="flex items-center justify-between gap-3">
+        <div class="min-w-0">
+          <div class="text-[13px] font-bold text-good">ต้นทาง (Source)</div>
+          <div class="text-[11.5px] text-inksoft">ฐานข้อมูลที่มีการแก้ไขล่าสุด เช่น TEST / UAT</div>
+        </div>
+        <button type="button" class="dbcmp-open flex-none flex items-center gap-1.5 bg-accent border-none text-accentink text-[12.5px] font-bold px-3 py-1.5 rounded-lg cursor-pointer hover:bg-accentdeep" data-target="source">
+          <i class="bi bi-folder2-open text-sm leading-none"></i> เลือกไฟล์
+        </button>
+      </div>
+      <div class="mt-2 text-[12.5px] font-mono font-semibold text-ink break-all" id="dbcmp-source-name">ยังไม่ได้เลือกไฟล์</div>
+      <div class="text-[11.5px] text-inkfaint font-mono min-h-[16px]" id="dbcmp-source-meta"></div>
+    </div>
+    <div class="dbcmp-side bg-surface border border-line rounded-2xl shadow-sm px-4 py-3 min-w-0" data-side="target">
+      <div class="flex items-center justify-between gap-3">
+        <div class="min-w-0">
+          <div class="text-[13px] font-bold text-bad">ปลายทาง (Target)</div>
+          <div class="text-[11.5px] text-inksoft">ฐานข้อมูลที่จะ deploy เช่น PROD</div>
+        </div>
+        <button type="button" class="dbcmp-open flex-none flex items-center gap-1.5 bg-accent border-none text-accentink text-[12.5px] font-bold px-3 py-1.5 rounded-lg cursor-pointer hover:bg-accentdeep" data-target="target">
+          <i class="bi bi-folder2-open text-sm leading-none"></i> เลือกไฟล์
+        </button>
+      </div>
+      <div class="mt-2 text-[12.5px] font-mono font-semibold text-ink break-all" id="dbcmp-target-name">ยังไม่ได้เลือกไฟล์</div>
+      <div class="text-[11.5px] text-inkfaint font-mono min-h-[16px]" id="dbcmp-target-meta"></div>
+    </div>
+  </div>
+  <input type="file" id="dbcmp-file-input" accept=".sql,.xml,.json,.txt,text/*,application/json,application/xml,application/sql" class="sr-only" />
+
+  <div class="flex items-center justify-between flex-wrap gap-3 mt-3">
+    <div class="text-[12px] text-inksoft leading-relaxed">
+      ใช้ไฟล์ .sql จาก SSMS: คลิกขวาที่ Database &rarr; Tasks &rarr; Generate Scripts
+      <span class="text-inkfaint">· หรือผลลัพธ์จาก</span>
+      <button type="button" id="btn-dbcmp-query-save" class="bg-transparent border-none p-0 text-accentdeep text-[12px] font-semibold cursor-pointer hover:underline">Query extract (.sql)</button>
+    </div>
+    <button type="button" id="btn-dbcmp-run" class="flex items-center gap-2 px-4 py-2 rounded-xl border-none bg-accent text-accentink text-sm font-bold cursor-pointer hover:bg-accentdeep">
+      <i class="bi bi-arrow-left-right text-sm leading-none"></i> เปรียบเทียบ
+    </button>
+  </div>
+  <div class="status-line mt-2.5 text-[12.5px] min-h-[16px]" id="dbcmp-status"></div>
+
+  <!-- Click a row to get its script. -->
+  <div id="dbcmp-result" class="grid grid-cols-1 xl:grid-cols-2 gap-3 mt-2 items-start" hidden>
+    <div class="xl:col-span-2 flex items-center justify-between flex-wrap gap-2">
+      <span class="text-[12px] text-inksoft">รันตามลำดับไฟล์: 1 New Table &rarr; 2 New Field &rarr; 3 New View/SP &rarr; 4 View and SP (ALTER)</span>
+      <button type="button" id="btn-dbcmp-download-all" class="flex items-center gap-2 px-4 py-2 rounded-xl border-none bg-accent text-accentink text-sm font-bold cursor-pointer hover:bg-accentdeep">
+        <i class="bi bi-download text-sm leading-none"></i> ดาวน์โหลดทั้งหมด (4 ไฟล์)
+      </button>
+    </div>
+    <div class="bg-surface border border-line rounded-2xl shadow-sm overflow-hidden flex flex-col min-w-0">
+      <div class="flex items-center justify-between flex-wrap gap-2 px-4 py-2.5 border-b border-line">
+        <span class="flex items-center gap-2 text-[13px] font-extrabold">
+          <i class="bi bi-table text-good text-base leading-none"></i> ตารางใหม่
+          <span class="rounded-full bg-goodsoft text-good px-2 py-0.5 text-[11px] font-bold" id="dbcmp-new-tables-count">0</span>
+        </span>
+        <div class="flex items-center gap-2">
+          <button type="button" class="dbcmp-copy-all flex items-center gap-1.5 bg-surface border border-line text-ink text-[12px] font-bold px-2.5 py-1 rounded-lg cursor-pointer hover:border-accent hover:text-accentdeep" data-kind="tables">
+            <i class="bi bi-clipboard text-sm leading-none"></i> <span>คัดลอกทั้งหมด</span>
+          </button>
+          <button type="button" class="dbcmp-save-all flex items-center gap-1.5 bg-surface border border-line text-ink text-[12px] font-bold px-2.5 py-1 rounded-lg cursor-pointer hover:border-accent hover:text-accentdeep" data-kind="tables">
+            <i class="bi bi-download text-sm leading-none"></i> .sql
+          </button>
+        </div>
+      </div>
+      <div id="dbcmp-new-tables" class="max-h-[70vh] overflow-auto text-[12.5px]"></div>
+    </div>
+    <div class="bg-surface border border-line rounded-2xl shadow-sm overflow-hidden flex flex-col min-w-0">
+      <div class="flex items-center justify-between flex-wrap gap-2 px-4 py-2.5 border-b border-line">
+        <span class="flex items-center gap-2 text-[13px] font-extrabold">
+          <i class="bi bi-layout-three-columns text-good text-base leading-none"></i> คอลัมน์ใหม่ (ในตารางเดิม)
+          <span class="rounded-full bg-goodsoft text-good px-2 py-0.5 text-[11px] font-bold" id="dbcmp-new-cols-count">0</span>
+        </span>
+        <div class="flex items-center gap-2">
+          <button type="button" class="dbcmp-copy-all flex items-center gap-1.5 bg-surface border border-line text-ink text-[12px] font-bold px-2.5 py-1 rounded-lg cursor-pointer hover:border-accent hover:text-accentdeep" data-kind="cols">
+            <i class="bi bi-clipboard text-sm leading-none"></i> <span>คัดลอกทั้งหมด</span>
+          </button>
+          <button type="button" class="dbcmp-save-all flex items-center gap-1.5 bg-surface border border-line text-ink text-[12px] font-bold px-2.5 py-1 rounded-lg cursor-pointer hover:border-accent hover:text-accentdeep" data-kind="cols">
+            <i class="bi bi-download text-sm leading-none"></i> .sql
+          </button>
+        </div>
+      </div>
+      <div id="dbcmp-new-cols" class="max-h-[70vh] overflow-auto text-[12.5px]"></div>
+    </div>
+    <div class="xl:col-span-2 bg-surface border border-line rounded-2xl shadow-sm overflow-hidden flex flex-col min-w-0">
+      <div class="flex items-center justify-between flex-wrap gap-2 px-4 py-2.5 border-b border-line">
+        <span class="flex items-center gap-2 text-[13px] font-extrabold">
+          <i class="bi bi-code-square text-good text-base leading-none"></i> View / Procedure / Function ใหม่
+          <span class="rounded-full bg-goodsoft text-good px-2 py-0.5 text-[11px] font-bold" id="dbcmp-new-mods-count">0</span>
+        </span>
+        <div class="flex items-center gap-2">
+          <button type="button" class="dbcmp-copy-all flex items-center gap-1.5 bg-surface border border-line text-ink text-[12px] font-bold px-2.5 py-1 rounded-lg cursor-pointer hover:border-accent hover:text-accentdeep" data-kind="newmods">
+            <i class="bi bi-clipboard text-sm leading-none"></i> <span>คัดลอกทั้งหมด</span>
+          </button>
+          <button type="button" class="dbcmp-save-all flex items-center gap-1.5 bg-surface border border-line text-ink text-[12px] font-bold px-2.5 py-1 rounded-lg cursor-pointer hover:border-accent hover:text-accentdeep" data-kind="newmods">
+            <i class="bi bi-download text-sm leading-none"></i> .sql
+          </button>
+        </div>
+      </div>
+      <div id="dbcmp-new-mods" class="max-h-[70vh] overflow-auto text-[12.5px]"></div>
+    </div>
+  </div>
+
+  <!-- View / procedure / function: a generated script is converted in place. -->
+  <div id="dbcmp-mods-card" class="bg-surface border border-line rounded-2xl shadow-sm overflow-hidden mt-4">
+    <div class="flex items-center justify-between flex-wrap gap-3 px-4 py-3 border-b border-line">
+      <div class="min-w-0">
+        <div class="flex items-center gap-2 text-[13px] font-extrabold"><i class="bi bi-code-square text-accent text-base leading-none"></i> View / Procedure / Function</div>
+        <div class="text-[11.5px] text-inksoft">เลือกไฟล์ script ที่ Generate จาก SSMS โปรแกรมจะเปลี่ยน CREATE VIEW / PROCEDURE / FUNCTION เป็น ALTER และเปลี่ยนชื่อ DB เท่านั้น ส่วนอื่นคงเดิมทุกตัวอักษร</div>
+      </div>
+      <div class="flex items-center gap-2 flex-none">
+        <button type="button" class="dbcmp-open flex items-center gap-1.5 bg-accent border-none text-accentink text-[12.5px] font-bold px-3 py-1.5 rounded-lg cursor-pointer hover:bg-accentdeep" data-target="mods">
+          <i class="bi bi-folder2-open text-sm leading-none"></i> เลือกไฟล์
+        </button>
+        <button type="button" id="btn-dbcmp-mods-save" class="flex items-center gap-1.5 bg-surface border border-line text-ink text-[12.5px] font-bold px-3 py-1.5 rounded-lg cursor-pointer hover:border-accent hover:text-accentdeep" disabled>
+          <i class="bi bi-download text-sm leading-none"></i> ดาวน์โหลด .sql
+        </button>
+      </div>
+    </div>
+    <div class="px-4 py-2 border-b border-line text-[12.5px] font-mono font-semibold text-ink break-all" id="dbcmp-mods-name">ยังไม่ได้เลือกไฟล์</div>
+    <div id="dbcmp-dbmap" hidden>
+      <div class="px-4 py-2 border-b border-line text-[12px] font-bold text-inksoft">ชื่อ DB ที่พบในไฟล์ &rarr; เปลี่ยนเป็น (แทนที่เฉพาะตำแหน่งชื่อ DB เช่น [db].[dbo].[object] รวมถึงใน dynamic SQL)</div>
+      <div id="dbcmp-dbmap-rows"></div>
+    </div>
+    <div id="dbcmp-mods-summary" class="px-4 py-2.5 text-[12.5px] leading-relaxed"></div>
+  </div>
+</section>

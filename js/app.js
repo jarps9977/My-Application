@@ -48,6 +48,8 @@
   var $viewFileDecrypt = $(); // populated once views/file-decrypt.html is fetched and mounted
   var $viewOcr = $(); // populated once views/ocr.html is fetched and mounted
   var $viewTextCompare = $(); // populated once views/text-compare.html is fetched and mounted
+  var $viewDbCompare = $(); // populated once views/db-compare.html is fetched and mounted
+  var $viewBrickBreaker = $(); // populated once views/brick-breaker.html is fetched and mounted
   var $viewImageCompress = $(); // populated once views/image-compress.html is fetched and mounted
   var $viewHtmlPreview = $(); // populated once views/html-preview.html is fetched and mounted
   var $viewConvertCase = $(); // populated once views/convert-case.html is fetched and mounted
@@ -69,6 +71,8 @@
     $viewFileDecrypt.attr('hidden', true);
     $viewOcr.attr('hidden', true);
     $viewTextCompare.attr('hidden', true);
+    $viewDbCompare.attr('hidden', true);
+    $viewBrickBreaker.attr('hidden', true);
     $viewImageCompress.attr('hidden', true);
     $viewHtmlPreview.attr('hidden', true);
     $viewConvertCase.attr('hidden', true);
@@ -78,7 +82,7 @@
     $viewVideoCompress.attr('hidden', true);
     // Side-by-side views need more width than the 640px tool column.
     $('.app').toggleClass('app-wide', $view.is($viewConvertCase) || $view.is($viewColorPicker))
-      .toggleClass('app-full', $view.is($viewHtmlPreview) || $view.is($viewCodeFormat) || $view.is($viewJsonFormat) || $view.is($viewTextCompare) || $view.is($viewOcr) || $view.is($viewTextGen))
+      .toggleClass('app-full', $view.is($viewHtmlPreview) || $view.is($viewCodeFormat) || $view.is($viewJsonFormat) || $view.is($viewTextCompare) || $view.is($viewDbCompare) || $view.is($viewOcr) || $view.is($viewTextGen))
       .toggleClass('app-flush', $view.is($viewOcr) || $view.is($viewTextGen));
     $view.removeAttr('hidden');
   }
@@ -256,6 +260,34 @@
     console.error('ไม่สามารถโหลด views/text-compare.html ได้');
   });
 
+  // Same fetch-and-mount pattern for the "database compare" view
+  // (views/db-compare.html).
+  var dbCompareViewReady = $.get('views/db-compare.html').done(function (html) {
+    $('#view-db-compare-mount').replaceWith(html);
+    $viewDbCompare = $('#view-db-compare');
+    $('#btn-db-compare-back').on('click', function () {
+      $viewDbCompare.attr('hidden', true);
+      $viewHome.removeAttr('hidden');
+    });
+    initDbCompareView();
+  }).fail(function () {
+    console.error('ไม่สามารถโหลด views/db-compare.html ได้');
+  });
+
+  // Same fetch-and-mount pattern for the "brick breaker" game view
+  // (views/brick-breaker.html).
+  var brickBreakerViewReady = $.get('views/brick-breaker.html').done(function (html) {
+    $('#view-brick-breaker-mount').replaceWith(html);
+    $viewBrickBreaker = $('#view-brick-breaker');
+    $('#btn-brick-breaker-back').on('click', function () {
+      $viewBrickBreaker.attr('hidden', true);
+      $viewHome.removeAttr('hidden');
+    });
+    initBrickBreakerView();
+  }).fail(function () {
+    console.error('ไม่สามารถโหลด views/brick-breaker.html ได้');
+  });
+
   // Same fetch-and-mount pattern for the "image compress" view
   // (views/image-compress.html).
   var imageCompressViewReady = $.get('views/image-compress.html').done(function (html) {
@@ -357,13 +389,15 @@
     { id: 'code-format', label: 'จัดรูปแบบโค้ด', desc: 'Beautify HTML, CSS, JavaScript, JSON และจัดรูปแบบ SQL', enabled: true, img: 'assets/format-code.png', cats: ['text'] },
     { id: 'json-format', label: 'JSON Formatter', desc: 'Beautify / Minify JSON และแปลง JSON เป็นตาราง', enabled: true, img: 'assets/json-formatter.png', cats: ['text', 'convert'] },
     { id: 'text-compare', label: 'เปรียบเทียบข้อความ', desc: 'หาจุดที่ต่างกันระหว่างข้อความสองชุด', enabled: true, img: 'assets/compare-text.png', cats: ['text'] },
+    { id: 'db-compare', label: 'เปรียบเทียบฐานข้อมูล For SQL Server', desc: 'หาตาราง/คอลัมน์ใหม่ แล้วสร้าง script CREATE / ALTER', enabled: true, img: 'assets/sql-compare.png', cats: ['text'] },
     { id: 'test-file', label: 'สร้างไฟล์ทดสอบ', desc: 'สร้างไฟล์ตัวอย่างสำหรับทดสอบ', enabled: true, img: 'assets/create-test.png', cats: ['file'] },
     { id: 'file-resize', label: 'ปรับขนาดไฟล์', desc: 'เพิ่มหรือลดขนาดไฟล์ตามที่กำหนด', enabled: true, img: 'assets/resize-file.png', cats: ['file'] },
     { id: 'file-encrypt', label: 'เข้ารหัสไฟล์', desc: 'ใส่รหัสผ่านป้องกันไฟล์', enabled: true, img: 'assets/protect-file.png', cats: ['security'] },
     { id: 'file-decrypt', label: 'ถอดรหัสไฟล์', desc: 'ปลดรหัสผ่านไฟล์ด้วยรหัสที่ถูกต้อง', enabled: true, img: 'assets/unlock-file.png', cats: ['security'] },
     { id: 'compress', label: 'บีบอัดรูปภาพ', desc: 'ลดขนาดไฟล์รูปภาพ แบบไม่เสียคุณภาพ', enabled: true, img: 'assets/compress-image.png', cats: ['image'] },
     { id: 'ocr', label: 'อ่านข้อความจากภาพ', desc: 'ดึงข้อความจากรูปภาพ (OCR)', enabled: true, img: 'assets/ocr.png', cats: ['image', 'text'] },
-    { id: 'color-picker', label: 'ดึงสีจากรูป', desc: 'ดูดสีและชุดสีหลักจากรูป ได้ค่า HEX, RGB, HSL', enabled: true, img: 'assets/pick-color.png', cats: ['image'] }
+    { id: 'color-picker', label: 'ดึงสีจากรูป', desc: 'ดูดสีและชุดสีหลักจากรูป ได้ค่า HEX, RGB, HSL', enabled: true, img: 'assets/pick-color.png', cats: ['image'] },
+    { id: 'brick-breaker', label: 'Brick Breaker', desc: 'เกมทุบอิฐ เก็บไอเทมเพิ่มลูกบอลให้เต็มจอ', enabled: true, img: 'assets/brick-breaker.svg', cats: ['game'] }
   ];
   // Home-page category filter; a tool can sit in more than one category.
   var TOOL_CATEGORIES = [
@@ -373,7 +407,8 @@
     { id: 'image', label: 'รูปภาพ', icon: 'bi-image' },
     { id: 'text', label: 'ข้อความ', icon: 'bi-fonts' },
     { id: 'file', label: 'จัดการไฟล์', icon: 'bi-folder2' },
-    { id: 'security', label: 'ความปลอดภัย', icon: 'bi-shield-lock' }
+    { id: 'security', label: 'ความปลอดภัย', icon: 'bi-shield-lock' },
+    { id: 'game', label: 'เกม', icon: 'bi-controller' }
   ];
   var CATEGORY_STORAGE_KEY = 'toolbox.category';
   var activeCategory = 'all';
@@ -580,6 +615,10 @@
       $el.on('click', function () {
         $.when(textCompareViewReady).done(function () { openView($viewTextCompare); });
       });
+    } else if (tool.id === 'db-compare') {
+      $el.on('click', function () {
+        $.when(dbCompareViewReady).done(function () { openView($viewDbCompare); });
+      });
     } else if (tool.id === 'convert-case') {
       $el.on('click', function () {
         $.when(convertCaseViewReady).done(function () { openView($viewConvertCase); });
@@ -603,6 +642,10 @@
     } else if (tool.id === 'color-picker') {
       $el.on('click', function () {
         $.when(colorPickerViewReady).done(function () { openView($viewColorPicker); });
+      });
+    } else if (tool.id === 'brick-breaker') {
+      $el.on('click', function () {
+        $.when(brickBreakerViewReady).done(function () { openView($viewBrickBreaker); });
       });
     }
     return $el;
@@ -8740,5 +8783,2102 @@
         setStatus('อ่านไฟล์ไม่สำเร็จ', 'bad');
       });
     });
+  }
+
+  // ---------- Database compare (SQL Server schema) ----------
+  // No database connection: the user picks a schema file per side (an SSMS
+  // "Generate Scripts" file or the DBCMP_EXTRACT_SQL result) and the
+  // CREATE/ALTER scripts are built here. Extracts are untrusted input, so the UI only uses text nodes and
+  // every lookup map is prototype-less.
+  var DBCMP_MAX_FILE_BYTES = 50 * 1024 * 1024;
+  // Column/index/check subqueries are shared by tables and table types; objId is the owning object_id expression.
+  function dbcmpColumnsSql(objId) {
+    return [
+      '    (SELECT c.column_id AS [id], c.name AS [name], ty.name AS [type], SCHEMA_NAME(ty.schema_id) AS [typeSchema],',
+      '        ty.is_user_defined AS [udt], c.max_length AS [len], c.precision AS [prec], c.scale AS [scale],',
+      '        c.is_nullable AS [nullable], c.collation_name AS [collation], c.is_identity AS [identity],',
+      '        CONVERT(VARCHAR(40), ic.seed_value) AS [seed], CONVERT(VARCHAR(40), ic.increment_value) AS [incr],',
+      '        cc.definition AS [computed], cc.is_persisted AS [persisted],',
+      '        dc.name AS [dfName], dc.definition AS [dfDef], dc.is_system_named AS [dfSys]',
+      '      FROM sys.columns c',
+      '      JOIN sys.types ty ON ty.user_type_id = c.user_type_id',
+      '      LEFT JOIN sys.identity_columns ic ON ic.object_id = c.object_id AND ic.column_id = c.column_id',
+      '      LEFT JOIN sys.computed_columns cc ON cc.object_id = c.object_id AND cc.column_id = c.column_id',
+      '      LEFT JOIN sys.default_constraints dc ON dc.object_id = c.default_object_id',
+      '      WHERE c.object_id = ' + objId,
+      '      ORDER BY c.column_id FOR JSON PATH) AS [columns],'
+    ];
+  }
+  function dbcmpIndexesSql(objId) {
+    return [
+      '    (SELECT i.name AS [name], i.type_desc AS [kind], i.is_unique AS [unique],',
+      '        i.is_primary_key AS [pk], i.is_unique_constraint AS [uq], i.filter_definition AS [filter],',
+      '        ISNULL(k.is_system_named, 0) AS [sys],',
+      '        (SELECT c.name AS [name], ic.is_descending_key AS [desc], ic.is_included_column AS [inc]',
+      '          FROM sys.index_columns ic',
+      '          JOIN sys.columns c ON c.object_id = ic.object_id AND c.column_id = ic.column_id',
+      '          WHERE ic.object_id = i.object_id AND ic.index_id = i.index_id',
+      '          ORDER BY ic.is_included_column, ic.key_ordinal, ic.index_column_id FOR JSON PATH) AS [cols]',
+      '      FROM sys.indexes i',
+      '      LEFT JOIN sys.key_constraints k ON k.parent_object_id = i.object_id AND k.unique_index_id = i.index_id',
+      '      WHERE i.object_id = ' + objId + ' AND i.type IN (1, 2) AND i.is_hypothetical = 0',
+      '      ORDER BY i.index_id FOR JSON PATH) AS [indexes],'
+    ];
+  }
+  function dbcmpChecksSql(objId) {
+    return [
+      '    (SELECT ck.name AS [name], ck.definition AS [def], ck.is_system_named AS [sys],',
+      '        COL_NAME(ck.parent_object_id, NULLIF(ck.parent_column_id, 0)) AS [col]',
+      '      FROM sys.check_constraints ck',
+      '      WHERE ck.parent_object_id = ' + objId,
+      '      ORDER BY ck.name FOR JSON PATH) AS [checks],'
+    ];
+  }
+  var DBCMP_EXTRACT_SQL = [].concat(
+    [
+      '-- Schema extract for Toolbox DB Compare (SQL Server 2016+).',
+      '-- Read-only: selects from catalog views only. Needs VIEW DEFINITION on the database.',
+      'SET NOCOUNT ON;',
+      'DECLARE @json NVARCHAR(MAX) = (',
+      'SELECT',
+      '  DB_NAME() AS [db],',
+      '  CONVERT(VARCHAR(19), SYSDATETIME(), 126) AS [at],',
+      "  CAST(SERVERPROPERTY('ProductVersion') AS NVARCHAR(128)) AS [version],",
+      "  CAST(DATABASEPROPERTYEX(DB_NAME(), 'Collation') AS NVARCHAR(128)) AS [collation],",
+      '  (SELECT s.name AS [name] FROM sys.schemas s',
+      '    WHERE s.schema_id > 4 AND s.schema_id < 16384',
+      '    ORDER BY s.name FOR JSON PATH) AS [schemas],',
+      '  (SELECT SCHEMA_NAME(sq.schema_id) AS [schema], sq.name AS [name], ty.name AS [type],',
+      '      SCHEMA_NAME(ty.schema_id) AS [typeSchema], ty.is_user_defined AS [udt], sq.precision AS [prec], sq.scale AS [scale],',
+      '      CONVERT(VARCHAR(40), sq.start_value) AS [start], CONVERT(VARCHAR(40), sq.increment) AS [incr],',
+      '      CONVERT(VARCHAR(40), sq.minimum_value) AS [min], CONVERT(VARCHAR(40), sq.maximum_value) AS [max],',
+      '      sq.is_cycling AS [cycle], sq.is_cached AS [cached], sq.cache_size AS [cacheSize]',
+      '    FROM sys.sequences sq',
+      '    JOIN sys.types ty ON ty.user_type_id = sq.user_type_id',
+      '    WHERE sq.is_ms_shipped = 0',
+      '    ORDER BY SCHEMA_NAME(sq.schema_id), sq.name FOR JSON PATH) AS [sequences],',
+      '  (SELECT SCHEMA_NAME(tt.schema_id) AS [schema], tt.name AS [name],'
+    ],
+    dbcmpColumnsSql('tt.type_table_object_id'),
+    dbcmpIndexesSql('tt.type_table_object_id'),
+    dbcmpChecksSql('tt.type_table_object_id'),
+    [
+      '    (SELECT OBJECT_SCHEMA_NAME(u.id) AS [schema], OBJECT_NAME(u.id) AS [name]',
+      '      FROM (SELECT d.referencing_id AS id FROM sys.sql_expression_dependencies d',
+      '              WHERE d.referenced_class = 6 AND d.referenced_id = tt.user_type_id',
+      '            UNION SELECT p.object_id FROM sys.parameters p WHERE p.user_type_id = tt.user_type_id) u',
+      '      FOR JSON PATH) AS [usedBy]',
+      '    FROM sys.table_types tt',
+      '    WHERE tt.is_user_defined = 1',
+      '    ORDER BY SCHEMA_NAME(tt.schema_id), tt.name FOR JSON PATH) AS [tableTypes],',
+      '  (SELECT SCHEMA_NAME(t.schema_id) AS [schema], t.name AS [name],'
+    ],
+    dbcmpColumnsSql('t.object_id'),
+    dbcmpIndexesSql('t.object_id'),
+    dbcmpChecksSql('t.object_id'),
+    [
+      '    (SELECT fk.name AS [name], fk.is_system_named AS [sys],',
+      '        SCHEMA_NAME(rt.schema_id) AS [refSchema], rt.name AS [refTable],',
+      '        fk.delete_referential_action_desc AS [onDelete], fk.update_referential_action_desc AS [onUpdate],',
+      '        (SELECT pc.name AS [col], rc.name AS [ref]',
+      '          FROM sys.foreign_key_columns fkc',
+      '          JOIN sys.columns pc ON pc.object_id = fkc.parent_object_id AND pc.column_id = fkc.parent_column_id',
+      '          JOIN sys.columns rc ON rc.object_id = fkc.referenced_object_id AND rc.column_id = fkc.referenced_column_id',
+      '          WHERE fkc.constraint_object_id = fk.object_id',
+      '          ORDER BY fkc.constraint_column_id FOR JSON PATH) AS [cols]',
+      '      FROM sys.foreign_keys fk',
+      '      JOIN sys.tables rt ON rt.object_id = fk.referenced_object_id',
+      '      WHERE fk.parent_object_id = t.object_id',
+      '      ORDER BY fk.name FOR JSON PATH) AS [fks]',
+      '    FROM sys.tables t',
+      '    WHERE t.is_ms_shipped = 0 AND t.temporal_type <> 1',
+      '      AND NOT EXISTS (SELECT 1 FROM sys.extended_properties ep WHERE ep.class = 1 AND ep.major_id = t.object_id',
+      "        AND ep.minor_id = 0 AND ep.name = N'microsoft_database_tools_support')",
+      '    ORDER BY SCHEMA_NAME(t.schema_id), t.name FOR JSON PATH) AS [tables],',
+      '  (SELECT SCHEMA_NAME(o.schema_id) AS [schema], o.name AS [name], RTRIM(o.type) AS [type],',
+      '      OBJECT_SCHEMA_NAME(o.parent_object_id) AS [parentSchema], OBJECT_NAME(o.parent_object_id) AS [parent],',
+      '      m.definition AS [def], m.uses_ansi_nulls AS [ansiNulls], m.uses_quoted_identifier AS [quotedId]',
+      '    FROM sys.sql_modules m',
+      '    JOIN sys.objects o ON o.object_id = m.object_id',
+      "    WHERE o.is_ms_shipped = 0 AND o.type IN ('V', 'P', 'FN', 'IF', 'TF', 'TR')",
+      '      AND NOT EXISTS (SELECT 1 FROM sys.extended_properties ep WHERE ep.class = 1 AND ep.major_id = o.object_id',
+      "        AND ep.minor_id = 0 AND ep.name = N'microsoft_database_tools_support')",
+      '    ORDER BY SCHEMA_NAME(o.schema_id), o.name FOR JSON PATH) AS [modules]',
+      'FOR JSON PATH, WITHOUT_ARRAY_WRAPPER);',
+      "-- '?>' only occurs inside JSON strings, where '\\u003e' is an equivalent escape.",
+      "SELECT REPLACE(@json, N'?>', N'?\\u003e') AS [processing-instruction(dbcompare)] FOR XML PATH(''), TYPE;"
+    ]
+  ).join('\n');
+
+  var DBCMP_MODULE_TYPES = {
+    FN: { label: 'Function', drop: 'FUNCTION', rank: 0 },
+    IF: { label: 'Function', drop: 'FUNCTION', rank: 0 },
+    TF: { label: 'Function', drop: 'FUNCTION', rank: 0 },
+    V: { label: 'View', drop: 'VIEW', rank: 1 },
+    P: { label: 'Procedure', drop: 'PROCEDURE', rank: 2 },
+    TR: { label: 'Trigger', drop: 'TRIGGER', rank: 3 }
+  };
+
+  function dbcmpMap() { return Object.create(null); }
+  function dbcmpLower(s) { return String(s).toLowerCase(); }
+  function dbcmpQn(s) { return '[' + String(s).replace(/\]/g, ']]') + ']'; }
+  function dbcmpFull(schema, name) { return dbcmpQn(schema) + '.' + dbcmpQn(name); }
+  function dbcmpKey(schema, name) { return dbcmpLower(schema + '.' + name); }
+  function dbcmpExpr(s) { return String(s || '').replace(/\s+/g, ''); }
+  function dbcmpNum(v, fallback) { var s = String(v); return /^-?\d+(\.\d+)?$/.test(s) ? s : fallback; }
+  // Text that ends up inside a /* */ header comment.
+  function dbcmpSafeComment(s) { return String(s || '').replace(/\*\//g, '* /').replace(/[\r\n]+/g, ' '); }
+
+  // ---------- T-SQL script reader (SSMS "Generate Scripts" output) ----------
+  // Builds the same object shape the extract query returns, so both inputs
+  // share one compare engine. Only DDL is interpreted; nothing is executed.
+  var DBCMP_BUILTIN_TYPES = dbcmpMap();
+  ('bigint binary bit char date datetime datetime2 datetimeoffset decimal float geography geometry hierarchyid image int money ' +
+    'nchar ntext numeric nvarchar real smalldatetime smallint smallmoney sql_variant sysname text time timestamp rowversion ' +
+    'tinyint uniqueidentifier varbinary varchar xml').split(' ').forEach(function (t) { DBCMP_BUILTIN_TYPES[t] = true; });
+
+  // Tokens: k = 'w' word, 'q' quoted identifier, 's' string, 'n' number, 'p' punctuation.
+  // s/e are offsets into the source text so expressions can be sliced back out verbatim.
+  // Starts above U+00A0 so a no-break space after a keyword still ends the word.
+  var DBCMP_RE_WORD = /[A-Za-z_@#$ª-￿][\w@#$ª-￿]*/y;
+  var DBCMP_RE_SPACE = /[\s​﻿]/;
+  var DBCMP_RE_NUM = /(?:0x[0-9a-f]*|\d+\.?\d*(?:e[+-]?\d+)?|\.\d+(?:e[+-]?\d+)?)/iy;
+  function dbcmpTokenize(text, from, to, limit) {
+    var out = [];
+    var i = from || 0;
+    var end = to == null ? text.length : to;
+    while (i < end && (!limit || out.length < limit)) {
+      var ch = text.charAt(i);
+      var next = text.charAt(i + 1);
+      if (ch <= ' ' || (ch > '~' && DBCMP_RE_SPACE.test(ch))) { i++; continue; }
+      if (ch === '-' && next === '-') {
+        var nl = text.indexOf('\n', i);
+        i = nl < 0 ? end : nl + 1;
+        continue;
+      }
+      if (ch === '/' && next === '*') {
+        // T-SQL block comments nest.
+        var depth = 1;
+        i += 2;
+        while (i < end && depth) {
+          if (text.charAt(i) === '/' && text.charAt(i + 1) === '*') { depth++; i += 2; }
+          else if (text.charAt(i) === '*' && text.charAt(i + 1) === '/') { depth--; i += 2; }
+          else i++;
+        }
+        continue;
+      }
+      var start = i;
+      if (ch === '[' || ch === '"') {
+        var close = ch === '[' ? ']' : '"';
+        var j = i + 1;
+        var v = '';
+        while (j < end) {
+          var c = text.charAt(j);
+          if (c === close) {
+            if (text.charAt(j + 1) === close) { v += close; j += 2; continue; }
+            break;
+          }
+          v += c;
+          j++;
+        }
+        i = j + 1;
+        out.push({ k: 'q', v: v, u: v.toUpperCase(), s: start, e: i });
+        continue;
+      }
+      if (ch === "'" || ((ch === 'N' || ch === 'n') && next === "'")) {
+        var q = ch === "'" ? i + 1 : i + 2;
+        while (q < end) {
+          if (text.charAt(q) === "'") {
+            if (text.charAt(q + 1) === "'") { q += 2; continue; }
+            break;
+          }
+          q++;
+        }
+        i = q + 1;
+        out.push({ k: 's', v: text.slice(start, i), s: start, e: i });
+        continue;
+      }
+      var m;
+      DBCMP_RE_NUM.lastIndex = i;
+      if (/[0-9.]/.test(ch) && (m = DBCMP_RE_NUM.exec(text))) {
+        i += m[0].length;
+        out.push({ k: 'n', v: m[0], s: start, e: i });
+        continue;
+      }
+      DBCMP_RE_WORD.lastIndex = i;
+      if ((m = DBCMP_RE_WORD.exec(text))) {
+        i += m[0].length;
+        out.push({ k: 'w', v: m[0], u: m[0].toUpperCase(), s: start, e: i });
+        continue;
+      }
+      i++;
+      out.push({ k: 'p', v: ch, s: start, e: i });
+    }
+    return out;
+  }
+
+  function DbcmpCursor(text, toks, from, to) {
+    this.text = text;
+    this.t = toks;
+    this.i = from || 0;
+    this.end = to == null ? toks.length : to;
+  }
+  DbcmpCursor.prototype = {
+    peek: function (n) { var j = this.i + (n || 0); return j < this.end ? this.t[j] : null; },
+    done: function () { return this.i >= this.end; },
+    isW: function (word, n) { var t = this.peek(n); return !!t && t.k === 'w' && t.u === word; },
+    isP: function (ch, n) { var t = this.peek(n); return !!t && t.k === 'p' && t.v === ch; },
+    acceptW: function (word) { if (this.isW(word)) { this.i++; return true; } return false; },
+    acceptP: function (ch) { if (this.isP(ch)) { this.i++; return true; } return false; },
+    isIdent: function (n) { var t = this.peek(n); return !!t && (t.k === 'q' || t.k === 'w'); },
+    ident: function () { var t = this.peek(); if (!t || (t.k !== 'q' && t.k !== 'w')) return null; this.i++; return t.v; },
+    // Multi-part name: [schema].[name] -> ['schema', 'name'].
+    name: function () {
+      var parts = [];
+      var p = this.ident();
+      if (p === null) return null;
+      parts.push(p);
+      while (this.isP('.') && this.isIdent(1)) { this.i++; parts.push(this.ident()); }
+      return parts;
+    },
+    // Index of the matching ')' for the '(' at the cursor, or -1.
+    closeParen: function () {
+      if (!this.isP('(')) return -1;
+      var depth = 0;
+      for (var j = this.i; j < this.end; j++) {
+        var t = this.t[j];
+        if (t.k !== 'p') continue;
+        if (t.v === '(') depth++;
+        else if (t.v === ')' && --depth === 0) return j;
+      }
+      return -1;
+    },
+    // Consumes a (...) group and returns its source text including the parentheses.
+    group: function () {
+      var c = this.closeParen();
+      if (c < 0) return null;
+      var s = this.text.slice(this.t[this.i].s, this.t[c].e);
+      this.i = c + 1;
+      return s;
+    },
+    // Token ranges of a (...) group split on top-level commas.
+    groupItems: function () {
+      var c = this.closeParen();
+      if (c < 0) return null;
+      var items = [];
+      var depth = 0;
+      var a = this.i + 1;
+      for (var j = this.i + 1; j < c; j++) {
+        var t = this.t[j];
+        if (t.k !== 'p') continue;
+        if (t.v === '(') depth++;
+        else if (t.v === ')') depth--;
+        else if (t.v === ',' && depth === 0) { items.push([a, j]); a = j + 1; }
+      }
+      if (a < c) items.push([a, c]);
+      this.i = c + 1;
+      return items;
+    },
+    sub: function (range) { return new DbcmpCursor(this.text, this.t, range[0], range[1]); },
+    signedNum: function () {
+      var neg = this.acceptP('-');
+      var t = this.peek();
+      if (!t || t.k !== 'n') return null;
+      this.i++;
+      return (neg ? '-' : '') + t.v;
+    }
+  };
+
+  // Names SQL Server generates itself, e.g. DF__Orders__Amount__1A2B3C4D.
+  function dbcmpSysName(n) { return /^(PK|UQ|DF|CK|FK)__.+__[0-9A-F]{8,16}$/i.test(n); }
+
+  function dbcmpScriptType(parts, args) {
+    var t = parts[parts.length - 1];
+    var lt = dbcmpLower(t);
+    var isUdt = (parts.length > 1 && dbcmpLower(parts[0]) !== 'sys') || !DBCMP_BUILTIN_TYPES[lt];
+    var c = { type: isUdt ? t : lt, typeSchema: isUdt ? (parts.length > 1 ? parts[0] : 'dbo') : 'sys', udt: isUdt, len: 0, prec: 0, scale: 0 };
+    if (isUdt) return c;
+    var a0 = args[0];
+    if (/^(n?varchar|n?char|varbinary|binary)$/.test(lt)) {
+      var n = a0 === undefined ? 1 : dbcmpLower(a0) === 'max' ? -1 : Number(a0);
+      c.len = n === -1 ? -1 : n * (lt.charAt(0) === 'n' ? 2 : 1);
+    } else if (lt === 'decimal' || lt === 'numeric') {
+      c.prec = a0 === undefined ? 18 : Number(a0);
+      c.scale = args[1] === undefined ? 0 : Number(args[1]);
+    } else if (lt === 'datetime2' || lt === 'time' || lt === 'datetimeoffset') {
+      c.scale = a0 === undefined ? 7 : Number(a0);
+    }
+    return c;
+  }
+
+  // Column list of an index/key: ([a] ASC, [b] DESC).
+  function dbcmpScriptKeyCols(cur, inc) {
+    var items = cur.groupItems();
+    if (!items) return [];
+    return items.map(function (r) {
+      var sc = cur.sub(r);
+      var name = sc.ident();
+      var desc = sc.acceptW('DESC');
+      return name === null ? null : { name: name, desc: desc, inc: inc };
+    }).filter(Boolean);
+  }
+
+  function dbcmpScriptFkAction(cur, fk) {
+    while (cur.acceptW('ON')) {
+      var which = cur.acceptW('DELETE') ? 'onDelete' : cur.acceptW('UPDATE') ? 'onUpdate' : null;
+      var act = 'NO_ACTION';
+      if (cur.acceptW('CASCADE')) act = 'CASCADE';
+      else if (cur.acceptW('SET')) act = cur.acceptW('NULL') ? 'SET_NULL' : (cur.acceptW('DEFAULT'), 'SET_DEFAULT');
+      else if (cur.acceptW('NO')) cur.acceptW('ACTION');
+      if (which) fk[which] = act;
+    }
+  }
+
+  // Table-level constraint, from CREATE TABLE/TYPE bodies and ALTER TABLE ... ADD.
+  // Returns false when the tokens are not a constraint.
+  function dbcmpScriptConstraint(cur, tbl, name) {
+    var sys = !name || dbcmpSysName(name);
+    if (cur.isW('PRIMARY') || cur.isW('UNIQUE')) {
+      var pk = cur.acceptW('PRIMARY');
+      if (pk) cur.acceptW('KEY'); else cur.acceptW('UNIQUE');
+      var kind = cur.acceptW('CLUSTERED') ? 'CLUSTERED' : cur.acceptW('NONCLUSTERED') ? 'NONCLUSTERED' : (pk ? 'CLUSTERED' : 'NONCLUSTERED');
+      tbl.indexes.push({ name: name || (pk ? 'PK' : 'UQ'), kind: kind, unique: true, pk: pk, uq: !pk, sys: sys, cols: dbcmpScriptKeyCols(cur, false) });
+      return true;
+    }
+    if (cur.acceptW('INDEX')) {
+      var ixName = cur.ident();
+      var unique = cur.acceptW('UNIQUE');
+      var ixKind = cur.acceptW('CLUSTERED') ? 'CLUSTERED' : (cur.acceptW('NONCLUSTERED'), 'NONCLUSTERED');
+      tbl.indexes.push({ name: ixName, kind: ixKind, unique: unique, pk: false, uq: false, sys: false, cols: dbcmpScriptKeyCols(cur, false) });
+      return true;
+    }
+    if (cur.acceptW('CHECK')) {
+      if (cur.acceptW('NOT')) { cur.acceptW('FOR'); cur.acceptW('REPLICATION'); }
+      var g = cur.group();
+      // SSMS writes CHECK ((expr)); the stored definition is the inner (expr).
+      if (g) tbl.checks.push({ name: name || 'CK', def: g.slice(1, -1).trim(), sys: sys });
+      return true;
+    }
+    if (cur.acceptW('FOREIGN')) {
+      cur.acceptW('KEY');
+      var cols = dbcmpScriptKeyCols(cur, false);
+      if (!cur.acceptW('REFERENCES')) return true;
+      var ref = cur.name() || [];
+      var refCols = cur.isP('(') ? dbcmpScriptKeyCols(cur, false) : [];
+      var fk = { name: name || 'FK', sys: sys, refSchema: ref.length > 1 ? ref[ref.length - 2] : 'dbo', refTable: ref[ref.length - 1],
+        onDelete: 'NO_ACTION', onUpdate: 'NO_ACTION',
+        cols: cols.map(function (c, k) { return { col: c.name, ref: refCols[k] ? refCols[k].name : c.name }; }) };
+      dbcmpScriptFkAction(cur, fk);
+      if (tbl.fks) tbl.fks.push(fk);
+      return true;
+    }
+    if (cur.acceptW('DEFAULT')) {
+      var def = cur.group();
+      if (cur.acceptW('FOR')) {
+        var colName = cur.ident();
+        var col = tbl.columns.filter(function (c) { return dbcmpLower(c.name) === dbcmpLower(colName); })[0];
+        if (col && def) { col.dfDef = def; col.dfName = name || 'DF'; col.dfSys = sys; }
+      }
+      return true;
+    }
+    return false;
+  }
+
+  function dbcmpScriptColumn(cur, tbl) {
+    var name = cur.ident();
+    if (name === null) return;
+    var col = { id: tbl.columns.length + 1, name: name, nullable: true, identity: false };
+    if (cur.acceptW('AS')) {
+      $.extend(col, { type: 'computed', typeSchema: 'sys', udt: false, len: 0, prec: 0, scale: 0 });
+      col.computed = cur.isP('(') ? cur.group() : '';
+    } else {
+      var parts = cur.name() || ['sql_variant'];
+      var args = [];
+      if (cur.isP('(')) {
+        cur.groupItems().forEach(function (r) { var t = cur.t[r[0]]; if (t) args.push(t.v); });
+      }
+      $.extend(col, dbcmpScriptType(parts, args));
+    }
+    var pending = null;
+    while (!cur.done()) {
+      if (cur.acceptW('PERSISTED')) col.persisted = true;
+      else if (cur.acceptW('COLLATE')) col.collation = cur.ident();
+      else if (cur.acceptW('IDENTITY')) {
+        col.identity = true;
+        col.seed = '1';
+        col.incr = '1';
+        if (cur.acceptP('(')) {
+          col.seed = cur.signedNum() || '1';
+          if (cur.acceptP(',')) col.incr = cur.signedNum() || '1';
+          cur.acceptP(')');
+        }
+      } else if (cur.isW('NOT') && cur.isW('NULL', 1)) { cur.i += 2; col.nullable = false; }
+      else if (cur.acceptW('NULL')) col.nullable = true;
+      else if (cur.acceptW('CONSTRAINT')) pending = cur.ident();
+      else if (cur.acceptW('DEFAULT')) {
+        col.dfDef = cur.group();
+        col.dfName = pending || 'DF';
+        col.dfSys = !pending || dbcmpSysName(pending);
+        pending = null;
+      } else if (cur.isW('PRIMARY') || cur.isW('UNIQUE') || cur.isW('CHECK')) {
+        var before = { ix: tbl.indexes.length, ck: tbl.checks.length };
+        dbcmpScriptConstraint(cur, tbl, pending);
+        // Column-level keys list no columns of their own.
+        if (tbl.indexes.length > before.ix && !tbl.indexes[before.ix].cols.length) tbl.indexes[before.ix].cols = [{ name: name, desc: false, inc: false }];
+        if (tbl.checks.length > before.ck) tbl.checks[before.ck].col = name;
+        pending = null;
+      } else if (cur.acceptW('REFERENCES')) {
+        var ref = cur.name() || [];
+        var refCols = cur.isP('(') ? dbcmpScriptKeyCols(cur, false) : [];
+        var fk = { name: pending || 'FK', sys: !pending || dbcmpSysName(pending), refSchema: ref.length > 1 ? ref[ref.length - 2] : 'dbo',
+          refTable: ref[ref.length - 1], onDelete: 'NO_ACTION', onUpdate: 'NO_ACTION', cols: [{ col: name, ref: refCols[0] ? refCols[0].name : name }] };
+        dbcmpScriptFkAction(cur, fk);
+        if (tbl.fks) tbl.fks.push(fk);
+        pending = null;
+      } else if (cur.isP('(')) cur.group();
+      else cur.i++;
+    }
+    tbl.columns.push(col);
+  }
+
+  // CREATE TABLE / CREATE TYPE ... AS TABLE body.
+  function dbcmpScriptTableBody(cur, tbl) {
+    var items = cur.groupItems() || [];
+    items.forEach(function (r) {
+      var sc = cur.sub(r);
+      var name = null;
+      if (sc.acceptW('CONSTRAINT')) name = sc.ident();
+      if (!dbcmpScriptConstraint(sc, tbl, name) && name === null) {
+        sc.i = r[0];
+        dbcmpScriptColumn(sc, tbl);
+      }
+    });
+  }
+
+  function dbcmpScriptModuleType(cur, kind) {
+    if (kind === 'VIEW') return 'V';
+    if (kind === 'PROC' || kind === 'PROCEDURE') return 'P';
+    if (kind === 'TRIGGER') return 'TR';
+    while (!cur.done() && !cur.isW('RETURNS')) cur.i++;
+    if (!cur.acceptW('RETURNS')) return 'FN';
+    if (cur.isW('TABLE')) return 'IF';
+    var t = cur.peek();
+    return t && t.k === 'w' && t.v.charAt(0) === '@' && cur.isW('TABLE', 1) ? 'TF' : 'FN';
+  }
+
+  function dbcmpParseScript(text, fallbackName) {
+    var raw = { db: fallbackName || 'Script', at: '', schemas: [], sequences: [], tableTypes: [], tables: [], modules: [] };
+    var tables = dbcmpMap();
+    var ansiNulls = true;
+    var quotedId = true;
+    // sqlcmd-style batch split: a line holding only GO.
+    var batches = text.split(/^[ \t]*GO[ \t]*(?:--[^\n]*)?\r?$/im);
+    batches.forEach(function (batch) {
+      var head = dbcmpTokenize(batch, 0, batch.length, 12);
+      if (!head.length) return;
+      var cur = new DbcmpCursor(batch, head);
+      if (cur.isW('USE')) {
+        cur.i++;
+        var db = cur.ident();
+        if (db && !fallbackName) raw.db = db;
+        return;
+      }
+      if (cur.isW('SET')) {
+        var setRe = /\bSET\s+(ANSI_NULLS|QUOTED_IDENTIFIER)\s+(ON|OFF)\b/gi;
+        var sm;
+        while ((sm = setRe.exec(batch))) {
+          if (sm[1].toUpperCase() === 'ANSI_NULLS') ansiNulls = sm[2].toUpperCase() === 'ON';
+          else quotedId = sm[2].toUpperCase() === 'ON';
+        }
+        return;
+      }
+      if (!cur.isW('CREATE') && !cur.isW('ALTER')) return;
+      // Only the leading tokens were read so far; statements that need the whole body re-tokenize.
+      var isAlter = cur.isW('ALTER');
+      cur.i++;
+      var orAlter = !isAlter && cur.isW('OR') && cur.isW('ALTER', 1);
+      if (orAlter) cur.i += 2;
+      var kind = cur.peek() && cur.peek().u;
+
+      if (!isAlter && !orAlter && kind === 'SCHEMA') {
+        cur.i++;
+        var sn = cur.ident();
+        if (sn) raw.schemas.push({ name: sn });
+        return;
+      }
+      if (kind === 'VIEW' || kind === 'PROC' || kind === 'PROCEDURE' || kind === 'FUNCTION' || kind === 'TRIGGER') {
+        if (isAlter) return;
+        var full = dbcmpTokenize(batch, 0, batch.length, 4000);
+        var mc = new DbcmpCursor(batch, full, cur.i + 1);
+        var mn = mc.name();
+        if (!mn) return;
+        if (kind === 'TRIGGER') {
+          mc.acceptW('ON');
+          if (mc.isW('DATABASE') || mc.isW('ALL')) return;
+        }
+        raw.modules.push({ schema: mn.length > 1 ? mn[mn.length - 2] : 'dbo', name: mn[mn.length - 1], type: dbcmpScriptModuleType(mc, kind),
+          // Kept byte for byte: only the line break that belongs to the GO line
+          // before it and the one SSMS puts in front of the GO after it are removed.
+          def: batch.replace(/^\r?\n/, '').replace(/\r?\n$/, ''), ansiNulls: ansiNulls, quotedId: quotedId });
+        return;
+      }
+
+      var toks = dbcmpTokenize(batch, 0, batch.length);
+      var c = new DbcmpCursor(batch, toks, cur.i);
+      if (!isAlter && kind === 'TABLE') {
+        c.i++;
+        var tn = c.name();
+        if (!tn || tn[tn.length - 1].charAt(0) === '#') return;
+        var tbl = { schema: tn.length > 1 ? tn[tn.length - 2] : 'dbo', name: tn[tn.length - 1], columns: [], indexes: [], checks: [], fks: [] };
+        dbcmpScriptTableBody(c, tbl);
+        tables[dbcmpKey(tbl.schema, tbl.name)] = tbl;
+        raw.tables.push(tbl);
+      } else if (!isAlter && kind === 'TYPE') {
+        c.i++;
+        var ttn = c.name();
+        if (!ttn || !c.acceptW('AS') || !c.acceptW('TABLE')) return;
+        var tt = { schema: ttn.length > 1 ? ttn[ttn.length - 2] : 'dbo', name: ttn[ttn.length - 1], columns: [], indexes: [], checks: [], usedBy: [] };
+        dbcmpScriptTableBody(c, tt);
+        raw.tableTypes.push(tt);
+      } else if (!isAlter && kind === 'SEQUENCE') {
+        c.i++;
+        var qn = c.name();
+        if (!qn) return;
+        var sq = { schema: qn.length > 1 ? qn[qn.length - 2] : 'dbo', name: qn[qn.length - 1], type: 'bigint', typeSchema: 'sys', udt: false,
+          prec: 0, scale: 0, start: '', incr: '1', min: '', max: '', cycle: false, cached: true };
+        while (!c.done()) {
+          if (c.acceptW('AS')) {
+            var stp = c.name() || ['bigint'];
+            var sargs = [];
+            if (c.isP('(')) c.groupItems().forEach(function (r) { sargs.push(c.t[r[0]].v); });
+            $.extend(sq, dbcmpScriptType(stp, sargs));
+          } else if (c.acceptW('START')) { c.acceptW('WITH'); sq.start = c.signedNum() || ''; }
+          else if (c.acceptW('INCREMENT')) { c.acceptW('BY'); sq.incr = c.signedNum() || '1'; }
+          else if (c.acceptW('MINVALUE')) sq.min = c.signedNum() || '';
+          else if (c.acceptW('MAXVALUE')) sq.max = c.signedNum() || '';
+          else if (c.acceptW('CYCLE')) sq.cycle = true;
+          else if (c.acceptW('CACHE')) { sq.cached = true; var cs = c.signedNum(); if (cs) sq.cacheSize = Number(cs); }
+          else if (c.acceptW('NO')) {
+            if (c.acceptW('CACHE')) sq.cached = false;
+            else if (c.acceptW('CYCLE')) sq.cycle = false;
+            else c.i++;
+          } else c.i++;
+        }
+        raw.sequences.push(sq);
+      } else if (!isAlter) {
+        // CREATE [UNIQUE] [CLUSTERED|NONCLUSTERED] INDEX name ON table (...)
+        var uniq = c.acceptW('UNIQUE');
+        var ixKind = c.acceptW('CLUSTERED') ? 'CLUSTERED' : (c.acceptW('NONCLUSTERED'), 'NONCLUSTERED');
+        if (!c.acceptW('INDEX')) return;
+        var ixName = c.ident();
+        if (!c.acceptW('ON')) return;
+        var on = c.name();
+        var owner = on && tables[dbcmpKey(on.length > 1 ? on[on.length - 2] : 'dbo', on[on.length - 1])];
+        if (!owner || ixName === null) return;
+        var ix = { name: ixName, kind: ixKind, unique: uniq, pk: false, uq: false, sys: false, cols: dbcmpScriptKeyCols(c, false) };
+        if (c.acceptW('INCLUDE')) ix.cols = ix.cols.concat(dbcmpScriptKeyCols(c, true));
+        if (c.acceptW('WHERE')) {
+          var ws = c.peek();
+          var we = null;
+          while (!c.done() && !(c.isW('WITH') && c.isP('(', 1)) && !c.isW('ON')) {
+            var close = c.isP('(') ? c.closeParen() : -1;
+            c.i = close > 0 ? close + 1 : c.i + 1;
+            we = c.t[c.i - 1];
+          }
+          if (ws && we) ix.filter = batch.slice(ws.s, we.e).trim();
+        }
+        owner.indexes.push(ix);
+      } else if (kind === 'TABLE') {
+        // ALTER TABLE name [WITH CHECK|NOCHECK] ADD ...
+        c.i++;
+        var an = c.name();
+        var target = an && tables[dbcmpKey(an.length > 1 ? an[an.length - 2] : 'dbo', an[an.length - 1])];
+        if (!target) return;
+        if (c.acceptW('WITH')) { c.acceptW('CHECK'); c.acceptW('NOCHECK'); }
+        if (!c.acceptW('ADD')) return;
+        var cn = null;
+        if (c.acceptW('CONSTRAINT')) cn = c.ident();
+        var mark = c.i;
+        if (!dbcmpScriptConstraint(c, target, cn) && cn === null) {
+          c.i = mark;
+          dbcmpScriptColumn(c, target);
+        }
+      }
+    });
+    // A script has no dependency catalog, so table type users are found by name.
+    raw.tableTypes.forEach(function (tt) {
+      var re = new RegExp('(^|[^\\w@#$])' + tt.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '($|[^\\w@#$])', 'i');
+      raw.modules.forEach(function (m) { if (re.test(m.def)) tt.usedBy.push({ schema: m.schema, name: m.name }); });
+    });
+    return raw;
+  }
+
+  // Script files from SSMS are usually UTF-16 LE; everything else is read as UTF-8.
+  function dbcmpDecode(buf) {
+    var b = new Uint8Array(buf);
+    var enc = 'utf-8';
+    if (b[0] === 0xFF && b[1] === 0xFE) enc = 'utf-16le';
+    else if (b[0] === 0xFE && b[1] === 0xFF) enc = 'utf-16be';
+    else if (b.length > 3 && b[0] !== 0 && b[1] === 0 && b[3] === 0) enc = 'utf-16le';
+    return new TextDecoder(enc).decode(b);
+  }
+
+  // Accepts the extract query result (raw JSON, the SSMS "<?dbcompare ...?>"
+  // XML cell or a saved file) or a DDL script from SSMS "Generate Scripts".
+  function dbcmpParse(text, fallbackName) {
+    var raw;
+    if (/^\s*(\{|<\?dbcompare\b)/.test(text)) {
+      var start = text.indexOf('{');
+      var end = text.lastIndexOf('}');
+      if (start < 0 || end < start) throw new Error('ไม่พบข้อมูลจาก Query');
+      try { raw = JSON.parse(text.slice(start, end + 1)); } catch (e) { throw new Error('ข้อมูลไม่ครบหรือถูกตัด (JSON ไม่ถูกต้อง)'); }
+    } else if (/\bCREATE\s+(OR\s+ALTER\s+)?(TABLE|VIEW|PROC|PROCEDURE|FUNCTION|TRIGGER|TYPE|SEQUENCE)\b/i.test(text)) {
+      raw = dbcmpParseScript(text, fallbackName);
+    } else {
+      throw new Error('ไม่พบข้อมูล schema (ต้องเป็นผลลัพธ์จาก Query หรือ script จาก Generate Scripts)');
+    }
+    if (!raw || typeof raw !== 'object' || typeof raw.db !== 'string') throw new Error('ไม่ใช่ผลลัพธ์จาก Query ของเครื่องมือนี้');
+    function arr(v) { return Array.isArray(v) ? v.filter(function (x) { return x && typeof x === 'object'; }) : []; }
+    function named(x) { return typeof x.name === 'string' && x.name !== ''; }
+    var db = {
+      name: raw.db,
+      at: typeof raw.at === 'string' ? raw.at : '',
+      version: typeof raw.version === 'string' ? raw.version : '',
+      schemas: dbcmpMap(),
+      tables: dbcmpMap(),
+      tableTypes: dbcmpMap(),
+      sequences: dbcmpMap(),
+      modules: dbcmpMap(),
+      tableCount: 0,
+      tableTypeCount: 0,
+      sequenceCount: 0,
+      moduleCount: 0,
+      encrypted: []
+    };
+    function tableShape(t) {
+      t.columns = arr(t.columns).filter(function (c) { return named(c) && typeof c.type === 'string'; });
+      t.indexes = arr(t.indexes).filter(named);
+      t.indexes.forEach(function (ix) { ix.cols = arr(ix.cols).filter(named); });
+      t.checks = arr(t.checks).filter(function (ck) { return named(ck) && typeof ck.def === 'string'; });
+    }
+    arr(raw.schemas).filter(named).forEach(function (s) { db.schemas[dbcmpLower(s.name)] = s.name; });
+    arr(raw.sequences).forEach(function (sq) {
+      if (!named(sq) || typeof sq.schema !== 'string' || typeof sq.type !== 'string') return;
+      db.sequences[dbcmpKey(sq.schema, sq.name)] = sq;
+      db.sequenceCount++;
+    });
+    arr(raw.tableTypes).forEach(function (tt) {
+      if (!named(tt) || typeof tt.schema !== 'string') return;
+      tableShape(tt);
+      tt.fks = [];
+      tt.usedBy = arr(tt.usedBy).filter(function (u) { return named(u) && typeof u.schema === 'string'; });
+      db.tableTypes[dbcmpKey(tt.schema, tt.name)] = tt;
+      db.tableTypeCount++;
+    });
+    arr(raw.tables).forEach(function (t) {
+      if (!named(t) || typeof t.schema !== 'string') return;
+      tableShape(t);
+      t.fks = arr(t.fks).filter(function (fk) { return named(fk) && typeof fk.refSchema === 'string' && typeof fk.refTable === 'string'; });
+      t.fks.forEach(function (fk) { fk.cols = arr(fk.cols).filter(function (c) { return typeof c.col === 'string' && typeof c.ref === 'string'; }); });
+      db.tables[dbcmpKey(t.schema, t.name)] = t;
+      db.tableCount++;
+    });
+    arr(raw.modules).forEach(function (m) {
+      if (!named(m) || typeof m.schema !== 'string' || !DBCMP_MODULE_TYPES[m.type]) return;
+      if (typeof m.def !== 'string') { db.encrypted.push(m.schema + '.' + m.name); return; }
+      db.modules[dbcmpKey(m.schema, m.name)] = m;
+      db.moduleCount++;
+    });
+    return db;
+  }
+
+  function dbcmpColType(c) {
+    if (c.udt) return dbcmpFull(c.typeSchema || 'dbo', c.type);
+    var t = dbcmpLower(c.type);
+    if (!/^[a-z0-9_]+$/.test(t)) return dbcmpQn(c.type);
+    var len = Number(c.len);
+    if (/^(n?varchar|n?char|varbinary|binary)$/.test(t)) {
+      if (len === -1) return t + '(max)';
+      return t + '(' + (t.charAt(0) === 'n' ? len / 2 : len) + ')';
+    }
+    if (t === 'decimal' || t === 'numeric') return t + '(' + Number(c.prec) + ', ' + Number(c.scale) + ')';
+    if (t === 'datetime2' || t === 'time' || t === 'datetimeoffset') return t + '(' + Number(c.scale) + ')';
+    return t;
+  }
+  function dbcmpIdentity(c) { return c.identity ? dbcmpNum(c.seed, '1') + ', ' + dbcmpNum(c.incr, '1') : ''; }
+  // mode: 'create' (identity + inline default), 'alter' (type/null only), 'desc' (for display).
+  function dbcmpColDef(c, opts, mode) {
+    if (c.computed) return dbcmpQn(c.name) + ' AS ' + c.computed + (c.persisted ? ' PERSISTED' : '');
+    var s = dbcmpQn(c.name) + ' ' + dbcmpColType(c);
+    if (c.collation && !opts.ignoreCollation && /^\w+$/.test(c.collation)) s += ' COLLATE ' + c.collation;
+    if (c.identity && mode !== 'alter') s += ' IDENTITY(' + dbcmpIdentity(c) + ')';
+    s += c.nullable ? ' NULL' : ' NOT NULL';
+    if (mode === 'create' && c.dfDef) s += (c.dfSys ? '' : ' CONSTRAINT ' + dbcmpQn(c.dfName)) + ' DEFAULT ' + c.dfDef;
+    return s;
+  }
+  function dbcmpColDesc(c, opts) { return dbcmpColDef(c, opts, 'desc').slice(dbcmpQn(c.name).length + 1); }
+  function dbcmpColSig(c, opts) {
+    if (c.computed) return 'calc|' + dbcmpExpr(c.computed) + '|' + !!c.persisted;
+    return [dbcmpColType(c).toLowerCase(), !!c.nullable, dbcmpIdentity(c), opts.ignoreCollation ? '' : (c.collation || '')].join('|');
+  }
+
+  // System-named constraints get a random name per database, so they match by shape.
+  function dbcmpItemKey(item, sig) { return item.sys ? 'sig:' + sig : 'name:' + dbcmpLower(item.name); }
+
+  function dbcmpIxCols(ix, inc) { return ix.cols.filter(function (c) { return !!c.inc === inc; }); }
+  function dbcmpIxSig(ix) {
+    return [ix.pk ? 'pk' : ix.uq ? 'uq' : 'ix', ix.kind, !!ix.unique,
+      dbcmpIxCols(ix, false).map(function (c) { return dbcmpLower(c.name) + (c.desc ? ' desc' : ''); }).join(','),
+      dbcmpIxCols(ix, true).map(function (c) { return dbcmpLower(c.name); }).sort().join(','),
+      dbcmpExpr(ix.filter)].join('|');
+  }
+  function dbcmpIxKey(ix) { return ix.pk ? 'pk' : dbcmpItemKey(ix, dbcmpIxSig(ix)); }
+  function dbcmpIxLabel(ix) { return (ix.pk ? 'Primary key ' : ix.uq ? 'Unique ' : 'Index ') + ix.name; }
+  function dbcmpIxCreate(tbl, ix) {
+    var keys = dbcmpIxCols(ix, false).map(function (c) { return dbcmpQn(c.name) + (c.desc ? ' DESC' : ' ASC'); }).join(', ');
+    var type = ix.kind === 'CLUSTERED' ? 'CLUSTERED' : 'NONCLUSTERED';
+    if (ix.pk || ix.uq) {
+      return 'ALTER TABLE ' + tbl + ' ADD ' + (ix.sys ? '' : 'CONSTRAINT ' + dbcmpQn(ix.name) + ' ') +
+        (ix.pk ? 'PRIMARY KEY ' : 'UNIQUE ') + type + ' (' + keys + ')';
+    }
+    var inc = dbcmpIxCols(ix, true).map(function (c) { return dbcmpQn(c.name); }).join(', ');
+    return 'CREATE ' + (ix.unique ? 'UNIQUE ' : '') + type + ' INDEX ' + dbcmpQn(ix.name) + ' ON ' + tbl +
+      ' (' + keys + ')' + (inc ? ' INCLUDE (' + inc + ')' : '') + (ix.filter ? ' WHERE ' + ix.filter : '');
+  }
+  function dbcmpIxDrop(tbl, ix) {
+    return ix.pk || ix.uq ? 'ALTER TABLE ' + tbl + ' DROP CONSTRAINT ' + dbcmpQn(ix.name) : 'DROP INDEX ' + dbcmpQn(ix.name) + ' ON ' + tbl;
+  }
+
+  function dbcmpCkKey(ck) { return dbcmpItemKey(ck, dbcmpExpr(ck.def)); }
+  function dbcmpCkCreate(tbl, ck) { return 'ALTER TABLE ' + tbl + ' ADD ' + (ck.sys ? '' : 'CONSTRAINT ' + dbcmpQn(ck.name) + ' ') + 'CHECK ' + ck.def; }
+
+  function dbcmpFkSig(fk) {
+    return [fk.cols.map(function (c) { return dbcmpLower(c.col); }).join(','), dbcmpKey(fk.refSchema, fk.refTable),
+      fk.cols.map(function (c) { return dbcmpLower(c.ref); }).join(','), fk.onDelete || '', fk.onUpdate || ''].join('|');
+  }
+  function dbcmpFkKey(tableKey, fk) { return 'fk:' + tableKey + ':' + dbcmpItemKey(fk, dbcmpFkSig(fk)); }
+  function dbcmpFkAction(v, verb) {
+    v = String(v || '').toUpperCase();
+    return /^(CASCADE|SET_NULL|SET_DEFAULT)$/.test(v) ? ' ON ' + verb + ' ' + v.replace('_', ' ') : '';
+  }
+  function dbcmpFkCreate(tbl, fk) {
+    return 'ALTER TABLE ' + tbl + ' ADD ' + (fk.sys ? '' : 'CONSTRAINT ' + dbcmpQn(fk.name) + ' ') +
+      'FOREIGN KEY (' + fk.cols.map(function (c) { return dbcmpQn(c.col); }).join(', ') + ') REFERENCES ' +
+      dbcmpFull(fk.refSchema, fk.refTable) + ' (' + fk.cols.map(function (c) { return dbcmpQn(c.ref); }).join(', ') + ')' +
+      dbcmpFkAction(fk.onDelete, 'DELETE') + dbcmpFkAction(fk.onUpdate, 'UPDATE');
+  }
+  function dbcmpDropConstraint(tbl, name) { return 'ALTER TABLE ' + tbl + ' DROP CONSTRAINT ' + dbcmpQn(name); }
+
+  function dbcmpTouches(names, affected) {
+    return names.some(function (n) { return affected[dbcmpLower(n)]; });
+  }
+  function dbcmpCkTouches(ck, affected) {
+    if (ck.col) return !!affected[dbcmpLower(ck.col)];
+    var def = dbcmpLower(ck.def);
+    return Object.keys(affected).some(function (n) { return def.indexOf('[' + n + ']') !== -1; });
+  }
+
+  // Everything needed to turn table T (target) into table S (source).
+  // keyCols: columns whose keys/indexes get rebuilt, so FKs from other tables
+  // that reference them must be dropped first.
+  function dbcmpTablePlan(S, T, opts) {
+    var tbl = dbcmpFull(S.schema, S.name);
+    var label = S.schema + '.' + S.name;
+    var p = { details: [], warnings: [], dropFks: [], dropCons: [], alter: [], addCons: [], addFks: [], keyCols: dbcmpMap(), colChanges: [] };
+    var sCols = dbcmpMap();
+    var tCols = dbcmpMap();
+    S.columns.forEach(function (c) { sCols[dbcmpLower(c.name)] = c; });
+    T.columns.forEach(function (c) { tCols[dbcmpLower(c.name)] = c; });
+
+    var affected = dbcmpMap();
+    var addCols = [];
+    var dropCols = [];
+    var alterCols = [];
+    var rebuildCols = [];
+    S.columns.forEach(function (c) {
+      var t = tCols[dbcmpLower(c.name)];
+      if (!t) {
+        addCols.push(c);
+        p.details.push('+ ' + c.name + ' ' + dbcmpColDesc(c, opts));
+        if (!c.nullable && !c.dfDef && !c.computed && !c.identity) {
+          p.warnings.push(label + '.' + c.name + ': เพิ่มคอลัมน์ NOT NULL ที่ไม่มี DEFAULT จะ error ถ้าตารางมีข้อมูลอยู่แล้ว');
+        }
+        return;
+      }
+      if (dbcmpColSig(c, opts) === dbcmpColSig(t, opts)) return;
+      if (dbcmpIdentity(c) !== dbcmpIdentity(t)) {
+        p.details.push('! ' + c.name + ': เปลี่ยน IDENTITY (ต้องทำเอง)');
+        p.warnings.push(label + '.' + c.name + ': เปลี่ยน IDENTITY ด้วย ALTER ไม่ได้ ต้องสร้างตารางใหม่เอง (ไม่ได้ใส่ใน script)');
+        return;
+      }
+      affected[dbcmpLower(c.name)] = true;
+      p.details.push('~ ' + c.name + ': ' + dbcmpColDesc(t, opts) + ' → ' + dbcmpColDesc(c, opts));
+      if (c.computed || t.computed) rebuildCols.push(c);
+      else {
+        alterCols.push(c);
+        var one = dbcmpMap();
+        one[dbcmpLower(c.name)] = true;
+        p.colChanges.push({ col: c, old: t, deps: !!t.dfDef ||
+          T.indexes.some(function (ix) { return dbcmpTouches(ix.cols.map(function (k) { return k.name; }), one); }) ||
+          T.checks.some(function (ck) { return dbcmpCkTouches(ck, one); }) ||
+          T.fks.some(function (fk) { return dbcmpTouches(fk.cols.map(function (k) { return k.col; }), one); }) });
+        if (t.nullable && !c.nullable) p.warnings.push(label + '.' + c.name + ': เปลี่ยนเป็น NOT NULL จะ error ถ้ามีข้อมูลที่เป็น NULL อยู่');
+      }
+    });
+    T.columns.forEach(function (c) {
+      if (sCols[dbcmpLower(c.name)]) return;
+      dropCols.push(c);
+      affected[dbcmpLower(c.name)] = true;
+      p.details.push('- ' + c.name + ' ' + dbcmpColDesc(c, opts));
+      p.warnings.push(label + '.' + c.name + ': ลบคอลัมน์ ข้อมูลในคอลัมน์นี้จะหายไป');
+    });
+    Object.keys(affected).forEach(function (n) { p.keyCols[n] = true; });
+
+    // Defaults of added columns go inline with ADD, so only existing columns are handled here.
+    T.columns.forEach(function (t) {
+      if (!t.dfDef) return;
+      var n = dbcmpLower(t.name);
+      var s = sCols[n];
+      var differs = !s || !s.dfDef || dbcmpExpr(s.dfDef) !== dbcmpExpr(t.dfDef) ||
+        (!s.dfSys && !t.dfSys && dbcmpLower(s.dfName) !== dbcmpLower(t.dfName));
+      if (!differs && !affected[n]) return;
+      p.dropCons.push(dbcmpDropConstraint(tbl, t.dfName));
+      if (s && !affected[n]) p.details.push((s.dfDef ? '~ Default ' : '- Default ') + t.name);
+    });
+    S.columns.forEach(function (s) {
+      if (!s.dfDef || s.computed) return;
+      var n = dbcmpLower(s.name);
+      var t = tCols[n];
+      if (!t) return;
+      var differs = !t.dfDef || dbcmpExpr(s.dfDef) !== dbcmpExpr(t.dfDef) ||
+        (!s.dfSys && !t.dfSys && dbcmpLower(s.dfName) !== dbcmpLower(t.dfName));
+      if (!differs && !affected[n]) return;
+      p.addCons.push({ order: 3, sql: 'ALTER TABLE ' + tbl + ' ADD ' + (s.dfSys ? '' : 'CONSTRAINT ' + dbcmpQn(s.dfName) + ' ') + 'DEFAULT ' + s.dfDef + ' FOR ' + dbcmpQn(s.name) });
+      if (!t.dfDef && !affected[n]) p.details.push('+ Default ' + s.name);
+    });
+
+    var sIx = dbcmpMap();
+    var tIx = dbcmpMap();
+    S.indexes.forEach(function (ix) { sIx[dbcmpIxKey(ix)] = ix; });
+    T.indexes.forEach(function (ix) { tIx[dbcmpIxKey(ix)] = ix; });
+    T.indexes.forEach(function (ix) {
+      var s = sIx[dbcmpIxKey(ix)];
+      var changed = !s || dbcmpIxSig(s) !== dbcmpIxSig(ix);
+      if (!changed && !dbcmpTouches(ix.cols.map(function (c) { return c.name; }), affected)) return;
+      p.dropCons.push({ order: ix.kind === 'CLUSTERED' ? 1 : 0, sql: dbcmpIxDrop(tbl, ix) });
+      if (ix.pk || ix.uq || ix.unique) ix.cols.forEach(function (c) { p.keyCols[dbcmpLower(c.name)] = true; });
+      if (changed) p.details.push((s ? '~ ' : '- ') + dbcmpIxLabel(ix));
+    });
+    S.indexes.forEach(function (ix) {
+      var t = tIx[dbcmpIxKey(ix)];
+      var changed = !t || dbcmpIxSig(t) !== dbcmpIxSig(ix);
+      if (!changed && !dbcmpTouches(ix.cols.map(function (c) { return c.name; }), affected)) return;
+      p.addCons.push({ order: ix.kind === 'CLUSTERED' ? 0 : 1, sql: dbcmpIxCreate(tbl, ix) });
+      if (!t) p.details.push('+ ' + dbcmpIxLabel(ix));
+    });
+
+    var sCk = dbcmpMap();
+    var tCk = dbcmpMap();
+    S.checks.forEach(function (ck) { sCk[dbcmpCkKey(ck)] = ck; });
+    T.checks.forEach(function (ck) { tCk[dbcmpCkKey(ck)] = ck; });
+    T.checks.forEach(function (ck) {
+      var s = sCk[dbcmpCkKey(ck)];
+      var changed = !s || dbcmpExpr(s.def) !== dbcmpExpr(ck.def);
+      if (!changed && !dbcmpCkTouches(ck, affected)) return;
+      p.dropCons.push(dbcmpDropConstraint(tbl, ck.name));
+      if (changed) p.details.push((s ? '~ Check ' : '- Check ') + ck.name);
+    });
+    S.checks.forEach(function (ck) {
+      var t = tCk[dbcmpCkKey(ck)];
+      var changed = !t || dbcmpExpr(t.def) !== dbcmpExpr(ck.def);
+      if (!changed && !dbcmpCkTouches(ck, affected)) return;
+      p.addCons.push({ order: 2, sql: dbcmpCkCreate(tbl, ck) });
+      if (!t) p.details.push('+ Check ' + ck.name);
+    });
+
+    var tableKey = dbcmpKey(S.schema, S.name);
+    var sFk = dbcmpMap();
+    var tFk = dbcmpMap();
+    S.fks.forEach(function (fk) { sFk[dbcmpFkKey(tableKey, fk)] = fk; });
+    T.fks.forEach(function (fk) { tFk[dbcmpFkKey(tableKey, fk)] = fk; });
+    T.fks.forEach(function (fk) {
+      var key = dbcmpFkKey(tableKey, fk);
+      var s = sFk[key];
+      var changed = !s || dbcmpFkSig(s) !== dbcmpFkSig(fk);
+      if (!changed && !dbcmpTouches(fk.cols.map(function (c) { return c.col; }), affected)) return;
+      p.dropFks.push({ key: key, sql: dbcmpDropConstraint(tbl, fk.name) });
+      if (changed) p.details.push((s ? '~ FK ' : '- FK ') + fk.name);
+    });
+    S.fks.forEach(function (fk) {
+      var key = dbcmpFkKey(tableKey, fk);
+      var t = tFk[key];
+      var changed = !t || dbcmpFkSig(t) !== dbcmpFkSig(fk);
+      if (!changed && !dbcmpTouches(fk.cols.map(function (c) { return c.col; }), affected)) return;
+      p.addFks.push({ key: key, sql: dbcmpFkCreate(tbl, fk) });
+      if (!t) p.details.push('+ FK ' + fk.name);
+    });
+
+    dropCols.forEach(function (c) { p.alter.push('ALTER TABLE ' + tbl + ' DROP COLUMN ' + dbcmpQn(c.name)); });
+    rebuildCols.forEach(function (c) { p.alter.push('ALTER TABLE ' + tbl + ' DROP COLUMN ' + dbcmpQn(c.name)); });
+    alterCols.forEach(function (c) { p.alter.push('ALTER TABLE ' + tbl + ' ALTER COLUMN ' + dbcmpColDef(c, opts, 'alter')); });
+    // Plain columns first: computed columns may reference the ones being added.
+    addCols.concat(rebuildCols).sort(function (a, b) { return !!a.computed - !!b.computed; }).forEach(function (c) {
+      p.alter.push('ALTER TABLE ' + tbl + ' ADD ' + dbcmpColDef(c, opts, 'create'));
+    });
+
+    p.dropCons = p.dropCons.map(function (x) { return typeof x === 'string' ? { order: 0, sql: x } : x; });
+    p.changed = !!(p.dropFks.length || p.dropCons.length || p.alter.length || p.addCons.length || p.addFks.length || p.warnings.length);
+    return p;
+  }
+
+  function dbcmpModNorm(def, ignoreSpace) {
+    var s = String(def).replace(/\r\n?/g, '\n');
+    return ignoreSpace ? s.replace(/\s+/g, ' ').trim() : s.replace(/[ \t]+$/gm, '').trim();
+  }
+  function dbcmpSeqType(sq) {
+    return dbcmpColType({ type: sq.type, typeSchema: sq.typeSchema, udt: sq.udt, prec: sq.prec, scale: sq.scale, len: 0 });
+  }
+  function dbcmpSeqProps(sq) {
+    var cache = Number(sq.cacheSize);
+    return [
+      ['AS', dbcmpSeqType(sq)],
+      ['INCREMENT BY', dbcmpNum(sq.incr, '1')],
+      ['MINVALUE', dbcmpNum(sq.min, '') || 'NO MINVALUE'],
+      ['MAXVALUE', dbcmpNum(sq.max, '') || 'NO MAXVALUE'],
+      ['CYCLE', sq.cycle ? 'CYCLE' : 'NO CYCLE'],
+      ['CACHE', sq.cached ? 'CACHE' + (cache > 0 ? ' ' + cache : '') : 'NO CACHE']
+    ];
+  }
+  // INCREMENT onwards; the part ALTER SEQUENCE can change.
+  function dbcmpSeqOptions(sq) {
+    return dbcmpSeqProps(sq).slice(1).map(function (p) {
+      return p[0] === 'INCREMENT BY' || (p[0].slice(-5) === 'VALUE' && p[1].indexOf('NO ') !== 0) ? p[0] + ' ' + p[1] : p[1];
+    }).join(' ');
+  }
+  function dbcmpSeqCreate(sq) {
+    var start = dbcmpNum(sq.start, '') || dbcmpNum(sq.min, '1');
+    return 'CREATE SEQUENCE ' + dbcmpFull(sq.schema, sq.name) + ' AS ' + dbcmpSeqType(sq) + ' START WITH ' + start + ' ' + dbcmpSeqOptions(sq);
+  }
+  // START WITH is ignored on purpose: restarting would reset the live counter in the target.
+  function dbcmpSeqPlan(s, t) {
+    var sp = dbcmpSeqProps(s);
+    var tp = dbcmpSeqProps(t);
+    var p = { details: [], warnings: [], sql: '' };
+    sp.forEach(function (x, i) {
+      if (dbcmpLower(x[1]) !== dbcmpLower(tp[i][1])) p.details.push('~ ' + x[0] + ': ' + tp[i][1] + ' → ' + x[1]);
+    });
+    if (!p.details.length) return p;
+    if (dbcmpLower(sp[0][1]) !== dbcmpLower(tp[0][1])) {
+      p.warnings.push('Sequence ' + s.schema + '.' + s.name + ': เปลี่ยนชนิดข้อมูลด้วย ALTER ไม่ได้ ต้อง DROP/CREATE เอง (ไม่ได้ใส่ใน script)');
+    } else {
+      p.sql = 'ALTER SEQUENCE ' + dbcmpFull(s.schema, s.name) + ' ' + dbcmpSeqOptions(s);
+    }
+    return p;
+  }
+
+  // Table types cannot be altered, so any difference means DROP + CREATE.
+  function dbcmpTypeCreate(tt, opts) {
+    var parts = tt.columns.map(function (c) { return dbcmpColDef($.extend({}, c, { dfSys: true }), opts, 'create'); });
+    tt.indexes.forEach(function (ix) {
+      var keys = dbcmpIxCols(ix, false).map(function (c) { return dbcmpQn(c.name) + (c.desc ? ' DESC' : ' ASC'); }).join(', ');
+      var type = ix.kind === 'CLUSTERED' ? 'CLUSTERED' : 'NONCLUSTERED';
+      if (ix.pk) parts.push('PRIMARY KEY ' + type + ' (' + keys + ')');
+      else if (ix.uq) parts.push('UNIQUE ' + type + ' (' + keys + ')');
+      else parts.push('INDEX ' + dbcmpQn(ix.name) + ' ' + type + ' (' + keys + ')');
+    });
+    tt.checks.forEach(function (ck) { parts.push('CHECK ' + ck.def); });
+    return 'CREATE TYPE ' + dbcmpFull(tt.schema, tt.name) + ' AS TABLE (\n    ' + parts.join(',\n    ') + '\n)';
+  }
+  function dbcmpTypeUsers(tt) {
+    return tt.usedBy.map(function (u) { return u.schema + '.' + u.name; });
+  }
+
+  // Database part of a three-part name (db.schema.object or db..object). Only
+  // the database name is consumed, so it can be replaced on its own; groups
+  // 3/4 are the object name.
+  var DBCMP_RE_DBREF = /(?:\[([^\]]+)\]|([A-Za-z_][\w@#$]*))(?=[ \t]*\.[ \t]*(?:\[[^\]]*\]|[A-Za-z_][\w@#$]*)?[ \t]*\.[ \t]*(?:\[([^\]]+)\]|([A-Za-z_][\w@#$]*)))/g;
+  // alias.column.value(...) and friends are XML methods, not db.schema.object.
+  var DBCMP_XML_METHODS = { value: true, query: true, nodes: true, exist: true, modify: true };
+  // Calls fn(dbName, objectName) for every database reference in a definition.
+  function dbcmpEachDbRef(def, skip, fn) {
+    var m;
+    DBCMP_RE_DBREF.lastIndex = 0;
+    while ((m = DBCMP_RE_DBREF.exec(def))) {
+      var name = m[1] || m[2];
+      var obj = m[3] || m[4];
+      // schema.table.column also has three parts; a known schema is not a database.
+      if (skip[dbcmpLower(name)] || (!m[3] && DBCMP_XML_METHODS[dbcmpLower(obj)] === true)) continue;
+      fn(name, obj);
+    }
+  }
+  function dbcmpExternalDbs(def, skip) {
+    var out = dbcmpMap();
+    dbcmpEachDbRef(def, skip, function (name) { out[dbcmpLower(name)] = name; });
+    return out;
+  }
+  function dbcmpSchemaNames(src, tgt) {
+    var names = dbcmpMap();
+    ['dbo', 'sys', 'information_schema'].concat(Object.keys(src.schemas), Object.keys(tgt.schemas)).forEach(function (n) { names[n] = true; });
+    [src, tgt].forEach(function (db) {
+      Object.keys(db.tables).concat(Object.keys(db.modules)).forEach(function (k) { names[k.split('.')[0]] = true; });
+    });
+    return names;
+  }
+  // Rewrites database names per map (lower-case source name -> target name);
+  // dynamic SQL inside string literals is rewritten too.
+  function dbcmpApplyDbMap(def, map, onReplace) {
+    if (!map || !Object.keys(map).length) return def;
+    return def.replace(DBCMP_RE_DBREF, function (whole, bracketed, plain) {
+      var to = map[dbcmpLower(bracketed || plain)];
+      if (typeof to !== 'string') return whole;
+      if (onReplace) onReplace();
+      return bracketed === undefined && /^[A-Za-z_][\w@#$]*$/.test(to) ? to : dbcmpQn(to);
+    });
+  }
+  // dbs: lower-case name -> { name, objs } as collected by dbcmpConvertScript.
+  // Returns one row per database name the target never uses, with the name
+  // the target uses for the same referenced objects (the likely prod name).
+  function dbcmpSuggestDbMap(dbs, tgt) {
+    var tgtDbs = dbcmpMap();
+    var byObject = dbcmpMap(); // object -> { db -> display name }
+    if (tgt) {
+      var skip = dbcmpSchemaNames(tgt, tgt);
+      Object.keys(tgt.modules).forEach(function (k) {
+        dbcmpEachDbRef(tgt.modules[k].def, skip, function (name, obj) {
+          var d = dbcmpLower(name);
+          var o = dbcmpLower(obj);
+          tgtDbs[d] = true;
+          (byObject[o] = byObject[o] || dbcmpMap())[d] = name;
+        });
+      });
+    }
+    return Object.keys(dbs).filter(function (d) { return !tgtDbs[d]; }).sort().map(function (d) {
+      var votes = dbcmpMap();
+      var names = dbcmpMap();
+      Object.keys(dbs[d].objs).forEach(function (o) {
+        var cands = byObject[o];
+        if (!cands) return;
+        Object.keys(cands).forEach(function (c) {
+          votes[c] = (votes[c] || 0) + 1;
+          names[c] = cands[c];
+        });
+      });
+      var best = Object.keys(votes).sort(function (a, b) { return votes[b] - votes[a]; })[0];
+      return { key: d, name: dbs[d].name, count: dbs[d].count, suggest: best ? names[best] : '' };
+    });
+  }
+
+  var DBCMP_MODULE_KINDS = dbcmpMap();
+  DBCMP_MODULE_KINDS.VIEW = 'View';
+  DBCMP_MODULE_KINDS.PROC = 'Procedure';
+  DBCMP_MODULE_KINDS.PROCEDURE = 'Procedure';
+  DBCMP_MODULE_KINDS.FUNCTION = 'Function';
+  DBCMP_MODULE_KINDS.TRIGGER = 'Trigger';
+  // Three-part matches that are not databases to rename: linked servers and URL hosts.
+  var DBCMP_IGNORE_DBS = ['hq-db-v07', 'pis', 'www'];
+  // Rewrites a generated script in place for deployment over existing objects:
+  // the leading CREATE of each view/procedure/function batch becomes ALTER and
+  // database names are mapped. CREATE TYPE has no ALTER form, so it gets an
+  // existence guard instead, and sp_addextendedproperty batches are dropped.
+  // Every other character, including batches of other kinds, is passed
+  // through untouched.
+  // opts: map (lower-case db -> new name), exists(schema, name) -> false is
+  // listed in stats.missing; those objects are created by the new-objects file.
+  function dbcmpConvertScript(text, opts) {
+    var re = /^[ \t]*GO[ \t]*(?:--[^\n]*)?\r?$/gim;
+    var parts = []; // batch, GO line, batch, GO line, ...
+    var pos = 0;
+    var m;
+    while ((m = re.exec(text))) {
+      parts.push(text.slice(pos, m.index), m[0]);
+      pos = m.index + m[0].length;
+    }
+    parts.push(text.slice(pos));
+
+    var skip = dbcmpMap();
+    skip.dbo = skip.sys = skip.information_schema = true;
+    DBCMP_IGNORE_DBS.forEach(function (n) { skip[n] = true; });
+    var mods = [];
+    var typeDefs = [];
+    var stats = { types: dbcmpMap(), alter: 0, missing: [], replaced: 0, guarded: 0, removed: 0, dbs: dbcmpMap(), others: dbcmpMap() };
+    for (var i = 0; i < parts.length; i += 2) {
+      var head = dbcmpTokenize(parts[i], 0, parts[i].length, 12);
+      if (!head.length) continue;
+      var first = head[0];
+      var cur = new DbcmpCursor(parts[i], head, 1);
+      if (first.k === 'w' && first.u === 'CREATE') {
+        if (cur.isW('OR') && cur.isW('ALTER', 1)) cur.i += 2;
+        var kind = cur.peek();
+        var label = kind && kind.k === 'w' ? DBCMP_MODULE_KINDS[kind.u] : undefined;
+        var verbEnd = head[cur.i - 1].e;
+        cur.i++;
+        var isType = !!kind && kind.k === 'w' && kind.u === 'TYPE';
+        var name = label || isType ? cur.name() : null;
+        if (name) {
+          var schema = name.length > 1 ? name[name.length - 2] : 'dbo';
+          if (isType) {
+            typeDefs.push({ index: i, s: first.s, schema: schema, name: name[name.length - 1] });
+            continue;
+          }
+          mods.push({ index: i, s: first.s, e: verbEnd, label: label, schema: schema, name: name[name.length - 1] });
+          skip[dbcmpLower(schema)] = true;
+          continue;
+        }
+      }
+      if (first.k !== 'w' || first.u === 'SET' || first.u === 'USE') continue;
+      // Reported so the user knows what else the file will run, e.g. CREATE TYPE.
+      var words = head.slice(0, 4).filter(function (t) { return t.k === 'w' || t.k === 'q'; });
+      var key = /^EXEC(UTE)?$/.test(first.u) ? 'EXEC ' + words[words.length - 1].v : first.u + (head[1].k === 'w' ? ' ' + head[1].u : '');
+      // Designer metadata; fails on a target that already has the property.
+      if (key.toLowerCase() === 'exec sp_addextendedproperty') {
+        parts[i] = '';
+        if (i + 1 < parts.length) parts[i + 1] = '';
+        stats.removed++;
+        continue;
+      }
+      stats.others[key] = (stats.others[key] || 0) + 1;
+    }
+
+    mods.forEach(function (md) {
+      var b = parts[md.index];
+      var exists = !opts.exists || opts.exists(md.schema, md.name);
+      stats.types[md.label] = (stats.types[md.label] || 0) + 1;
+      stats.alter++;
+      if (!exists) stats.missing.push(md.schema + '.' + md.name);
+      var tail = b.slice(md.e);
+      dbcmpEachDbRef(tail, skip, function (db, obj) {
+        var d = dbcmpLower(db);
+        var row = stats.dbs[d] = stats.dbs[d] || { name: db, count: 0, objs: dbcmpMap() };
+        row.count++;
+        row.objs[dbcmpLower(obj)] = true;
+      });
+      tail = dbcmpApplyDbMap(tail, opts.map, function () { stats.replaced++; });
+      parts[md.index] = b.slice(0, md.s) + 'ALTER' + tail;
+    });
+    var eol = text.indexOf('\r\n') >= 0 ? '\r\n' : '\n';
+    function lit(v) { return "N'" + v.replace(/'/g, "''") + "'"; }
+    typeDefs.forEach(function (td) {
+      var b = parts[td.index];
+      var guard = 'IF NOT EXISTS (SELECT 1 FROM sys.types WHERE is_user_defined = 1 AND name = ' + lit(td.name) + ' AND schema_id = SCHEMA_ID(' + lit(td.schema) + '))';
+      parts[td.index] = b.slice(0, td.s) + guard + eol + b.slice(td.s);
+      stats.guarded++;
+    });
+    return { text: parts.join(''), stats: stats };
+  }
+
+  function dbcmpCompare(src, tgt, opts) {
+    var items = [];
+    var id = 0;
+    var schemaNames = dbcmpSchemaNames(src, tgt);
+    var tgtDbs = dbcmpMap();
+    Object.keys(tgt.modules).forEach(function (k) {
+      var found = dbcmpExternalDbs(tgt.modules[k].def, schemaNames);
+      Object.keys(found).forEach(function (d) { tgtDbs[d] = true; });
+    });
+    // Test/dev scripts often point at test copies of other databases; these are the names the target never uses.
+    function unknownDbs(def) {
+      var found = dbcmpExternalDbs(def, schemaNames);
+      return Object.keys(found).filter(function (d) { return !tgtDbs[d]; }).map(function (d) { return found[d]; });
+    }
+    function allKeys(a, b) { return Object.keys(a).concat(Object.keys(b).filter(function (k) { return !a[k]; })); }
+
+    allKeys(src.sequences, tgt.sequences).forEach(function (k) {
+      var s = src.sequences[k];
+      var t = tgt.sequences[k];
+      var base = { id: id++, kind: 'sequence', typeLabel: 'Sequence', rank: -3, key: k, schema: (s || t).schema, name: (s || t).name, src: s, tgt: t, warnings: [] };
+      if (s && !t) items.push($.extend(base, { status: 'add', checked: true, details: [dbcmpSeqCreate(s)] }));
+      else if (!s && t) items.push($.extend(base, { status: 'drop', checked: false, details: [] }));
+      else {
+        var plan = dbcmpSeqPlan(s, t);
+        if (plan.details.length) items.push($.extend(base, { status: 'change', checked: true, details: plan.details, warnings: plan.warnings, plan: plan }));
+      }
+    });
+
+    allKeys(src.tableTypes, tgt.tableTypes).forEach(function (k) {
+      var s = src.tableTypes[k];
+      var t = tgt.tableTypes[k];
+      var base = { id: id++, kind: 'tabletype', typeLabel: 'Table type', rank: -2, key: k, schema: (s || t).schema, name: (s || t).name, src: s, tgt: t };
+      if (s && !t) {
+        items.push($.extend(base, { status: 'add', checked: true, warnings: [],
+          details: s.columns.map(function (c) { return '+ ' + c.name + ' ' + dbcmpColDesc(c, opts); }) }));
+        return;
+      }
+      var users = dbcmpTypeUsers(t);
+      var usersNote = users.length ? ' พร้อม DROP/สร้างใหม่ object ที่ใช้: ' + users.join(', ') : '';
+      if (!s) {
+        items.push($.extend(base, { status: 'drop', checked: false, details: [],
+          warnings: users.length ? ['Table type ' + t.schema + '.' + t.name + ': ถูกใช้โดย ' + users.join(', ')] : [] }));
+      } else if (dbcmpTypeCreate(s, opts).toLowerCase() !== dbcmpTypeCreate(t, opts).toLowerCase()) {
+        var details = dbcmpTablePlan(s, t, opts).details;
+        items.push($.extend(base, { status: 'change', checked: true, details: details.length ? details : ['~ โครงสร้างเปลี่ยน'],
+          warnings: ['Table type ' + s.schema + '.' + s.name + ': แก้ไขไม่ได้ ต้อง DROP แล้ว CREATE ใหม่' + usersNote] }));
+      }
+    });
+
+    var tableKeys = Object.keys(src.tables).concat(Object.keys(tgt.tables).filter(function (k) { return !src.tables[k]; }));
+    tableKeys.forEach(function (k) {
+      var s = src.tables[k];
+      var t = tgt.tables[k];
+      var base = { id: id++, kind: 'table', typeLabel: 'Table', rank: -1, key: k, schema: (s || t).schema, name: (s || t).name, src: s, tgt: t };
+      if (s && !t) {
+        items.push($.extend(base, { status: 'add', checked: true, details: s.columns.map(function (c) { return '+ ' + c.name + ' ' + dbcmpColDesc(c, opts); }), warnings: [] }));
+      } else if (!s && t) {
+        items.push($.extend(base, { status: 'drop', checked: false, details: [], warnings: ['ตาราง ' + t.schema + '.' + t.name + ': ลบตาราง ข้อมูลทั้งหมดจะหายไป'] }));
+      } else {
+        var plan = dbcmpTablePlan(s, t, opts);
+        var tNames = dbcmpMap();
+        t.columns.forEach(function (c) { tNames[dbcmpLower(c.name)] = true; });
+        var newCols = s.columns.filter(function (c) { return !tNames[dbcmpLower(c.name)]; });
+        if (plan.changed) items.push($.extend(base, { status: 'change', checked: true, details: plan.details, warnings: plan.warnings, plan: plan, newCols: newCols, colChanges: plan.colChanges }));
+      }
+    });
+
+    var modKeys = Object.keys(src.modules).concat(Object.keys(tgt.modules).filter(function (k) { return !src.modules[k]; }));
+    modKeys.forEach(function (k) {
+      var s = src.modules[k];
+      var t = tgt.modules[k];
+      var m = s || t;
+      var base = { id: id++, kind: 'module', typeLabel: DBCMP_MODULE_TYPES[m.type].label, rank: DBCMP_MODULE_TYPES[m.type].rank, key: k,
+        schema: m.schema, name: m.name, src: s, tgt: t, details: [], warnings: [] };
+      var item = null;
+      // Compared after the database names are mapped, so a module that only differs by them is not a change.
+      var def = s ? dbcmpApplyDbMap(s.def, opts.dbMap) : '';
+      if (s && !t) item = $.extend(base, { status: 'add', checked: true });
+      else if (!s && t) item = $.extend(base, { status: 'drop', checked: false });
+      else if (s.type !== t.type || dbcmpModNorm(def, opts.ignoreSpace) !== dbcmpModNorm(t.def, opts.ignoreSpace)) {
+        item = $.extend(base, { status: 'change', checked: true, typeChanged: s.type !== t.type });
+      } else {
+        // Unchanged modules are listed too: the source is scripted in full.
+        item = $.extend(base, { status: 'same', checked: false });
+      }
+      item.def = def;
+      item.unmapped = s ? unknownDbs(def) : [];
+      if (item.unmapped.length) {
+        item.warnings.push(m.schema + '.' + m.name + ': อ้างอิงฐานข้อมูล ' + item.unmapped.join(', ') + ' ซึ่งฝั่งปลายทางไม่ได้ใช้');
+      }
+      items.push(item);
+    });
+
+    var statusRank = { add: 0, change: 1, same: 2, drop: 3 };
+    items.sort(function (a, b) {
+      return (a.rank - b.rank) || (statusRank[a.status] - statusRank[b.status]) || (a.key < b.key ? -1 : a.key > b.key ? 1 : 0);
+    });
+    return items;
+  }
+
+  // Full CREATE script of one table: columns, then keys/indexes, checks and foreign keys.
+  function dbcmpTableScript(S, opts) {
+    var tbl = dbcmpFull(S.schema, S.name);
+    var out = ['CREATE TABLE ' + tbl + ' (\n    ' + S.columns.map(function (c) { return dbcmpColDef(c, opts, 'create'); }).join(',\n    ') + '\n)'];
+    S.indexes.slice().sort(function (a, b) { return (b.kind === 'CLUSTERED') - (a.kind === 'CLUSTERED'); })
+      .forEach(function (ix) { out.push(dbcmpIxCreate(tbl, ix)); });
+    S.checks.forEach(function (ck) { out.push(dbcmpCkCreate(tbl, ck)); });
+    S.fks.forEach(function (fk) { out.push(dbcmpFkCreate(tbl, fk)); });
+    return out.join('\nGO\n') + '\nGO\n';
+  }
+
+  // ALTER script of one existing table: new columns, then type/size/nullability changes.
+  function dbcmpColumnsScript(it, opts) {
+    var tbl = dbcmpFull(it.schema, it.name);
+    var out = [];
+    it.newCols.forEach(function (c) {
+      var note = !c.nullable && !c.dfDef && !c.computed && !c.identity ? '-- NOT NULL without a default: fails if the table already has rows\n' : '';
+      out.push(note + 'ALTER TABLE ' + tbl + ' ADD ' + dbcmpColDef(c, opts, 'create'));
+    });
+    it.colChanges.forEach(function (x) {
+      var note = '-- was: ' + dbcmpSafeComment(dbcmpColDesc(x.old, opts)) + '\n';
+      if (x.deps) note += '-- Used by an index/constraint: if this fails, drop that first and create it again after\n';
+      out.push(note + 'ALTER TABLE ' + tbl + ' ALTER COLUMN ' + dbcmpColDef(x.col, opts, 'alter'));
+    });
+    return out.join('\nGO\n') + '\nGO\n';
+  }
+
+  function initDbCompareView() {
+    var $fileInput = $('#dbcmp-file-input');
+    var $statusEl = $('#dbcmp-status');
+    var $result = $('#dbcmp-result');
+    var $tables = $('#dbcmp-new-tables');
+    var $cols = $('#dbcmp-new-cols');
+    var $newMods = $('#dbcmp-new-mods');
+    var $mapBox = $('#dbcmp-dbmap');
+    var $mapRows = $('#dbcmp-dbmap-rows');
+    var $modSummary = $('#dbcmp-mods-summary');
+    var DBMAP_KEY = 'toolbox.dbcmpDbMap';
+    var mapRows = []; // { key, name, count, suggest, value }
+    // Script files carry no collation, so it is never part of the comparison.
+    var OPTS = { ignoreSpace: true, ignoreCollation: true };
+    // Only the parsed schema is kept per side; the file text is dropped after parsing.
+    var sides = { source: null, target: null }; // { file, db, error }
+    var scripts = { tables: [], cols: [], newmods: [] };
+    // The view/procedure script is converted as text, so its content is kept.
+    var modFile = null; // { file, text, error, out }
+    var last = null; // { src, tgt }
+    var fileTarget = null;
+
+    function setStatus(msg, kind) {
+      $statusEl.text(msg || '');
+      $statusEl.removeClass('text-good text-bad text-inksoft');
+      if (kind === 'good') $statusEl.addClass('text-good');
+      else if (kind === 'bad') $statusEl.addClass('text-bad');
+      else $statusEl.addClass('text-inksoft');
+    }
+    function renderSide(side) {
+      var s = sides[side];
+      var $meta = $('#dbcmp-' + side + '-meta').removeClass('text-bad');
+      $('#dbcmp-' + side + '-name').text(s ? s.file : 'ยังไม่ได้เลือกไฟล์');
+      if (!s) $meta.text('');
+      else if (s.error) $meta.addClass('text-bad').text(s.error);
+      else if (!s.db) $meta.text('กำลังอ่านไฟล์...');
+      else $meta.text('ตาราง ' + s.db.tableCount.toLocaleString() + ' · View/Procedure/Function ' + s.db.moduleCount.toLocaleString());
+    }
+    function reset() {
+      last = null;
+      scripts = { tables: [], cols: [], newmods: [] };
+      $tables.empty();
+      $cols.empty();
+      $newMods.empty();
+      $result.attr('hidden', true);
+      setStatus('', 'neutral');
+    }
+
+    async function copyText(text, $btn) {
+      if (!text) return;
+      var ok = true;
+      try { await navigator.clipboard.writeText(text); } catch (err) { ok = false; }
+      var $label = $btn.find('span');
+      var orig = $label.data('orig') || $label.text();
+      $label.data('orig', orig).text(ok ? 'คัดลอกแล้ว' : 'คัดลอกไม่ได้');
+      setTimeout(function () { $label.text(orig); }, 1600);
+    }
+    // BOM so SSMS reads the file as UTF-8; without it Thai text is taken for ANSI and corrupted.
+    function sqlBlob(text) { return new Blob(['﻿', text], { type: 'application/sql;charset=utf-8' }); }
+    function fileStamp() {
+      var d = new Date();
+      function pad(n) { return (n < 10 ? '0' : '') + n; }
+      return d.getFullYear() + pad(d.getMonth() + 1) + pad(d.getDate()) + '_' + pad(d.getHours()) + pad(d.getMinutes());
+    }
+    var KINDS = {
+      tables: { title: 'New tables', file: '1_new_table_' },
+      cols: { title: 'New / changed columns', file: '2_new_field_' },
+      newmods: { title: 'New views / procedures / functions', file: '3_new_view_sp_' },
+      mods: { title: '', file: '4_view_sp_' }
+    };
+    function kindOf($btn) {
+      var k = $btn.data('kind');
+      return k === 'cols' || k === 'newmods' || k === 'mods' ? k : 'tables';
+    }
+    function allScript(kind) {
+      // The converted view/procedure script goes out as is: no header, nothing added.
+      if (kind === 'mods') return modFile && modFile.out ? modFile.out.text : '';
+      if (!last || !scripts[kind].length) return '';
+      var head = '/*\n  ' + KINDS[kind].title + '\n  Source : ' + dbcmpSafeComment(last.src.name) +
+        '\n  Target : ' + dbcmpSafeComment(last.tgt.name) + '\n  Run against the TARGET database.\n*/\n';
+      return (head + scripts[kind].join('\n')).replace(/\r?\n/g, '\r\n');
+    }
+    // Separate files, not a zip: each one is run on its own, in file-name order.
+    async function saveFiles(kinds, report) {
+      var stamp = fileStamp();
+      var files = [];
+      kinds.forEach(function (kind) {
+        var text = allScript(kind);
+        if (text) files.push({ name: KINDS[kind].file + stamp + '.sql', blob: sqlBlob(text) });
+      });
+      if (!files.length) { report('ไม่มี script ให้ดาวน์โหลด', 'bad'); return; }
+      try {
+        for (var i = 0; i < files.length; i++) {
+          if (CLAUDE_MODE) {
+            if (!claudeDownloads) throw new Error('การบันทึกไฟล์ไม่พร้อมใช้งานในมุมมองนี้');
+            await claudeDownloads.save({ filename: files[i].name, data: files[i].blob });
+          } else {
+            triggerBlobDownload(files[i].name, files[i].blob);
+            // Browsers drop downloads fired in the same tick.
+            await new Promise(function (resolve) { setTimeout(resolve, 300); });
+          }
+        }
+        report('ดาวน์โหลดแล้ว ' + files.length + ' ไฟล์: ' + files.map(function (f) { return f.name; }).join(', '), 'good');
+      } catch (err) {
+        report(err && err.message ? err.message : 'บันทึกไฟล์ไม่สำเร็จ', 'bad');
+      }
+    }
+
+    // ----- View / procedure / function script: CREATE -> ALTER and database names -----
+    function loadSavedMap() {
+      try {
+        var o = JSON.parse(storeGet(DBMAP_KEY) || '{}');
+        return o && typeof o === 'object' && !Array.isArray(o) ? o : {};
+      } catch (e) { return {}; }
+    }
+    // The name is written into scripts, including inside string literals.
+    function validDbName(v) { return /^[^'\[\]\r\n]{1,128}$/.test(v); }
+    function currentMap() {
+      var map = dbcmpMap();
+      mapRows.forEach(function (r) {
+        var v = r.value.trim();
+        if (v && validDbName(v) && dbcmpLower(v) !== r.key) map[r.key] = v;
+      });
+      return map;
+    }
+    function targetDb() { return sides.target && sides.target.db ? sides.target.db : null; }
+    function convert() {
+      var tgt = targetDb();
+      return dbcmpConvertScript(modFile.text, {
+        map: currentMap(),
+        exists: tgt ? function (schema, name) { return !!tgt.modules[dbcmpKey(schema, name)]; } : null
+      });
+    }
+    function line(cls, text) { return $('<div>').addClass('break-all ' + cls).text(text); }
+    function renderModSummary() {
+      $modSummary.empty();
+      var ready = !!(modFile && modFile.out);
+      $('#btn-dbcmp-mods-save').prop('disabled', !ready).toggleClass('opacity-50 cursor-not-allowed', !ready);
+      $('#dbcmp-mods-name').text(modFile ? modFile.file : 'ยังไม่ได้เลือกไฟล์');
+      if (!modFile) return;
+      if (modFile.error) { $modSummary.append(line('text-bad', modFile.error)); return; }
+      if (!modFile.out) { $modSummary.append(line('text-inksoft', 'กำลังอ่านไฟล์...')); return; }
+      var st = modFile.out.stats;
+      var types = Object.keys(st.types).map(function (t) { return t + ' ' + st.types[t].toLocaleString(); });
+      $modSummary.append(line('text-ink font-semibold', 'พบ ' + (types.join(' · ') || 'ไม่พบ View / Procedure / Function')));
+      $modSummary.append(line('text-good', 'เปลี่ยน CREATE เป็น ALTER ' + st.alter.toLocaleString() + ' ตัว · เปลี่ยนชื่อ DB ' + st.replaced.toLocaleString() + ' จุด'));
+      if (!targetDb()) {
+        $modSummary.append(line('text-inksoft', 'ยังไม่ได้เลือกไฟล์ Target จึงตรวจไม่ได้ว่าตัวไหนยังไม่มีบน Target (ตัวที่ยังไม่มีจะ error ตอนรัน)'));
+      } else if (st.missing.length) {
+        $modSummary.append(line('text-accentdeep', 'ยังไม่มีในไฟล์ Target ' + st.missing.length.toLocaleString() + ' ตัว ต้องรันไฟล์ ' + KINDS.newmods.file + '*.sql ก่อน: ' + st.missing.join(', ')));
+      }
+      if (st.guarded) $modSummary.append(line('text-good', 'เพิ่ม IF NOT EXISTS หน้า CREATE TYPE ' + st.guarded.toLocaleString() + ' ตัว (มีอยู่แล้วบน Target จะข้าม ไม่ error)'));
+      if (st.removed) $modSummary.append(line('text-good', 'ตัด EXEC sp_addextendedproperty ออก ' + st.removed.toLocaleString() + ' batch'));
+      var others = Object.keys(st.others).map(function (k) { return k + ' ' + st.others[k].toLocaleString(); });
+      if (others.length) $modSummary.append(line('text-bad', 'ไม่ได้แก้ไข (คงไว้ตามไฟล์เดิม): ' + others.join(' · ')));
+    }
+    // Rebuilds the database rows from the file, then converts with them.
+    function refreshMods() {
+      mapRows = [];
+      $mapRows.empty();
+      if (modFile && modFile.text) {
+        var saved = loadSavedMap();
+        // First pass without a map only collects the database names in the file.
+        var found = dbcmpConvertScript(modFile.text, { map: null, exists: null }).stats.dbs;
+        dbcmpSuggestDbMap(found, targetDb()).forEach(function (r) {
+          var sv = Object.prototype.hasOwnProperty.call(saved, r.key) ? saved[r.key] : null;
+          r.value = typeof sv === 'string' ? sv : r.suggest;
+          mapRows.push(r);
+          var $input = $('<input type="text">').attr({ spellcheck: 'false', maxlength: 128, placeholder: 'เว้นว่าง = ไม่เปลี่ยน', 'aria-label': 'ชื่อ DB ใหม่ของ ' + r.name })
+            .addClass('flex-1 min-w-[140px] bg-surface border border-line rounded-lg px-2.5 py-1 text-[12.5px] font-mono text-ink outline-none focus:border-accent')
+            .val(r.value)
+            .on('change', function () {
+              r.value = this.value;
+              $input.toggleClass('border-bad', !!r.value.trim() && !validDbName(r.value.trim()));
+              var all = loadSavedMap();
+              all[r.key] = r.value.trim();
+              storeSet(DBMAP_KEY, JSON.stringify(all));
+              modFile.out = convert();
+              renderModSummary();
+              // New objects are scripted with the same names.
+              if (last) run();
+            });
+          $mapRows.append($('<div>').addClass('flex items-center gap-2.5 flex-wrap px-4 py-1.5 border-b border-line').append(
+            $('<span>').addClass('w-[220px] max-w-full font-mono text-[12.5px] font-semibold text-ink break-all').text(r.name),
+            $('<i>').addClass('bi bi-arrow-right text-inkfaint leading-none'),
+            $input,
+            $('<span>').addClass('flex-none text-[11.5px] text-inkfaint').text(r.count.toLocaleString() + ' จุด' + (r.suggest ? ' · พบใน Target: ' + r.suggest : ''))
+          ));
+        });
+        modFile.out = convert();
+      }
+      $mapBox.attr('hidden', !mapRows.length);
+      renderModSummary();
+    }
+
+    // A clickable row; clicking it shows the script underneath, the button copies it.
+    function makeEntry($head, script) {
+      var $pre = $('<pre>').addClass('m-0 px-4 py-3 bg-surface2 border-b border-line font-mono text-[12px] leading-relaxed whitespace-pre overflow-auto max-h-[420px]').attr('hidden', true).text(script);
+      var $caret = $('<i>').addClass('bi bi-chevron-right flex-none text-inkfaint leading-none');
+      var $copy = $('<button type="button">').addClass('flex-none flex items-center gap-1 bg-surface border border-line text-ink text-[11.5px] font-bold px-2 py-0.5 rounded-lg cursor-pointer hover:border-accent hover:text-accentdeep')
+        .append($('<i>').addClass('bi bi-clipboard leading-none'), $('<span>').text('คัดลอก'))
+        .on('click', function (e) { e.stopPropagation(); copyText(script, $copy); });
+      var $row = $('<div>').attr({ role: 'button', tabindex: 0, 'aria-expanded': 'false' })
+        .addClass('flex items-center gap-2.5 px-4 py-2 border-b border-line cursor-pointer hover:bg-surface2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent')
+        .append($caret, $head, $copy);
+      function toggle() {
+        var open = $pre.is('[hidden]');
+        $pre.attr('hidden', !open);
+        $row.attr('aria-expanded', open ? 'true' : 'false');
+        $caret.toggleClass('bi-chevron-right', !open).toggleClass('bi-chevron-down', open);
+      }
+      $row.on('click', toggle).on('keydown', function (e) {
+        if (e.target !== this || (e.key !== 'Enter' && e.key !== ' ')) return;
+        e.preventDefault();
+        toggle();
+      });
+      return [$row, $pre];
+    }
+
+    // Database names for new objects: the saved choice, else the name the target uses.
+    function newModsMap(src, tgt) {
+      var skip = dbcmpSchemaNames(src, tgt);
+      DBCMP_IGNORE_DBS.forEach(function (n) { skip[n] = true; });
+      var dbs = dbcmpMap();
+      Object.keys(src.modules).forEach(function (k) {
+        if (tgt.modules[k]) return;
+        dbcmpEachDbRef(src.modules[k].def, skip, function (db, obj) {
+          var d = dbcmpLower(db);
+          var row = dbs[d] = dbs[d] || { name: db, count: 0, objs: dbcmpMap() };
+          row.count++;
+          row.objs[dbcmpLower(obj)] = true;
+        });
+      });
+      var saved = loadSavedMap();
+      var map = dbcmpMap();
+      var notes = [];
+      dbcmpSuggestDbMap(dbs, tgt).forEach(function (r) {
+        var sv = Object.prototype.hasOwnProperty.call(saved, r.key) ? saved[r.key] : null;
+        var v = (typeof sv === 'string' ? sv : r.suggest).trim();
+        if (v && validDbName(v) && dbcmpLower(v) !== r.key) {
+          map[r.key] = v;
+          notes.push(r.name + ' → ' + v);
+        } else {
+          notes.push(r.name + ' (ไม่เปลี่ยน)');
+        }
+      });
+      return { map: map, notes: notes };
+    }
+
+    function render(items, dbNotes) {
+      scripts = { tables: [], cols: [], newmods: [] };
+      $tables.empty();
+      $cols.empty();
+      $newMods.empty();
+      var colCount = 0;
+      // New objects keep the order of the source script, which SSMS sorts by dependency.
+      var order = dbcmpMap();
+      if (last) Object.keys(last.src.modules).forEach(function (k, i) { order[k] = i; });
+      // New table types go first: a new procedure that takes one cannot be created without it.
+      items.forEach(function (it) {
+        if (it.kind !== 'tabletype' || it.status !== 'add') return;
+        var create = dbcmpTypeCreate(it.src, OPTS) + '\nGO\n';
+        scripts.newmods.push(create);
+        $newMods.append(makeEntry($('<span>').addClass('flex flex-1 min-w-0 items-center justify-between gap-3').append(
+          $('<span>').addClass('font-mono font-semibold text-good break-all').text(it.schema + '.' + it.name),
+          $('<span>').addClass('flex-none text-inksoft').text(it.typeLabel)
+        ), create));
+      });
+      items.filter(function (it) { return it.kind === 'module' && it.status === 'add'; })
+        .sort(function (a, b) { return order[a.key] - order[b.key]; })
+        .forEach(function (it) {
+          var create = it.def + '\nGO\n';
+          scripts.newmods.push(create);
+          $newMods.append(makeEntry($('<span>').addClass('flex flex-1 min-w-0 items-center justify-between gap-3').append(
+            $('<span>').addClass('font-mono font-semibold text-good break-all').text(it.schema + '.' + it.name),
+            $('<span>').addClass('flex-none text-inksoft').text(it.typeLabel)
+          ), create));
+        });
+      if (!scripts.newmods.length) $newMods.append($('<div>').addClass('px-4 py-2.5 text-inkfaint').text('ไม่มี View / Procedure / Function ใหม่'));
+      else if (dbNotes.length) $newMods.prepend($('<div>').addClass('px-4 py-2 border-b border-line text-[11.5px] text-inksoft break-all').text('ชื่อ DB: ' + dbNotes.join(' · ')));
+      $('#dbcmp-new-mods-count').text(scripts.newmods.length.toLocaleString());
+      items.forEach(function (it) {
+        if (it.kind !== 'table') return;
+        var name = it.schema + '.' + it.name;
+        if (it.status === 'add') {
+          var create = dbcmpTableScript(it.src, OPTS);
+          scripts.tables.push(create);
+          $tables.append(makeEntry($('<span>').addClass('flex flex-1 min-w-0 items-center justify-between gap-3').append(
+            $('<span>').addClass('font-mono font-semibold text-good break-all').text(name),
+            $('<span>').addClass('flex-none text-inksoft').text(it.src.columns.length + ' คอลัมน์')
+          ), create));
+          return;
+        }
+        if (it.status !== 'change' || !(it.newCols.length + it.colChanges.length)) return;
+        colCount += it.newCols.length + it.colChanges.length;
+        var alter = dbcmpColumnsScript(it, OPTS);
+        scripts.cols.push(alter);
+        var summary = [];
+        if (it.newCols.length) summary.push('เพิ่ม ' + it.newCols.length);
+        if (it.colChanges.length) summary.push('แก้ไข ' + it.colChanges.length);
+        $cols.append(makeEntry($('<span>').addClass('flex flex-1 min-w-0 items-center justify-between gap-3').append(
+          $('<span>').addClass('font-mono font-semibold text-ink break-all').text(name),
+          $('<span>').addClass('flex-none text-inksoft').text(summary.join(' · '))
+        ), alter));
+        var $ul = $('<ul>').addClass('m-0 list-none px-4 py-1.5 pl-[42px] border-b border-line font-mono text-[11.5px] leading-relaxed');
+        it.newCols.forEach(function (c) {
+          $ul.append($('<li>').addClass('break-all').append(
+            $('<span>').addClass('font-semibold text-good').text('+ ' + c.name + ' '),
+            $('<span>').addClass('text-inksoft').text(dbcmpColDesc(c, OPTS))
+          ));
+        });
+        it.colChanges.forEach(function (x) {
+          $ul.append($('<li>').addClass('break-all').append(
+            $('<span>').addClass('font-semibold text-accentdeep').text('~ ' + x.col.name + ' '),
+            $('<span>').addClass('text-inksoft').text(dbcmpColDesc(x.old, OPTS) + ' → ' + dbcmpColDesc(x.col, OPTS))
+          ));
+        });
+        $cols.append($ul);
+      });
+      if (!scripts.tables.length) $tables.append($('<div>').addClass('px-4 py-2.5 text-inkfaint').text('ไม่มีตารางใหม่'));
+      if (!scripts.cols.length) $cols.append($('<div>').addClass('px-4 py-2.5 text-inkfaint').text('ไม่มีคอลัมน์ใหม่หรือคอลัมน์ที่แก้ไข'));
+      $('#dbcmp-new-tables-count').text(scripts.tables.length.toLocaleString());
+      $('#dbcmp-new-cols-count').text(colCount.toLocaleString());
+      return colCount;
+    }
+
+    function run() {
+      var src = sides.source;
+      var tgt = sides.target;
+      if (!src || !tgt) { setStatus('เลือกไฟล์ทั้งต้นทางและปลายทางก่อน', 'bad'); return; }
+      if (!src.db || !tgt.db) { setStatus(src.error || tgt.error ? 'ไฟล์ที่เลือกอ่านไม่ได้' : 'กำลังอ่านไฟล์ รอสักครู่', 'bad'); return; }
+      last = { src: src.db, tgt: tgt.db };
+      var dbMap = newModsMap(src.db, tgt.db);
+      var colCount = render(dbcmpCompare(src.db, tgt.db, $.extend({}, OPTS, { dbMap: dbMap.map })), dbMap.notes);
+      setStatus('ตารางใหม่ ' + scripts.tables.length.toLocaleString() + ' ตาราง · คอลัมน์ใหม่/แก้ไข ' + colCount.toLocaleString() + ' คอลัมน์ · View/SP ใหม่ ' + scripts.newmods.length.toLocaleString() + ' ตัว', 'good');
+      $result.removeAttr('hidden');
+    }
+
+    $('#btn-dbcmp-run').on('click', run);
+    $('#btn-dbcmp-swap').on('click', function () {
+      var tmp = sides.source;
+      sides.source = sides.target;
+      sides.target = tmp;
+      renderSide('source');
+      renderSide('target');
+      refreshMods();
+      if (last) run();
+    });
+    $('#btn-dbcmp-clear').on('click', function () {
+      sides = { source: null, target: null };
+      modFile = null;
+      renderSide('source');
+      renderSide('target');
+      refreshMods();
+      reset();
+    });
+    $('#btn-dbcmp-query-save').on('click', function () {
+      deliverFiles([{ name: 'dbcompare_extract_schema.sql', blob: sqlBlob(DBCMP_EXTRACT_SQL + '\n') }], 'dbcompare_extract_schema')
+        .catch(function (err) { setStatus(err && err.message ? err.message : 'บันทึกไฟล์ไม่สำเร็จ', 'bad'); });
+    });
+    $('.dbcmp-copy-all').on('click', function () { copyText(allScript(kindOf($(this))), $(this)); });
+    $('.dbcmp-save-all').on('click', function () { saveFiles([kindOf($(this))], setStatus); });
+    $('#btn-dbcmp-download-all').on('click', function () { saveFiles(['tables', 'cols', 'newmods', 'mods'], setStatus); });
+    $('#btn-dbcmp-mods-save').on('click', function () {
+      saveFiles(['mods'], function (msg, kind) {
+        renderModSummary();
+        $modSummary.append(line(kind === 'bad' ? 'text-bad' : 'text-good', msg));
+      });
+    });
+
+    $('.dbcmp-open').on('click', function () {
+      var t = $(this).data('target');
+      fileTarget = t === 'target' || t === 'mods' ? t : 'source';
+      $fileInput.trigger('click');
+    });
+    $fileInput.on('change', function () {
+      var file = $fileInput[0].files[0];
+      var side = fileTarget;
+      $fileInput.val('');
+      if (!file || !side) return;
+      if (file.size > DBCMP_MAX_FILE_BYTES) { setStatus('ไฟล์ใหญ่เกิน 50 MB', 'bad'); return; }
+      if (side === 'mods') {
+        var mf = { file: file.name, text: '', error: '', out: null };
+        modFile = mf;
+        refreshMods();
+        // The upload button sits in the header, away from the result card.
+        $('#dbcmp-mods-card')[0].scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        file.arrayBuffer().then(function (buf) {
+          setTimeout(function () {
+            if (modFile !== mf) return;
+            mf.text = dbcmpDecode(buf);
+            if (!mf.text.trim()) mf.error = 'ไฟล์ว่าง';
+            refreshMods();
+          }, 30);
+        }).catch(function () {
+          mf.error = 'อ่านไฟล์ไม่สำเร็จ';
+          if (modFile === mf) renderModSummary();
+        });
+        return;
+      }
+      var entry = { file: file.name, db: null, error: '' };
+      sides[side] = entry;
+      renderSide(side);
+      reset();
+      file.arrayBuffer().then(function (buf) {
+        // Let "reading" paint before a large script is parsed.
+        setTimeout(function () {
+          try { entry.db = dbcmpParse(dbcmpDecode(buf), file.name.replace(/\.[^.]+$/, '')); } catch (e) { entry.error = e.message; }
+          if (sides.source === entry) renderSide('source');
+          if (sides.target === entry) { renderSide('target'); refreshMods(); }
+        }, 30);
+      }).catch(function () {
+        entry.error = 'อ่านไฟล์ไม่สำเร็จ';
+        if (sides.source === entry) renderSide('source');
+        if (sides.target === entry) renderSide('target');
+      });
+    });
+    renderModSummary();
+  }
+
+  // ---------- Brick breaker game (views/brick-breaker.html) ----------
+  function initBrickBreakerView() {
+    var canvas = document.getElementById('bb-canvas');
+    if (!canvas || !canvas.getContext) return;
+
+    // Fixed logical board; CSS scales the canvas to fit.
+    var W = 360, H = 600;
+    var COLS = 40, ROWS = 38, CELL = 9, TOP = 18;
+    var PAD_W = 64, PAD_H = 6, PAD_Y = 556, PAD_SPEED = 420;
+    var BALL_R = 2.5, BALL_SPEED = 330, MAX_BALLS = 800;
+    var DROP_R = 6, DROP_SPEED = 140;
+    var SUBSTEPS = 3; // keeps per-step travel below one cell
+    var LIVES = 3;
+    var BEST_KEY = 'toolbox.brickBreakerBest';
+    var BRICK = 1, BRICK_SPLIT = 2, BRICK_ADD = 3, BRICK_WIDE = 4, BRICK_FIRE = 5, BRICK_LIFE = 6, BRICK_BOMB = 7;
+    var COLORS = { 1: '#e6c229', 2: '#22d3ee', 3: '#fb923c', 4: '#4ade80', 5: '#f43f5e', 6: '#f472b6', 7: '#a78bfa' };
+    // Cumulative spawn odds per brick; anything above the last is a plain brick.
+    var SPAWN = [[0.012, BRICK_SPLIT], [0.03, BRICK_ADD], [0.036, BRICK_WIDE], [0.04, BRICK_FIRE], [0.042, BRICK_LIFE], [0.052, BRICK_BOMB]];
+    var WIDE_W = 112, WIDE_TIME = 12, FIRE_TIME = 6, BOMB_RADIUS = 3;
+
+    var dpr = Math.min(window.devicePixelRatio || 1, 2);
+    canvas.width = W * dpr;
+    canvas.height = H * dpr;
+    var ctx = canvas.getContext('2d');
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    // Bricks are painted once on a layer and erased cell by cell.
+    var layer = document.createElement('canvas');
+    layer.width = W * dpr;
+    layer.height = H * dpr;
+    var lctx = layer.getContext('2d');
+    lctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    var $stage = $('#bb-stage');
+    var $overlay = $('#bb-overlay');
+    var $overlayTitle = $('#bb-overlay-title');
+    var $overlaySub = $('#bb-overlay-sub');
+    var $start = $('#bb-btn-start');
+    var $hud = { score: $('#bb-score'), balls: $('#bb-balls'), lives: $('#bb-lives'), best: $('#bb-best') };
+    var hudShown = {};
+
+    var grid = new Uint8Array(COLS * ROWS);
+    var balls = [];
+    var drops = [];
+    var blasts = []; // short-lived bomb rings
+    var BLAST_TIME = 0.3;
+    var remaining = 0;
+    var score = 0;
+    var lives = LIVES;
+    var best = parseInt(storeGet(BEST_KEY), 10) || 0;
+    var padX = (W - PAD_W) / 2;
+    var padW = PAD_W;
+    var wideT = 0; // seconds left on the wide paddle
+    var fireT = 0; // seconds left on piercing balls
+    var keys = { left: false, right: false };
+    var state = 'ready'; // ready | playing | paused | over | won
+    var running = false;
+    var lastTs = 0;
+
+    function isLocked() { return document.pointerLockElement === canvas; }
+    // Pointer lock keeps the cursor hidden and captured past the board edges.
+    function lockPointer() {
+      if (!canvas.requestPointerLock || isLocked()) return;
+      try {
+        var p = canvas.requestPointerLock();
+        if (p && p.catch) p.catch(function () { /* falls back to unlocked tracking */ });
+      } catch (e) { /* falls back to unlocked tracking */ }
+    }
+
+    function setHud(key, value) {
+      if (hudShown[key] === value) return;
+      hudShown[key] = value;
+      $hud[key].text(value);
+    }
+    function renderHud() {
+      setHud('score', score);
+      setHud('balls', balls.length);
+      setHud('lives', lives);
+      setHud('best', best);
+    }
+    function showOverlay(title, sub, btn) {
+      $overlayTitle.text(title);
+      $overlaySub.text(sub);
+      $start.text(btn);
+      $overlay.show();
+      $stage.css('cursor', '');
+      if (isLocked()) document.exitPointerLock();
+    }
+
+    function buildLevel() {
+      lctx.clearRect(0, 0, W, H);
+      remaining = 0;
+      for (var r = 0; r < ROWS; r++) {
+        for (var c = 0; c < COLS; c++) {
+          var i = r * COLS + c;
+          // Open channel so the ball can get behind the wall.
+          if ((c === 19 || c === 20) && r < 28) { grid[i] = 0; continue; }
+          var roll = Math.random();
+          grid[i] = BRICK;
+          for (var k = 0; k < SPAWN.length; k++) {
+            if (roll < SPAWN[k][0]) { grid[i] = SPAWN[k][1]; break; }
+          }
+          lctx.fillStyle = COLORS[grid[i]];
+          lctx.fillRect(c * CELL + 0.5, TOP + r * CELL + 0.5, CELL - 1, CELL - 1);
+          remaining++;
+        }
+      }
+    }
+
+    function addBall(x, y, ang) {
+      if (balls.length >= MAX_BALLS) return;
+      var vx = BALL_SPEED * Math.sin(ang);
+      var vy = -BALL_SPEED * Math.cos(ang);
+      // Avoid near-horizontal paths that never come back down.
+      var minVy = BALL_SPEED * 0.25;
+      if (Math.abs(vy) < minVy) {
+        vy = vy < 0 ? -minVy : minVy;
+        vx = (vx < 0 ? -1 : 1) * Math.sqrt(BALL_SPEED * BALL_SPEED - vy * vy);
+      }
+      balls.push({ x: x, y: y, vx: vx, vy: vy });
+    }
+    // Resizes around the paddle center.
+    function setPadWidth(w) {
+      var cx = padX + padW / 2;
+      padW = w;
+      padX = Math.max(0, Math.min(W - padW, cx - padW / 2));
+    }
+    function serve() {
+      balls.length = 0;
+      drops.length = 0;
+      blasts.length = 0;
+      wideT = 0;
+      fireT = 0;
+      setPadWidth(PAD_W);
+      addBall(padX + padW / 2, PAD_Y - BALL_R, 0);
+    }
+    function applyDrop(kind) {
+      if (kind === BRICK_WIDE) {
+        wideT = WIDE_TIME;
+        setPadWidth(WIDE_W);
+      } else if (kind === BRICK_FIRE) {
+        fireT = FIRE_TIME;
+      } else if (kind === BRICK_LIFE) {
+        lives++;
+      } else if (kind === BRICK_SPLIT) {
+        for (var i = 0, n = balls.length; i < n; i++) {
+          var b = balls[i];
+          var ang = Math.atan2(b.vx, -b.vy);
+          addBall(b.x, b.y, ang + 0.25 + Math.random() * 0.3);
+          addBall(b.x, b.y, ang - 0.25 - Math.random() * 0.3);
+        }
+      } else {
+        var cx = padX + padW / 2;
+        addBall(cx, PAD_Y - BALL_R, -0.4);
+        addBall(cx, PAD_Y - BALL_R, 0);
+        addBall(cx, PAD_Y - BALL_R, 0.4);
+      }
+    }
+
+    function breakCell(c, r) {
+      if (c < 0 || c >= COLS || r < 0 || r >= ROWS) return false;
+      var i = r * COLS + c;
+      var kind = grid[i];
+      if (!kind) return false;
+      // Cleared before the blast so chained bombs cannot recurse back here.
+      grid[i] = 0;
+      lctx.clearRect(c * CELL, TOP + r * CELL, CELL, CELL);
+      remaining--;
+      score++;
+      if (kind === BRICK_BOMB) {
+        for (var dr = -BOMB_RADIUS; dr <= BOMB_RADIUS; dr++) {
+          for (var dc = -BOMB_RADIUS; dc <= BOMB_RADIUS; dc++) {
+            if (dr * dr + dc * dc <= BOMB_RADIUS * BOMB_RADIUS) breakCell(c + dc, r + dr);
+          }
+        }
+        blasts.push({ x: c * CELL + CELL / 2, y: TOP + r * CELL + CELL / 2, t: 0 });
+      } else if (kind !== BRICK) {
+        drops.push({ x: c * CELL + CELL / 2, y: TOP + r * CELL + CELL / 2, kind: kind });
+      }
+      return true;
+    }
+    function hitBrick(x, y) {
+      return breakCell(Math.floor(x / CELL), Math.floor((y - TOP) / CELL));
+    }
+
+    function step(h) {
+      var i;
+      var pierce = fireT > 0;
+      for (i = balls.length - 1; i >= 0; i--) {
+        var b = balls[i];
+        b.x += b.vx * h;
+        if (b.x < BALL_R) { b.x = BALL_R; b.vx = -b.vx; }
+        else if (b.x > W - BALL_R) { b.x = W - BALL_R; b.vx = -b.vx; }
+        else if (hitBrick(b.x, b.y) && !pierce) { b.vx = -b.vx; b.x += b.vx * h; }
+        b.y += b.vy * h;
+        if (b.y < BALL_R) { b.y = BALL_R; b.vy = -b.vy; }
+        else if (hitBrick(b.x, b.y)) { if (!pierce) { b.vy = -b.vy; b.y += b.vy * h; } }
+        else if (b.vy > 0 && b.y + BALL_R >= PAD_Y && b.y - BALL_R <= PAD_Y + PAD_H && b.x >= padX - BALL_R && b.x <= padX + padW + BALL_R) {
+          // Bounce angle follows where the ball lands on the paddle.
+          var t = (b.x - (padX + padW / 2)) / (padW / 2);
+          var ang = Math.max(-1, Math.min(1, t)) * (Math.PI / 3);
+          b.vx = BALL_SPEED * Math.sin(ang);
+          b.vy = -BALL_SPEED * Math.cos(ang);
+          b.y = PAD_Y - BALL_R;
+        } else if (b.y > H + BALL_R) {
+          balls[i] = balls[balls.length - 1];
+          balls.pop();
+        }
+      }
+      for (i = drops.length - 1; i >= 0; i--) {
+        var d = drops[i];
+        d.y += DROP_SPEED * h;
+        var caught = d.y + DROP_R >= PAD_Y && d.y - DROP_R <= PAD_Y + PAD_H && d.x >= padX - DROP_R && d.x <= padX + padW + DROP_R;
+        if (caught || d.y > H + DROP_R) {
+          drops[i] = drops[drops.length - 1];
+          drops.pop();
+          if (caught) applyDrop(d.kind);
+        }
+      }
+    }
+
+    function draw() {
+      ctx.clearRect(0, 0, W, H);
+      ctx.drawImage(layer, 0, 0, W, H);
+      var i;
+      for (i = 0; i < drops.length; i++) {
+        ctx.fillStyle = COLORS[drops[i].kind];
+        ctx.beginPath();
+        ctx.arc(drops[i].x, drops[i].y, DROP_R, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      for (i = 0; i < blasts.length; i++) {
+        var k = blasts[i].t / BLAST_TIME;
+        ctx.strokeStyle = 'rgba(167,139,250,' + (1 - k) + ')';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(blasts[i].x, blasts[i].y, (0.3 + 0.7 * k) * BOMB_RADIUS * CELL, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+      ctx.fillStyle = fireT > 0 ? COLORS[BRICK_FIRE] : '#ffffff';
+      ctx.beginPath();
+      for (i = 0; i < balls.length; i++) {
+        ctx.moveTo(balls[i].x + BALL_R, balls[i].y);
+        ctx.arc(balls[i].x, balls[i].y, BALL_R, 0, Math.PI * 2);
+      }
+      ctx.fill();
+      ctx.fillStyle = wideT > 0 ? COLORS[BRICK_WIDE] : '#f4743b';
+      ctx.fillRect(padX, PAD_Y, padW, PAD_H);
+      renderHud();
+    }
+
+    function movePaddle(x) {
+      padX = Math.max(0, Math.min(W - padW, x));
+      // The served ball rides the paddle until launch.
+      if (state === 'ready' && balls.length) balls[0].x = padX + padW / 2;
+    }
+
+    function saveBest() {
+      if (score <= best) return;
+      best = score;
+      storeSet(BEST_KEY, String(best));
+    }
+    function newGame() {
+      score = 0;
+      lives = LIVES;
+      padW = PAD_W;
+      padX = (W - PAD_W) / 2;
+      buildLevel();
+      serve();
+      state = 'ready';
+      showOverlay('Brick Breaker', 'ทุบอิฐให้หมด เก็บไอเทมที่ตกลงมาเพื่อเพิ่มลูกบอล', 'เริ่มเกม');
+      draw();
+    }
+    function pause() {
+      if (state !== 'playing') return;
+      state = 'paused';
+      showOverlay('หยุดชั่วคราว', 'กด Space หรือปุ่มด้านล่างเพื่อเล่นต่อ', 'เล่นต่อ');
+    }
+    function play() {
+      if (state === 'over' || state === 'won') newGame();
+      state = 'playing';
+      $overlay.hide();
+      // Cursor would cover the paddle while playing.
+      $stage.css('cursor', 'none');
+      lockPointer();
+      if (running) return;
+      running = true;
+      lastTs = 0;
+      requestAnimationFrame(frame);
+    }
+
+    function frame(ts) {
+      // Leaving the view hides the canvas; stop instead of playing blind.
+      if (canvas.offsetParent === null) pause();
+      if (state !== 'playing') { running = false; draw(); return; }
+      var dt = lastTs ? Math.min((ts - lastTs) / 1000, 1 / 30) : 0;
+      lastTs = ts;
+      if (keys.left !== keys.right) movePaddle(padX + (keys.left ? -1 : 1) * PAD_SPEED * dt);
+      for (var s = 0; s < SUBSTEPS; s++) step(dt / SUBSTEPS);
+      if (fireT > 0) fireT -= dt;
+      if (wideT > 0) {
+        wideT -= dt;
+        if (wideT <= 0) setPadWidth(PAD_W);
+      }
+      for (var j = blasts.length - 1; j >= 0; j--) {
+        blasts[j].t += dt;
+        if (blasts[j].t >= BLAST_TIME) blasts.splice(j, 1);
+      }
+      if (remaining === 0) {
+        state = 'won';
+        saveBest();
+        showOverlay('ชนะแล้ว!', 'ทุบอิฐครบ ' + score + ' ก้อน', 'เล่นอีกครั้ง');
+      } else if (balls.length === 0) {
+        lives--;
+        if (lives <= 0) {
+          state = 'over';
+          saveBest();
+          showOverlay('จบเกม', 'คะแนน ' + score, 'เล่นอีกครั้ง');
+        } else {
+          serve();
+          state = 'ready';
+          showOverlay('ลูกบอลหลุด', 'เหลืออีก ' + lives + ' ชีวิต', 'เล่นต่อ');
+        }
+      }
+      draw();
+      if (state === 'playing') requestAnimationFrame(frame); else running = false;
+    }
+
+    $start.on('click', play);
+    $('#bb-btn-pause').on('click', function () {
+      if (state === 'playing') pause(); else if (state === 'paused') play();
+    });
+    $('#bb-btn-restart').on('click', newGame);
+
+    $(document).on('pointermove pointerdown', function (e) {
+      if (canvas.offsetParent === null) return;
+      // While playing the paddle keeps following outside the board too.
+      if (state !== 'playing' && !$stage[0].contains(e.target)) return;
+      var rect = canvas.getBoundingClientRect();
+      if (!rect.width) return;
+      if (isLocked()) {
+        if (e.type === 'pointermove') movePaddle(padX + (e.originalEvent.movementX || 0) / rect.width * W);
+        return;
+      }
+      movePaddle((e.clientX - rect.left) / rect.width * W - padW / 2);
+      if (state !== 'playing') draw();
+    });
+    // Esc releases the lock; pause so the ball is not left unattended.
+    document.addEventListener('pointerlockchange', function () {
+      if (!isLocked()) pause();
+    });
+
+    $(document).on('keydown keyup', function (e) {
+      if (canvas.offsetParent === null) return;
+      if ($(e.target).is('input, textarea, select, button, [contenteditable]')) return;
+      var down = e.type === 'keydown';
+      if (e.key === 'ArrowLeft') keys.left = down;
+      else if (e.key === 'ArrowRight') keys.right = down;
+      else if (e.key === ' ' || e.key === 'Spacebar') {
+        if (down && !e.originalEvent.repeat) { if (state === 'playing') pause(); else play(); }
+      } else return;
+      e.preventDefault();
+    });
+    document.addEventListener('visibilitychange', function () {
+      if (document.hidden) pause();
+    });
+
+    newGame();
   }
 })(jQuery);
