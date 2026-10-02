@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ประเด็นองค์กร - Image Export</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Prompt:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  body { margin: 0; padding: 16px; font-family: 'Prompt', 'Leelawadee UI', Tahoma, sans-serif; background: #e9eef5; color: #12306b; }
+  .bar { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin-bottom: 12px; }
+  button { padding: 8px 16px; border: 0; border-radius: 6px; background: #0b57d0; color: #fff; font: inherit; cursor: pointer; }
+  button:disabled { background: #9aa7bd; cursor: not-allowed; }
+  canvas { width: 100%; max-width: 1658px; height: auto; display: block; background: #fff; box-shadow: 0 2px 10px rgba(0,0,0,.2); }
+  #info { font-size: 13px; }
+</style>
+</head>
+<body>
+<div class="bar">
+  <label>Background: <input type="file" id="bgFile" accept="image/*"></label>
+  <label>Scale:
+    <select id="scale">
+      <option value="auto" selected>Auto</option>
+      <option value="1">1x (1658x949)</option>
+      <option value="2">2x (3316x1898)</option>
+      <option value="3">3x (4974x2847)</option>
+      <option value="4">4x (6632x3796)</option>
+    </select>
+  </label>
+  <button id="download" disabled>Download PNG</button>
+  <span id="info">เลือกไฟล์ background (ภาพที่ 2) ก่อน</span>
+</div>
+<canvas id="cv" width="1658" height="949"></canvas>
+
+<script>
+// All coordinates are in the 1658x949 base space of the background image.
+const BASE_W = 1658, BASE_H = 949;
+const FONT = "'Prompt', 'Leelawadee UI', Tahoma, sans-serif";
+
+const LAYOUT = {
+  title:   { text: 'ประเด็นองค์กร', x: 305, y: 59, size: 46 },
+  head1:   { text: 'ประเด็นองค์กร', x: 424, y: 127, size: 30 },
+  head2:   { text: 'คำนิยาม', x: 1087, y: 127, size: 30 },
+  numX: 93, numDy: -4, // number center inside the leaf (offset from row middle)
+  letterX: 239,        // E/S/G inside the colored square
+  letterDy: 23,        // letter center offset from row top
+  nameX: 284, nameMaxW: 282, nameSize: 23,
+  barX: 600, barW: 4, barPadY: 14,
+  barColors: { E: '#22b14c', S: '#1e88ff', G: '#ff9416' },
+  descX: 616, descMaxW: 956, descSize: 17.5, descMinSize: 12, descLine: 1.34, descPadY: 5,
+  nameColor: '#0b2a66', descColor: '#14366f'
+};
+
+const ROWS = [
+  { top: 155, bottom: 231, letter: 'E', name: ['Climate Action'],
+    desc: 'การขับเคลื่อนการลดผลกระทบจากการเปลี่ยนแปลงสภาพภูมิอากาศ โดยมุ่งเน้นการลดและจัดการการปล่อยก๊าซเรือนกระจก การเพิ่มประสิทธิภาพการใช้พลังงาน ตลอดจนการมีส่วนร่วมกับผู้มีส่วนได้ส่วนเสียทั้งภายในและภายนอกองค์กร เพื่อสร้างการร่วมมือในเป้าหมายการบรรลุ Net Zero ของประเทศอย่างยั่งยืน' },
+  { top: 235, bottom: 306, letter: 'E', name: ['Environmental', 'Management'],
+    desc: 'การบริหารจัดการสิ่งแวดล้อม เพื่อป้องกันและลดผลกระทบต่อระบบนิเวศ ชุมชน และคุณภาพชีวิต โดยครอบคลุมการจัดการน้ำ ทรัพยากร ที่ดิน มลพิษ และการใช้ประโยชน์ทรัพยากรอย่างมีประสิทธิภาพ พร้อมทั้งการดำเนินการตามกฎหมายและมาตรฐานสิ่งแวดล้อม' },
+  { top: 310, bottom: 389, letter: 'S', name: ['Occupational Health', 'and Safety'],
+    desc: 'การบริหารจัดการเพื่อสร้างสภาพแวดล้อมการทำงานที่ปลอดภัยและส่งเสริมสุขภาพกายและใจของพนักงานและผู้เกี่ยวข้อง รวมถึงการป้องกันอุบัติเหตุ การบริหารความเสี่ยง และการเตรียมความพร้อมในการรับมือเหตุฉุกเฉิน เพื่อให้ทุกคนในองค์กรและชุมชนได้รับความปลอดภัยสูงสุด' },
+  { top: 394, bottom: 472, letter: 'S', name: ['Trusted Corporate', 'Citizenship'],
+    desc: 'การดำเนินธุรกิจโดยคำนึงถึงบทบาทและความรับผิดชอบต่อสังคม รวมทั้งการดำเนินงานเพื่อสร้างภาพลักษณ์ที่ดี ความเข้าใจ และความเชื่อมั่นที่มีต่อองค์กร ผลิตภัณฑ์ และบริการขององค์กร ตลอดจนการดำเนินกิจกรรมเพื่อพัฒนาคุณภาพชีวิตของสังคม ชุมชน สิ่งแวดล้อม และประเทศ' },
+  { top: 478, bottom: 551, letter: 'S', name: ['Employment Practices'],
+    desc: 'การส่งเสริมสภาพแวดล้อมการทำงานที่เหมาะสม สนับสนุนการพัฒนาบุคลากร และรักษาความสัมพันธ์ที่ดีระหว่างองค์กรและพนักงาน ตลอดจนการบริหารอัตรากำลังทรัพยากรบุคคลอย่างเป็นธรรม โปร่งใส และสอดคล้องกับหลักสิทธิมนุษยชน' },
+  { top: 557, bottom: 628, letter: 'G', name: ['Innovation, Technology', '& Digitalization'],
+    desc: 'การพัฒนาศักยภาพองค์กร โดยการนำนวัตกรรมและเทคโนโลยีดิจิทัลมาเป็นพื้นฐานในการขับเคลื่อนงานองค์กรและปรับเปลี่ยนกระบวนการทำงาน' },
+  { top: 633, bottom: 707, letter: 'G', name: ['Economic Contribution', '& Financial Performance'],
+    desc: 'การดำเนินธุรกิจอย่างมีประสิทธิภาพ เพื่อสร้างผลตอบแทนทางเศรษฐกิจ สังคม และสิ่งแวดล้อมให้กับประเทศ ตลอดจนการเติบโตอย่างยั่งยืนขององค์กร โดยมุ่งเน้นการสร้างคุณค่าอย่างยั่งยืนแก่ผู้มีส่วนได้ส่วนเสีย พร้อมทั้งสนับสนุนนโยบายเศรษฐกิจของประเทศ' },
+  { top: 711, bottom: 785, letter: 'G', name: ['Compliance', 'Governance & Ethics'],
+    desc: 'การดำเนินธุรกิจภายใต้หลักธรรมาภิบาล โดยมีโครงสร้างและกระบวนการที่โปร่งใส ตรวจสอบได้ และส่งเสริมจริยธรรมในทุกระดับขององค์กร การปฏิบัติตามกฎหมายและกฎระเบียบที่มีการประกาศและบังคับใช้อย่างเคร่งครัด' },
+  { top: 790, bottom: 871, letter: 'G', name: ['Product and Service', 'Stewardship'],
+    desc: 'การดูแลความรับผิดชอบต่อผลิตภัณฑ์และบริการครอบคลุมตั้งแต่การออกแบบ พัฒนา การผลิต การตลาด และบริการหลังการขาย โดยคำนึงถึงคุณภาพ ความปลอดภัย ความโปร่งใส ความพึงพอใจของลูกค้า เพื่อสร้างประสบการณ์ที่ดีและความประทับใจร่วมกันระหว่างองค์กรกับลูกค้า' }
+];
+
+const cv = document.getElementById('cv');
+const ctx = cv.getContext('2d');
+const info = document.getElementById('info');
+const btn = document.getElementById('download');
+const scaleSel = document.getElementById('scale');
+let bg = null;
+
+const segmenter = (typeof Intl !== 'undefined' && Intl.Segmenter)
+  ? new Intl.Segmenter('th', { granularity: 'word' }) : null;
+
+function segments(text) {
+  if (segmenter) return Array.from(segmenter.segment(text), s => s.segment);
+  return text.split(/(\s+)/);
+}
+
+// Greedy wrap on Thai word boundaries.
+function wrap(text, maxW) {
+  const lines = [];
+  let cur = '';
+  for (const seg of segments(text)) {
+    if (cur.trim() && ctx.measureText((cur + seg).trimEnd()).width > maxW) {
+      lines.push(cur.trimEnd());
+      cur = seg.trimStart();
+    } else {
+      cur += seg;
+    }
+  }
+  if (cur.trim()) lines.push(cur.trimEnd());
+  return lines;
+}
+
+function setFont(weight, size) {
+  ctx.font = weight + ' ' + size + 'px ' + FONT;
+}
+
+function shadow(on) {
+  ctx.shadowColor = on ? 'rgba(0, 30, 90, .45)' : 'transparent';
+  ctx.shadowBlur = on ? 4 : 0;
+  ctx.shadowOffsetY = on ? 1.5 : 0;
+}
+
+function drawCentered(text, x, y, weight, size, color) {
+  setFont(weight, size);
+  ctx.textAlign = 'center';
+  ctx.fillStyle = color;
+  ctx.fillText(text, x, y);
+}
+
+// Center on the real glyph box, not the font's em box.
+function drawGlyphCentered(text, cx, cy, weight, size, color) {
+  setFont(weight, size);
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'alphabetic';
+  ctx.fillStyle = color;
+  const m = ctx.measureText(text);
+  const x = cx - (m.actualBoundingBoxRight - m.actualBoundingBoxLeft) / 2;
+  const y = cy + (m.actualBoundingBoxAscent - m.actualBoundingBoxDescent) / 2;
+  ctx.fillText(text, x, y);
+  ctx.textBaseline = 'middle';
+}
+
+function drawLines(lines, x, centerY, lineH) {
+  ctx.textAlign = 'left';
+  let y = centerY - (lines.length - 1) * lineH / 2;
+  for (const line of lines) {
+    ctx.fillText(line, x, y);
+    y += lineH;
+  }
+}
+
+function getScale() {
+  if (scaleSel.value !== 'auto') return Number(scaleSel.value);
+  const natural = bg ? bg.naturalWidth / BASE_W : 1;
+  return Math.min(4, Math.max(2, natural));
+}
+
+function render() {
+  const L = LAYOUT;
+  const s = getScale();
+  cv.width = Math.round(BASE_W * s);
+  cv.height = Math.round(BASE_H * s);
+  ctx.setTransform(s, 0, 0, s, 0, 0);
+  ctx.imageSmoothingQuality = 'high';
+  ctx.textBaseline = 'middle';
+
+  if (bg) {
+    ctx.drawImage(bg, 0, 0, BASE_W, BASE_H);
+  } else {
+    ctx.fillStyle = '#dfeaf8';
+    ctx.fillRect(0, 0, BASE_W, BASE_H);
+  }
+
+  shadow(true);
+  drawCentered(L.title.text, L.title.x, L.title.y, 700, L.title.size, '#fff');
+  drawCentered(L.head1.text, L.head1.x, L.head1.y, 600, L.head1.size, '#fff');
+  drawCentered(L.head2.text, L.head2.x, L.head2.y, 600, L.head2.size, '#fff');
+
+  ROWS.forEach((row, i) => {
+    const mid = (row.top + row.bottom) / 2;
+
+    shadow(true);
+    drawGlyphCentered(String(i + 1), L.numX, mid + L.numDy, 700, 27, '#fff');
+    drawGlyphCentered(row.letter, L.letterX, row.top + L.letterDy, 700, 28, '#fff');
+    shadow(false);
+
+    // Category color bar before the description.
+    ctx.fillStyle = L.barColors[row.letter];
+    ctx.beginPath();
+    ctx.roundRect(L.barX, row.top + L.barPadY, L.barW, row.bottom - row.top - L.barPadY * 2, L.barW / 2);
+    ctx.fill();
+
+    // Name: shrink until the widest line fits the column.
+    let nameSize = L.nameSize;
+    setFont(600, nameSize);
+    while (nameSize > 14 && Math.max(...row.name.map(n => ctx.measureText(n).width)) > L.nameMaxW) {
+      nameSize -= 0.5;
+      setFont(600, nameSize);
+    }
+    ctx.fillStyle = L.nameColor;
+    drawLines(row.name, L.nameX, mid, nameSize * 1.28);
+
+    // Description: shrink until the block fits the row height.
+    const maxH = row.bottom - row.top - L.descPadY * 2;
+    let size = L.descSize, lines;
+    for (;;) {
+      setFont(400, size);
+      lines = wrap(row.desc, L.descMaxW);
+      if (lines.length * size * L.descLine <= maxH || size <= L.descMinSize) break;
+      size -= 0.5;
+    }
+    ctx.fillStyle = L.descColor;
+    drawLines(lines, L.descX, mid, size * L.descLine);
+  });
+
+  info.textContent = bg
+    ? 'Output: ' + cv.width + ' x ' + cv.height + ' px'
+    : 'เลือกไฟล์ background (ภาพที่ 2) ก่อน';
+}
+
+async function loadFonts() {
+  if (!document.fonts || !document.fonts.load) return;
+  try {
+    // Sample text forces the Thai and Latin subsets to load.
+    await Promise.all([400, 500, 600, 700].map(w => document.fonts.load(w + ' 20px Prompt', 'กขA1')));
+  } catch (e) { /* fall back to system font */ }
+}
+
+document.getElementById('bgFile').addEventListener('change', e => {
+  const file = e.target.files && e.target.files[0];
+  if (!file || !file.type.startsWith('image/')) return;
+  const url = URL.createObjectURL(file);
+  const img = new Image();
+  img.onload = () => {
+    URL.revokeObjectURL(url);
+    bg = img;
+    btn.disabled = false;
+    render();
+  };
+  img.onerror = () => {
+    URL.revokeObjectURL(url);
+    info.textContent = 'โหลดภาพไม่ได้';
+  };
+  img.src = url;
+});
+
+scaleSel.addEventListener('change', render);
+
+btn.addEventListener('click', () => {
+  cv.toBlob(blob => {
+    if (!blob) { info.textContent = 'Export ไม่สำเร็จ ลองลด Scale'; return; }
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'esg-topics.png';
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  }, 'image/png');
+});
+
+loadFonts().then(render);
+</script>
+</body>
+</html>

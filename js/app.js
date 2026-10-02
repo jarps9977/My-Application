@@ -10532,6 +10532,37 @@
     // Cumulative spawn odds per brick; anything above the last is a plain brick.
     var SPAWN = [[0.012, BRICK_SPLIT], [0.03, BRICK_ADD], [0.036, BRICK_WIDE], [0.04, BRICK_FIRE], [0.042, BRICK_LIFE], [0.052, BRICK_BOMB]];
     var WIDE_W = 112, WIDE_TIME = 12, FIRE_TIME = 6, BOMB_RADIUS = 3;
+    // Unbreakable; not counted toward clearing a level.
+    var STEEL = 8;
+    COLORS[STEEL] = '#71717a';
+    // Each layout maps a cell to 0 (empty), BRICK or STEEL.
+    var LEVELS = [
+      { name: 'ช่องกลาง', cell: function (c, r) {
+        return (c === 19 || c === 20) && r < 28 ? 0 : BRICK;
+      } },
+      { name: 'กำแพงเหล็ก', cell: function (c, r) {
+        if (r >= 28) return BRICK;
+        if (c === 19 || c === 20) return 0;
+        return c === 18 || c === 21 ? STEEL : BRICK;
+      } },
+      { name: 'เสาเหล็ก', cell: function (c, r) {
+        if ((c === 9 || c === 30) && r >= 4) return STEEL;
+        if (r === 18 && c >= 14 && c <= 25) return STEEL;
+        return BRICK;
+      } },
+      { name: 'ชั้นซิกแซก', cell: function (c, r) {
+        // Shelves alternate their gap side so balls must zigzag up.
+        if (r % 8 === 4 && r < 34) return (Math.floor(r / 8) % 2 === 0 ? c < 32 : c > 7) ? STEEL : BRICK;
+        return BRICK;
+      } },
+      { name: 'กล่องเหล็ก', cell: function (c, r) {
+        if (r >= 36) return BRICK;
+        var bx = c % 10, by = r % 9;
+        var edge = bx === 0 || bx === 9 || by === 0 || by === 8;
+        var door = (by === 0 || by === 8) && (bx === 4 || bx === 5);
+        return edge && !door ? STEEL : BRICK;
+      } }
+    ];
 
     var dpr = Math.min(window.devicePixelRatio || 1, 2);
     canvas.width = W * dpr;
@@ -10550,7 +10581,7 @@
     var $overlayTitle = $('#bb-overlay-title');
     var $overlaySub = $('#bb-overlay-sub');
     var $start = $('#bb-btn-start');
-    var $hud = { score: $('#bb-score'), balls: $('#bb-balls'), lives: $('#bb-lives'), best: $('#bb-best') };
+    var $hud = { level: $('#bb-level'), score: $('#bb-score'), balls: $('#bb-balls'), lives: $('#bb-lives'), best: $('#bb-best') };
     var hudShown = {};
 
     var grid = new Uint8Array(COLS * ROWS);
@@ -10561,6 +10592,7 @@
     var remaining = 0;
     var score = 0;
     var lives = LIVES;
+    var level = 0;
     var best = parseInt(storeGet(BEST_KEY), 10) || 0;
     var padX = (W - PAD_W) / 2;
     var padW = PAD_W;
@@ -10587,6 +10619,7 @@
       $hud[key].text(value);
     }
     function renderHud() {
+      setHud('level', (level + 1) + '/' + LEVELS.length);
       setHud('score', score);
       setHud('balls', balls.length);
       setHud('lives', lives);
@@ -10601,21 +10634,30 @@
       if (isLocked()) document.exitPointerLock();
     }
 
-    function buildLevel() {
+    function buildLevel(n) {
+      var layout = LEVELS[n].cell;
       lctx.clearRect(0, 0, W, H);
       remaining = 0;
       for (var r = 0; r < ROWS; r++) {
         for (var c = 0; c < COLS; c++) {
           var i = r * COLS + c;
-          // Open channel so the ball can get behind the wall.
-          if ((c === 19 || c === 20) && r < 28) { grid[i] = 0; continue; }
+          var type = layout(c, r);
+          grid[i] = type;
+          if (!type) continue;
+          var x = c * CELL, y = TOP + r * CELL;
+          if (type === STEEL) {
+            lctx.fillStyle = COLORS[STEEL];
+            lctx.fillRect(x + 0.5, y + 0.5, CELL - 1, CELL - 1);
+            lctx.fillStyle = '#a1a1aa';
+            lctx.fillRect(x + 0.5, y + 0.5, CELL - 1, 2);
+            continue;
+          }
           var roll = Math.random();
-          grid[i] = BRICK;
           for (var k = 0; k < SPAWN.length; k++) {
             if (roll < SPAWN[k][0]) { grid[i] = SPAWN[k][1]; break; }
           }
           lctx.fillStyle = COLORS[grid[i]];
-          lctx.fillRect(c * CELL + 0.5, TOP + r * CELL + 0.5, CELL - 1, CELL - 1);
+          lctx.fillRect(x + 0.5, y + 0.5, CELL - 1, CELL - 1);
           remaining++;
         }
       }
@@ -10671,11 +10713,13 @@
       }
     }
 
+    // Returns 0 for no hit, 1 for a broken brick, 2 for steel.
     function breakCell(c, r) {
-      if (c < 0 || c >= COLS || r < 0 || r >= ROWS) return false;
+      if (c < 0 || c >= COLS || r < 0 || r >= ROWS) return 0;
       var i = r * COLS + c;
       var kind = grid[i];
-      if (!kind) return false;
+      if (!kind) return 0;
+      if (kind === STEEL) return 2;
       // Cleared before the blast so chained bombs cannot recurse back here.
       grid[i] = 0;
       lctx.clearRect(c * CELL, TOP + r * CELL, CELL, CELL);
@@ -10691,7 +10735,7 @@
       } else if (kind !== BRICK) {
         drops.push({ x: c * CELL + CELL / 2, y: TOP + r * CELL + CELL / 2, kind: kind });
       }
-      return true;
+      return 1;
     }
     function hitBrick(x, y) {
       return breakCell(Math.floor(x / CELL), Math.floor((y - TOP) / CELL));
@@ -10700,15 +10744,17 @@
     function step(h) {
       var i;
       var pierce = fireT > 0;
+      var hit;
       for (i = balls.length - 1; i >= 0; i--) {
         var b = balls[i];
         b.x += b.vx * h;
         if (b.x < BALL_R) { b.x = BALL_R; b.vx = -b.vx; }
         else if (b.x > W - BALL_R) { b.x = W - BALL_R; b.vx = -b.vx; }
-        else if (hitBrick(b.x, b.y) && !pierce) { b.vx = -b.vx; b.x += b.vx * h; }
+        // Fire balls pass through bricks but still bounce off steel.
+        else if ((hit = hitBrick(b.x, b.y)) && (hit === 2 || !pierce)) { b.vx = -b.vx; b.x += b.vx * h; }
         b.y += b.vy * h;
         if (b.y < BALL_R) { b.y = BALL_R; b.vy = -b.vy; }
-        else if (hitBrick(b.x, b.y)) { if (!pierce) { b.vy = -b.vy; b.y += b.vy * h; } }
+        else if ((hit = hitBrick(b.x, b.y))) { if (hit === 2 || !pierce) { b.vy = -b.vy; b.y += b.vy * h; } }
         else if (b.vy > 0 && b.y + BALL_R >= PAD_Y && b.y - BALL_R <= PAD_Y + PAD_H && b.x >= padX - BALL_R && b.x <= padX + padW + BALL_R) {
           // Bounce angle follows where the ball lands on the paddle.
           var t = (b.x - (padX + padW / 2)) / (padW / 2);
@@ -10779,10 +10825,11 @@
       lives = LIVES;
       padW = PAD_W;
       padX = (W - PAD_W) / 2;
-      buildLevel();
+      level = 0;
+      buildLevel(level);
       serve();
       state = 'ready';
-      showOverlay('Brick Breaker', 'ทุบอิฐให้หมด เก็บไอเทมที่ตกลงมาเพื่อเพิ่มลูกบอล', 'เริ่มเกม');
+      showOverlay('ด่าน 1: ' + LEVELS[0].name, 'ทุบอิฐให้หมด เก็บไอเทมที่ตกลงมาเพื่อเพิ่มลูกบอล อิฐสีเทาทำลายไม่ได้', 'เริ่มเกม');
       draw();
     }
     function pause() {
@@ -10820,10 +10867,17 @@
         blasts[j].t += dt;
         if (blasts[j].t >= BLAST_TIME) blasts.splice(j, 1);
       }
-      if (remaining === 0) {
+      if (remaining === 0 && level < LEVELS.length - 1) {
+        saveBest();
+        level++;
+        buildLevel(level);
+        serve();
+        state = 'ready';
+        showOverlay('ผ่านด่าน ' + level + '!', 'ด่าน ' + (level + 1) + ': ' + LEVELS[level].name, 'ด่านถัดไป');
+      } else if (remaining === 0) {
         state = 'won';
         saveBest();
-        showOverlay('ชนะแล้ว!', 'ทุบอิฐครบ ' + score + ' ก้อน', 'เล่นอีกครั้ง');
+        showOverlay('ชนะครบทุกด่าน!', 'คะแนน ' + score, 'เล่นอีกครั้ง');
       } else if (balls.length === 0) {
         lives--;
         if (lives <= 0) {
