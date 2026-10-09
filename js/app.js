@@ -56,8 +56,7 @@
   var $viewCodeFormat = $(); // populated once views/code-format.html is fetched and mounted
   var $viewJsonFormat = $(); // populated once views/json-format.html is fetched and mounted
   var $viewColorPicker = $(); // populated once views/color-picker.html is fetched and mounted
-  var $viewVideoCompress = $(); // populated once views/video-compress.html is fetched and mounted
-  function openView($view) {
+  var $viewVideoCompress = $(); // populated once views/video-compress.html is fetched and mounted  function openView($view) {
     $viewHome.attr('hidden', true);
     $viewPdf.attr('hidden', true);
     $viewMerge.attr('hidden', true);
@@ -2022,6 +2021,7 @@
       pdf: [
         { value: 'word', label: 'Word (.docx)' },
         { value: 'excel', label: 'Excel (.xlsx)' },
+        { value: 'markdown', label: 'Markdown (.md)' },
         { value: 'powerpoint', label: 'PowerPoint (.pptx)' },
         { value: 'image', label: 'รูปภาพ (JPG/PNG)' }
       ]
@@ -2667,11 +2667,7 @@
       return paras;
     }
 
-    async function readPdfPageLayout(page, fontCache, imageCache, media) {
-      var viewport = page.getViewport({ scale: 1 });
-      var opList = await page.getOperatorList();
-      var content = await page.getTextContent();
-      var walked = walkPdfOperators(opList, viewport.transform);
+    function collectPdfTextItems(page, content, walked, viewport, fontCache) {
       var cursor = { i: 0 };
       var items = [];
       content.items.forEach(function (item) {
@@ -2687,6 +2683,15 @@
           font: getPdfFontInfo(page, content.styles, item.fontName, fontCache), color: matched.color
         });
       });
+      return items;
+    }
+
+    async function readPdfPageLayout(page, fontCache, imageCache, media) {
+      var viewport = page.getViewport({ scale: 1 });
+      var opList = await page.getOperatorList();
+      var content = await page.getTextContent();
+      var walked = walkPdfOperators(opList, viewport.transform);
+      var items = collectPdfTextItems(page, content, walked, viewport, fontCache);
 
       var pageArea = viewport.width * viewport.height;
       var images = [];
@@ -3158,6 +3163,123 @@
       return [{ name: baseName + '.xlsx', blob: new Blob([out], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }) }];
     }
 
+    // Text-only reader for Markdown: skips image extraction, keeps the
+    // operator walk so hidden (OCR) text and font weights are still known.
+    async function readPdfPageText(page, fontCache) {
+      var viewport = page.getViewport({ scale: 1 });
+      var opList = await page.getOperatorList();
+      var content = await page.getTextContent();
+      var walked = walkPdfOperators(opList, viewport.transform);
+      var lines = groupPdfLines(collectPdfTextItems(page, content, walked, viewport, fontCache));
+      return groupPdfParagraphs(lines);
+    }
+
+    function escapeMarkdown(s) {
+      return s.replace(/([\\`*_\[\]<>])/g, '\\$1').replace(/^(\s*)([#>+=])/, '$1\\$2');
+    }
+
+    // Thai has no word spaces, so wrapped Thai lines are glued back without one.
+    function joinPdfLineTexts(texts) {
+      return texts.reduce(function (acc, t) {
+        if (!acc) return t;
+        if (/[\u0E00-\u0E7F]$/.test(acc) && /^[\u0E00-\u0E7F]/.test(t)) return acc + t;
+        if (/[a-z]-$/.test(acc) && /^[a-z]/.test(t)) return acc.slice(0, -1) + t;
+        return acc + ' ' + t;
+      }, '');
+    }
+
+    function pdfParaToMarkdown(para, bodySize) {
+      var texts = para.lines.map(function (l) { return l.text.replace(/\t+/g, ' ').replace(/\s+/g, ' ').trim(); });
+      var text = joinPdfLineTexts(texts.filter(Boolean));
+      if (!text) return '';
+      var size = para.lines[0].size;
+      var ratio = size / bodySize;
+      if (ratio >= 1.15 && para.lines.length <= 3 && text.length <= 200) {
+        var level = ratio >= 1.8 ? 1 : ratio >= 1.4 ? 2 : 3;
+        return new Array(level + 1).join('#') + ' ' + escapeMarkdown(text);
+      }
+      var bullet = text.match(/^([•●○◦■□▪▫►▸➢✓✔*\-–—-])\s+(.*)$/);
+      if (bullet) return '- ' + escapeMarkdown(bullet[2]);
+      var numbered = text.match(/^\(?(\d{1,3})[.)]\s+(.*)$/);
+      if (numbered) return numbered[1] + '. ' + escapeMarkdown(numbered[2]);
+      var body = escapeMarkdown(text);
+      var allBold = para.lines.every(function (l) { return l.items.every(function (it) { return it.font.bold; }); });
+      return allBold ? '**' + body + '**' : body;
+    }
+
+    function pdfTableRowCells(para) {
+      return para.lines[0].text.split(/\t+/).map(function (c) {
+        return escapeMarkdown(c.trim()).replace(/\|/g, '\\|');
+      });
+    }
+
+    // Consecutive single-line paragraphs split by layout gaps into the same
+    // number of cells are treated as a table; everything else is prose.
+    function pdfParasToMarkdown(paras, bodySize) {
+      var blocks = [];
+      var i = 0;
+      while (i < paras.length) {
+        var p = paras[i];
+        var cols = p.lines.length === 1 ? p.lines[0].tabStops.length + 1 : 0;
+        var j = i;
+        if (cols >= 2) {
+          while (j + 1 < paras.length && paras[j + 1].lines.length === 1 && paras[j + 1].lines[0].tabStops.length + 1 === cols) j++;
+        }
+        if (j > i) {
+          var rows = paras.slice(i, j + 1).map(pdfTableRowCells);
+          var lines = ['| ' + rows[0].join(' | ') + ' |', '| ' + rows[0].map(function () { return '---'; }).join(' | ') + ' |'];
+          for (var r = 1; r < rows.length; r++) lines.push('| ' + rows[r].join(' | ') + ' |');
+          blocks.push(lines.join('\n'));
+          i = j + 1;
+          continue;
+        }
+        var md = pdfParaToMarkdown(p, bodySize);
+        if (md) blocks.push(md);
+        i++;
+      }
+      // Adjacent list items render as one list instead of separate paragraphs.
+      var LIST_RE = /^(- |\d+\. )/;
+      return blocks.map(function (b, idx) {
+        if (idx === 0) return b;
+        return (LIST_RE.test(b) && LIST_RE.test(blocks[idx - 1]) ? '\n' : '\n\n') + b;
+      }).join('');
+    }
+
+    async function runPdfToMarkdown(files, onProgress) {
+      if (!window.pdfjsLib) throw new Error('ไม่สามารถโหลดไลบรารีอ่าน PDF ได้ ลองรีเฟรชหน้านี้');
+      var out = [];
+      for (var f = 0; f < files.length; f++) {
+        onProgress(f, files.length);
+        var file = files[f];
+        var buf = await file.arrayBuffer();
+        var doc = await pdfjsLib.getDocument({ data: new Uint8Array(buf), isEvalSupported: false }).promise;
+        var paras = [], fontCache = {};
+        try {
+          for (var p = 1; p <= doc.numPages; p++) {
+            var page = await doc.getPage(p);
+            paras = paras.concat(await readPdfPageText(page, fontCache));
+            page.cleanup();
+          }
+        } finally {
+          doc.destroy();
+        }
+        // Body size = the font size carrying the most characters.
+        var weights = {}, best = -1, bodySize = 12;
+        paras.forEach(function (para) {
+          para.lines.forEach(function (l) {
+            var key = Math.round(l.size * 2);
+            weights[key] = (weights[key] || 0) + l.text.length;
+            if (weights[key] > best) { best = weights[key]; bodySize = l.size; }
+          });
+        });
+        var md = pdfParasToMarkdown(paras, bodySize) + '\n';
+        var baseName = file.name.replace(/\.pdf$/i, '') || 'document';
+        out.push({ name: baseName + '.md', blob: new Blob([md], { type: 'text/markdown' }) });
+      }
+      onProgress(files.length, files.length);
+      return out;
+    }
+
     var PAIRS = {
       'excel|pdf': {
         accept: '.xlsx,.xls,.csv', multiple: true, icon: 'bi-filetype-xlsx',
@@ -3243,6 +3365,13 @@
         note: 'จัดข้อความเป็นแถว/คอลัมน์ตามตำแหน่งบนหน้า PDF — อาจไม่ตรงกับตารางเป๊ะ 100% สำหรับ PDF ที่มีเลย์เอาต์ซับซ้อน',
         runLabel: 'แปลงเป็น Excel', zipBaseName: 'pdf-to-excel',
         validate: validatePdfFile, run: runPdfToExcel
+      },
+      'pdf|markdown': {
+        accept: '.pdf,application/pdf', multiple: true, icon: 'bi-file-earmark-pdf',
+        title: 'ลากไฟล์ PDF มาวางที่นี่', hint: 'เลือกได้หลายไฟล์ (.pdf)',
+        note: 'ดึงข้อความเป็น Markdown — แยกหัวข้อตามขนาดฟอนต์ รายการ (bullet/ตัวเลข) ตัวหนา และตารางอย่างง่าย ไม่รวมรูปภาพ · PDF ที่เป็นภาพสแกนล้วนจะไม่มีข้อความให้ดึง',
+        runLabel: 'แปลงเป็น Markdown', zipBaseName: 'pdf-to-markdown',
+        validate: validatePdfFile, run: runPdfToMarkdown
       },
       'pdf|powerpoint': { disabled: true },
       'pdf|image': { alias: true }
