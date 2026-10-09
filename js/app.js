@@ -56,7 +56,8 @@
   var $viewCodeFormat = $(); // populated once views/code-format.html is fetched and mounted
   var $viewJsonFormat = $(); // populated once views/json-format.html is fetched and mounted
   var $viewColorPicker = $(); // populated once views/color-picker.html is fetched and mounted
-  var $viewVideoCompress = $(); // populated once views/video-compress.html is fetched and mounted  function openView($view) {
+  var $viewVideoCompress = $(); // populated once views/video-compress.html is fetched and mounted
+  function openView($view) {
     $viewHome.attr('hidden', true);
     $viewPdf.attr('hidden', true);
     $viewMerge.attr('hidden', true);
