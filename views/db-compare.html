@@ -17,9 +17,6 @@
       </div>
     </div>
     <div class="flex items-center gap-2 flex-wrap">
-      <button type="button" class="dbcmp-open flex items-center gap-1.5 bg-accent border-none text-accentink text-[12.5px] font-bold px-3 py-1.5 rounded-lg cursor-pointer hover:bg-accentdeep" data-target="mods" title="อัปโหลด script View / Procedure / Function เพื่อเปลี่ยน CREATE เป็น ALTER และเปลี่ยนชื่อ DB">
-        <i class="bi bi-upload text-sm leading-none"></i> อัปโหลด View / SP
-      </button>
       <button type="button" id="btn-dbcmp-swap" class="flex items-center gap-1.5 bg-surface border border-line text-ink text-[12.5px] font-bold px-3 py-1.5 rounded-lg cursor-pointer hover:border-accent hover:text-accentdeep" title="สลับต้นทาง-ปลายทาง">
         <i class="bi bi-arrow-left-right text-sm leading-none"></i> สลับ
       </button>
@@ -83,6 +80,7 @@
     <div class="bg-surface border border-line rounded-2xl shadow-sm overflow-hidden flex flex-col min-w-0">
       <div class="flex items-center justify-between flex-wrap gap-2 px-4 py-2.5 border-b border-line">
         <span class="flex items-center gap-2 text-[13px] font-extrabold">
+          <input type="checkbox" class="dbcmp-check-all accent-accent w-[15px] h-[15px] cursor-pointer" data-kind="tables" aria-label="เลือกตารางใหม่ทั้งหมด" checked />
           <i class="bi bi-table text-good text-base leading-none"></i> ตารางใหม่
           <span class="rounded-full bg-goodsoft text-good px-2 py-0.5 text-[11px] font-bold" id="dbcmp-new-tables-count">0</span>
         </span>
@@ -100,6 +98,7 @@
     <div class="bg-surface border border-line rounded-2xl shadow-sm overflow-hidden flex flex-col min-w-0">
       <div class="flex items-center justify-between flex-wrap gap-2 px-4 py-2.5 border-b border-line">
         <span class="flex items-center gap-2 text-[13px] font-extrabold">
+          <input type="checkbox" class="dbcmp-check-all accent-accent w-[15px] h-[15px] cursor-pointer" data-kind="cols" aria-label="เลือกคอลัมน์ทั้งหมด" checked />
           <i class="bi bi-layout-three-columns text-good text-base leading-none"></i> คอลัมน์ใหม่ (ในตารางเดิม)
           <span class="rounded-full bg-goodsoft text-good px-2 py-0.5 text-[11px] font-bold" id="dbcmp-new-cols-count">0</span>
         </span>
@@ -138,7 +137,7 @@
     <div class="flex items-center justify-between flex-wrap gap-3 px-4 py-3 border-b border-line">
       <div class="min-w-0">
         <div class="flex items-center gap-2 text-[13px] font-extrabold"><i class="bi bi-code-square text-accent text-base leading-none"></i> View / Procedure / Function</div>
-        <div class="text-[11.5px] text-inksoft">เลือกไฟล์ script ที่ Generate จาก SSMS โปรแกรมจะเปลี่ยน CREATE VIEW / PROCEDURE / FUNCTION เป็น ALTER และเปลี่ยนชื่อ DB เท่านั้น ส่วนอื่นคงเดิมทุกตัวอักษร</div>
+        <div class="text-[11.5px] text-inksoft">เลือกไฟล์ script ที่ Generate จาก SSMS แล้วเลือกว่าจะเปลี่ยน CREATE VIEW / PROCEDURE / FUNCTION เป็น ALTER, เปลี่ยนชื่อ DB (Prefix) หรือทั้งคู่ ส่วนอื่นคงเดิมทุกตัวอักษร</div>
       </div>
       <div class="flex items-center gap-2 flex-none flex-wrap">
         <select id="dbcmp-mods-mode" aria-label="รูปแบบการแปลง script" class="bg-surface border border-line rounded-lg px-2.5 py-1.5 text-[12.5px] font-semibold text-ink outline-none cursor-pointer focus:border-accent">

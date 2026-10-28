@@ -10270,6 +10270,10 @@
     // Only the parsed schema is kept per side; the file text is dropped after parsing.
     var sides = { source: null, target: null }; // { file, db, error }
     var scripts = { tables: [], cols: [], newmods: [] };
+    // Unticked rows, kept across re-runs: table key, and 'table key|column' for columns.
+    var skipped = { tables: dbcmpMap(), cols: dbcmpMap() };
+    var tableRows = []; // { key, sql, $check, $head }
+    var colRows = []; // { cols: [{ key, $check, $li }], script(), $check, $head, $pre }
     // The view/procedure script is converted as text, so its content is kept.
     var modFile = null; // { file, text, error, out }
     var last = null; // { src, tgt }
@@ -10294,6 +10298,8 @@
     function reset() {
       last = null;
       scripts = { tables: [], cols: [], newmods: [] };
+      tableRows = [];
+      colRows = [];
       $tables.empty();
       $cols.empty();
       $newMods.empty();
@@ -10460,16 +10466,23 @@
       renderModSummary();
     });
 
+    function makeCheck(on, label) {
+      return $('<input type="checkbox">').addClass('accent-accent w-[15px] h-[15px] flex-none cursor-pointer')
+        .attr('aria-label', label).prop('checked', on)
+        .on('click keydown', function (e) { e.stopPropagation(); });
+    }
     // A clickable row; clicking it shows the script underneath, the button copies it.
-    function makeEntry($head, script) {
-      var $pre = $('<pre>').addClass('m-0 px-4 py-3 bg-surface2 border-b border-line font-mono text-[12px] leading-relaxed whitespace-pre overflow-auto max-h-[420px]').attr('hidden', true).text(script);
+    // script may be a function when the row's script depends on its checkboxes.
+    function makeEntry($head, script, $check) {
+      function text() { return typeof script === 'function' ? script() : script; }
+      var $pre = $('<pre>').addClass('m-0 px-4 py-3 bg-surface2 border-b border-line font-mono text-[12px] leading-relaxed whitespace-pre overflow-auto max-h-[420px]').attr('hidden', true).text(text());
       var $caret = $('<i>').addClass('bi bi-chevron-right flex-none text-inkfaint leading-none');
       var $copy = $('<button type="button">').addClass('flex-none flex items-center gap-1 bg-surface border border-line text-ink text-[11.5px] font-bold px-2 py-0.5 rounded-lg cursor-pointer hover:border-accent hover:text-accentdeep')
         .append($('<i>').addClass('bi bi-clipboard leading-none'), $('<span>').text('คัดลอก'))
-        .on('click', function (e) { e.stopPropagation(); copyText(script, $copy); });
+        .on('click', function (e) { e.stopPropagation(); copyText(text(), $copy); });
       var $row = $('<div>').attr({ role: 'button', tabindex: 0, 'aria-expanded': 'false' })
         .addClass('flex items-center gap-2.5 px-4 py-2 border-b border-line cursor-pointer hover:bg-surface2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent')
-        .append($caret, $head, $copy);
+        .append($check || [], $caret, $head, $copy);
       function toggle() {
         var open = $pre.is('[hidden]');
         $pre.attr('hidden', !open);
@@ -10519,7 +10532,6 @@
       $tables.empty();
       $cols.empty();
       $newMods.empty();
-      var colCount = 0;
       // New objects keep the order of the source script, which SSMS sorts by dependency.
       var order = dbcmpMap();
       if (last) Object.keys(last.src.modules).forEach(function (k, i) { order[k] = i; });
@@ -10546,50 +10558,135 @@
       if (!scripts.newmods.length) $newMods.append($('<div>').addClass('px-4 py-2.5 text-inkfaint').text('ไม่มี View / Procedure / Function ใหม่'));
       else if (dbNotes.length) $newMods.prepend($('<div>').addClass('px-4 py-2 border-b border-line text-[11.5px] text-inksoft break-all').text('ชื่อ DB: ' + dbNotes.join(' · ')));
       $('#dbcmp-new-mods-count').text(scripts.newmods.length.toLocaleString());
+      tableRows = [];
+      colRows = [];
       items.forEach(function (it) {
         if (it.kind !== 'table') return;
         var name = it.schema + '.' + it.name;
         if (it.status === 'add') {
           var create = dbcmpTableScript(it.src, OPTS);
-          scripts.tables.push(create);
-          $tables.append(makeEntry($('<span>').addClass('flex flex-1 min-w-0 items-center justify-between gap-3').append(
+          var tr = { key: it.key, sql: create, $check: makeCheck(!skipped.tables[it.key], 'เลือกตาราง ' + name) };
+          tr.$head = $('<span>').addClass('flex flex-1 min-w-0 items-center justify-between gap-3').append(
             $('<span>').addClass('font-mono font-semibold text-good break-all').text(name),
             $('<span>').addClass('flex-none text-inksoft').text(it.src.columns.length + ' คอลัมน์')
-          ), create));
+          );
+          tr.$check.on('change', function () {
+            if (this.checked) delete skipped.tables[it.key]; else skipped.tables[it.key] = true;
+            syncScripts();
+          });
+          tableRows.push(tr);
+          $tables.append(makeEntry(tr.$head, create, tr.$check));
           return;
         }
         if (it.status !== 'change' || !(it.newCols.length + it.colChanges.length)) return;
-        colCount += it.newCols.length + it.colChanges.length;
-        var alter = dbcmpColumnsScript(it, OPTS);
-        scripts.cols.push(alter);
+        var cr = { cols: [], $check: makeCheck(true, 'เลือกทุกคอลัมน์ของ ' + name) };
+        function colKey(colName) { return it.key + '|' + dbcmpLower(colName); }
+        function on(colName) { return !skipped.cols[colKey(colName)]; }
+        cr.script = function () {
+          var part = $.extend({}, it, {
+            newCols: it.newCols.filter(function (c) { return on(c.name); }),
+            colChanges: it.colChanges.filter(function (x) { return on(x.col.name); })
+          });
+          return part.newCols.length + part.colChanges.length ? dbcmpColumnsScript(part, OPTS) : '';
+        };
         var summary = [];
         if (it.newCols.length) summary.push('เพิ่ม ' + it.newCols.length);
         if (it.colChanges.length) summary.push('แก้ไข ' + it.colChanges.length);
-        $cols.append(makeEntry($('<span>').addClass('flex flex-1 min-w-0 items-center justify-between gap-3').append(
+        cr.$head = $('<span>').addClass('flex flex-1 min-w-0 items-center justify-between gap-3').append(
           $('<span>').addClass('font-mono font-semibold text-ink break-all').text(name),
           $('<span>').addClass('flex-none text-inksoft').text(summary.join(' · '))
-        ), alter));
+        );
+        var entry = makeEntry(cr.$head, cr.script, cr.$check);
+        cr.$pre = entry[1];
+        $cols.append(entry);
         var $ul = $('<ul>').addClass('m-0 list-none px-4 py-1.5 pl-[42px] border-b border-line font-mono text-[11.5px] leading-relaxed');
+        function addCol(colName, $parts) {
+          var c = { key: colKey(colName), $check: makeCheck(on(colName), 'เลือกคอลัมน์ ' + name + '.' + colName) };
+          c.$li = $('<li>').addClass('flex items-start gap-2 break-all').append(c.$check.addClass('mt-0.5'), $('<span>').addClass('min-w-0').append($parts));
+          c.$check.on('change', function () {
+            if (this.checked) delete skipped.cols[c.key]; else skipped.cols[c.key] = true;
+            syncScripts();
+          });
+          cr.cols.push(c);
+          $ul.append(c.$li);
+        }
         it.newCols.forEach(function (c) {
-          $ul.append($('<li>').addClass('break-all').append(
+          addCol(c.name, [
             $('<span>').addClass('font-semibold text-good').text('+ ' + c.name + ' '),
             $('<span>').addClass('text-inksoft').text(dbcmpColDesc(c, OPTS))
-          ));
+          ]);
         });
         it.colChanges.forEach(function (x) {
-          $ul.append($('<li>').addClass('break-all').append(
+          addCol(x.col.name, [
             $('<span>').addClass('font-semibold text-accentdeep').text('~ ' + x.col.name + ' '),
             $('<span>').addClass('text-inksoft').text(dbcmpColDesc(x.old, OPTS) + ' → ' + dbcmpColDesc(x.col, OPTS))
-          ));
+          ]);
         });
+        // The table box drives all of its columns.
+        cr.$check.on('change', function () {
+          var checked = this.checked;
+          cr.cols.forEach(function (c) { if (checked) delete skipped.cols[c.key]; else skipped.cols[c.key] = true; });
+          syncScripts();
+        });
+        colRows.push(cr);
         $cols.append($ul);
       });
-      if (!scripts.tables.length) $tables.append($('<div>').addClass('px-4 py-2.5 text-inkfaint').text('ไม่มีตารางใหม่'));
-      if (!scripts.cols.length) $cols.append($('<div>').addClass('px-4 py-2.5 text-inkfaint').text('ไม่มีคอลัมน์ใหม่หรือคอลัมน์ที่แก้ไข'));
-      $('#dbcmp-new-tables-count').text(scripts.tables.length.toLocaleString());
-      $('#dbcmp-new-cols-count').text(colCount.toLocaleString());
+      if (!tableRows.length) $tables.append($('<div>').addClass('px-4 py-2.5 text-inkfaint').text('ไม่มีตารางใหม่'));
+      if (!colRows.length) $cols.append($('<div>').addClass('px-4 py-2.5 text-inkfaint').text('ไม่มีคอลัมน์ใหม่หรือคอลัมน์ที่แก้ไข'));
+      return syncScripts();
+    }
+
+    // Rebuilds the table/column scripts from the checkboxes; returns the selected column count.
+    function syncScripts() {
+      function boxState($box, n, total) {
+        $box.prop({ checked: total > 0 && n === total, indeterminate: n > 0 && n < total });
+      }
+      function countText(n, total) { return n === total ? total.toLocaleString() : n.toLocaleString() + '/' + total.toLocaleString(); }
+      scripts.tables = [];
+      tableRows.forEach(function (r) {
+        var checked = r.$check.prop('checked');
+        r.$head.toggleClass('opacity-50', !checked);
+        if (checked) scripts.tables.push(r.sql);
+      });
+      scripts.cols = [];
+      var colCount = 0;
+      var colTotal = 0;
+      colRows.forEach(function (r) {
+        var n = 0;
+        r.cols.forEach(function (c) {
+          var checked = !skipped.cols[c.key];
+          c.$check.prop('checked', checked);
+          c.$li.toggleClass('opacity-50', !checked);
+          if (checked) n++;
+        });
+        boxState(r.$check, n, r.cols.length);
+        r.$head.toggleClass('opacity-50', !n);
+        var sql = r.script();
+        r.$pre.text(sql);
+        if (sql) scripts.cols.push(sql);
+        colCount += n;
+        colTotal += r.cols.length;
+      });
+      boxState($('.dbcmp-check-all[data-kind="tables"]'), scripts.tables.length, tableRows.length);
+      boxState($('.dbcmp-check-all[data-kind="cols"]'), colCount, colTotal);
+      $('#dbcmp-new-tables-count').text(countText(scripts.tables.length, tableRows.length));
+      $('#dbcmp-new-cols-count').text(countText(colCount, colTotal));
       return colCount;
     }
+    $('.dbcmp-check-all').on('change', function () {
+      var checked = this.checked;
+      if ($(this).data('kind') === 'cols') {
+        colRows.forEach(function (r) {
+          r.cols.forEach(function (c) { if (checked) delete skipped.cols[c.key]; else skipped.cols[c.key] = true; });
+        });
+      } else {
+        tableRows.forEach(function (r) {
+          r.$check.prop('checked', checked);
+          if (checked) delete skipped.tables[r.key]; else skipped.tables[r.key] = true;
+        });
+      }
+      syncScripts();
+    });
 
     function run() {
       var src = sides.source;
@@ -10615,6 +10712,7 @@
     });
     $('#btn-dbcmp-clear').on('click', function () {
       sides = { source: null, target: null };
+      skipped = { tables: dbcmpMap(), cols: dbcmpMap() };
       modFile = null;
       renderSide('source');
       renderSide('target');
