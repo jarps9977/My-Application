@@ -9417,23 +9417,65 @@
     return t && t.k === 'w' && t.v.charAt(0) === '@' && cur.isW('TABLE', 1) ? 'TF' : 'FN';
   }
 
+  // GO lines that end a batch, as SSMS sees them: a GO line inside a block
+  // comment, string literal or quoted name is part of the batch. Returns
+  // [{ index, end }]; end excludes the line break after GO.
+  function dbcmpGoLines(text) {
+    var goRe = /[ \t]*GO[ \t]*(?:--[^\n]*)?\r?(?=\n|$)/iy;
+    var out = [];
+    var n = text.length;
+    var depth = 0; // block comments nest in T-SQL
+    var quote = ''; // closing char of the open string or quoted name
+    var i = 0;
+    while (i < n) {
+      if (!depth && !quote && (i === 0 || text.charAt(i - 1) === '\n')) {
+        goRe.lastIndex = i;
+        var m = goRe.exec(text);
+        if (m) {
+          out.push({ index: i, end: i + m[0].length });
+          i += m[0].length;
+          continue;
+        }
+      }
+      var c = text.charAt(i);
+      var d = text.charAt(i + 1);
+      if (depth) {
+        if (c === '/' && d === '*') { depth++; i += 2; } else if (c === '*' && d === '/') { depth--; i += 2; } else i++;
+      } else if (quote) {
+        if (c === quote) {
+          if (d === quote) i += 2;
+          else { quote = ''; i++; }
+        } else i++;
+      } else if (c === '-' && d === '-') {
+        var nl = text.indexOf('\n', i);
+        i = nl < 0 ? n : nl;
+      } else if (c === '/' && d === '*') {
+        depth = 1;
+        i += 2;
+      } else {
+        if (c === "'") quote = "'";
+        else if (c === '"') quote = '"';
+        else if (c === '[') quote = ']';
+        i++;
+      }
+    }
+    return out;
+  }
+
   function dbcmpParseScript(text, fallbackName) {
     var raw = { db: fallbackName || 'Script', at: '', schemas: [], sequences: [], tableTypes: [], tables: [], modules: [], scripts: [] };
     var tables = dbcmpMap();
     var ansiNulls = true;
     var quotedId = true;
     // sqlcmd-style batch split: a line holding only GO.
-    var goRe = /^[ \t]*GO[ \t]*(?:--[^\n]*)?\r?$/gim;
     var batches = []; // { text, start, end }: start/end span the batch, its GO line and line break
     var pos = 0;
     var from = 0;
-    var gm;
-    while ((gm = goRe.exec(text))) {
-      var goEnd = gm.index + gm[0].length;
-      batches.push({ text: text.slice(pos, gm.index), start: from, end: text.charAt(goEnd) === '\n' ? goEnd + 1 : goEnd });
-      pos = goEnd;
+    dbcmpGoLines(text).forEach(function (g) {
+      batches.push({ text: text.slice(pos, g.index), start: from, end: text.charAt(g.end) === '\n' ? g.end + 1 : g.end });
+      pos = g.end;
       from = batches[batches.length - 1].end;
-    }
+    });
     batches.push({ text: text.slice(pos), start: from, end: text.length });
     // SSMS writes the object header comment and SET batches before each object;
     // they are kept with the object so its script matches the file exactly.
@@ -10068,14 +10110,12 @@
   function dbcmpConvertScript(text, opts) {
     var doAlter = opts.mode !== 'prefix';
     var doRename = opts.mode !== 'alter';
-    var re = /^[ \t]*GO[ \t]*(?:--[^\n]*)?\r?$/gim;
     var parts = []; // batch, GO line, batch, GO line, ...
     var pos = 0;
-    var m;
-    while ((m = re.exec(text))) {
-      parts.push(text.slice(pos, m.index), m[0]);
-      pos = m.index + m[0].length;
-    }
+    dbcmpGoLines(text).forEach(function (g) {
+      parts.push(text.slice(pos, g.index), text.slice(g.index, g.end));
+      pos = g.end;
+    });
     parts.push(text.slice(pos));
 
     var skip = dbcmpMap();
