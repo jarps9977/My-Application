@@ -50,6 +50,7 @@
   var $viewTextCompare = $(); // populated once views/text-compare.html is fetched and mounted
   var $viewDbCompare = $(); // populated once views/db-compare.html is fetched and mounted
   var $viewBrickBreaker = $(); // populated once views/brick-breaker.html is fetched and mounted
+  var $viewSpotDifference = $(); // populated once views/spot-difference.html is fetched and mounted
   var $viewImageCompress = $(); // populated once views/image-compress.html is fetched and mounted
   var $viewHtmlPreview = $(); // populated once views/html-preview.html is fetched and mounted
   var $viewConvertCase = $(); // populated once views/convert-case.html is fetched and mounted
@@ -73,6 +74,7 @@
     $viewTextCompare.attr('hidden', true);
     $viewDbCompare.attr('hidden', true);
     $viewBrickBreaker.attr('hidden', true);
+    $viewSpotDifference.attr('hidden', true);
     $viewImageCompress.attr('hidden', true);
     $viewHtmlPreview.attr('hidden', true);
     $viewConvertCase.attr('hidden', true);
@@ -81,7 +83,7 @@
     $viewColorPicker.attr('hidden', true);
     $viewVideoCompress.attr('hidden', true);
     // Side-by-side views need more width than the 640px tool column.
-    $('.app').toggleClass('app-wide', $view.is($viewConvertCase) || $view.is($viewColorPicker))
+    $('.app').toggleClass('app-wide', $view.is($viewConvertCase) || $view.is($viewColorPicker) || $view.is($viewSpotDifference))
       .toggleClass('app-full', $view.is($viewHtmlPreview) || $view.is($viewCodeFormat) || $view.is($viewJsonFormat) || $view.is($viewTextCompare) || $view.is($viewDbCompare) || $view.is($viewOcr) || $view.is($viewTextGen))
       .toggleClass('app-flush', $view.is($viewOcr) || $view.is($viewTextGen));
     $view.removeAttr('hidden');
@@ -288,6 +290,20 @@
     console.error('ไม่สามารถโหลด views/brick-breaker.html ได้');
   });
 
+  // Same fetch-and-mount pattern for the "spot the difference" game view
+  // (views/spot-difference.html).
+  var spotDifferenceViewReady = $.get('views/spot-difference.html').done(function (html) {
+    $('#view-spot-difference-mount').replaceWith(html);
+    $viewSpotDifference = $('#view-spot-difference');
+    $('#btn-spot-difference-back').on('click', function () {
+      $viewSpotDifference.attr('hidden', true);
+      $viewHome.removeAttr('hidden');
+    });
+    initSpotDifferenceView();
+  }).fail(function () {
+    console.error('ไม่สามารถโหลด views/spot-difference.html ได้');
+  });
+
   // Same fetch-and-mount pattern for the "image compress" view
   // (views/image-compress.html).
   var imageCompressViewReady = $.get('views/image-compress.html').done(function (html) {
@@ -397,7 +413,8 @@
     { id: 'compress', label: 'บีบอัดรูปภาพ', desc: 'ลดขนาดไฟล์รูปภาพ แบบไม่เสียคุณภาพ', enabled: true, img: 'assets/compress-image.png', cats: ['image'] },
     { id: 'ocr', label: 'อ่านข้อความจากภาพ', desc: 'ดึงข้อความจากรูปภาพ (OCR)', enabled: true, img: 'assets/ocr.png', cats: ['image', 'text'] },
     { id: 'color-picker', label: 'ดึงสีจากรูป', desc: 'ดูดสีและชุดสีหลักจากรูป ได้ค่า HEX, RGB, HSL', enabled: true, img: 'assets/pick-color.png', cats: ['image'] },
-    { id: 'brick-breaker', label: 'Brick Breaker', desc: 'เกมทุบอิฐ เก็บไอเทมเพิ่มลูกบอลให้เต็มจอ', enabled: true, img: 'assets/brick-breaker.svg', cats: ['game'] }
+    { id: 'brick-breaker', label: 'Brick Breaker', desc: 'เกมทุบอิฐ เก็บไอเทมเพิ่มลูกบอลให้เต็มจอ', enabled: true, img: 'assets/brick-breaker.svg', cats: ['game'] },
+    { id: 'spot-difference', label: 'จับผิดภาพ', desc: 'หาจุดต่างระหว่างสองภาพ ยิ่งด่านสูงยิ่งยาก', enabled: true, img: 'assets/spot-difference.svg', cats: ['game'] }
   ];
   // Home-page category filter; a tool can sit in more than one category.
   var TOOL_CATEGORIES = [
@@ -646,6 +663,10 @@
     } else if (tool.id === 'brick-breaker') {
       $el.on('click', function () {
         $.when(brickBreakerViewReady).done(function () { openView($viewBrickBreaker); });
+      });
+    } else if (tool.id === 'spot-difference') {
+      $el.on('click', function () {
+        $.when(spotDifferenceViewReady).done(function () { openView($viewSpotDifference); });
       });
     }
     return $el;
@@ -10014,7 +10035,11 @@
   // through untouched.
   // opts: map (lower-case db -> new name), exists(schema, name) -> false is
   // listed in stats.missing; those objects are created by the new-objects file.
+  // opts.mode: 'both' (default), 'prefix' (database names only) or 'alter'
+  // (CREATE -> ALTER, type guards and property removal only).
   function dbcmpConvertScript(text, opts) {
+    var doAlter = opts.mode !== 'prefix';
+    var doRename = opts.mode !== 'alter';
     var re = /^[ \t]*GO[ \t]*(?:--[^\n]*)?\r?$/gim;
     var parts = []; // batch, GO line, batch, GO line, ...
     var pos = 0;
@@ -10060,7 +10085,7 @@
       var words = head.slice(0, 4).filter(function (t) { return t.k === 'w' || t.k === 'q'; });
       var key = /^EXEC(UTE)?$/.test(first.u) ? 'EXEC ' + words[words.length - 1].v : first.u + (head[1].k === 'w' ? ' ' + head[1].u : '');
       // Designer metadata; fails on a target that already has the property.
-      if (key.toLowerCase() === 'exec sp_addextendedproperty') {
+      if (doAlter && key.toLowerCase() === 'exec sp_addextendedproperty') {
         parts[i] = '';
         if (i + 1 < parts.length) parts[i + 1] = '';
         stats.removed++;
@@ -10073,8 +10098,10 @@
       var b = parts[md.index];
       var exists = !opts.exists || opts.exists(md.schema, md.name);
       stats.types[md.label] = (stats.types[md.label] || 0) + 1;
-      stats.alter++;
-      if (!exists) stats.missing.push(md.schema + '.' + md.name);
+      if (doAlter) {
+        stats.alter++;
+        if (!exists) stats.missing.push(md.schema + '.' + md.name);
+      }
       var tail = b.slice(md.e);
       dbcmpEachDbRef(tail, skip, function (db, obj) {
         var d = dbcmpLower(db);
@@ -10082,12 +10109,12 @@
         row.count++;
         row.objs[dbcmpLower(obj)] = true;
       });
-      tail = dbcmpApplyDbMap(tail, opts.map, function () { stats.replaced++; });
-      parts[md.index] = b.slice(0, md.s) + 'ALTER' + tail;
+      if (doRename) tail = dbcmpApplyDbMap(tail, opts.map, function () { stats.replaced++; });
+      parts[md.index] = b.slice(0, md.s) + (doAlter ? 'ALTER' : b.slice(md.s, md.e)) + tail;
     });
     var eol = text.indexOf('\r\n') >= 0 ? '\r\n' : '\n';
     function lit(v) { return "N'" + v.replace(/'/g, "''") + "'"; }
-    typeDefs.forEach(function (td) {
+    if (doAlter) typeDefs.forEach(function (td) {
       var b = parts[td.index];
       var guard = 'IF NOT EXISTS (SELECT 1 FROM sys.types WHERE is_user_defined = 1 AND name = ' + lit(td.name) + ' AND schema_id = SCHEMA_ID(' + lit(td.schema) + '))';
       parts[td.index] = b.slice(0, td.s) + guard + eol + b.slice(td.s);
@@ -10234,6 +10261,9 @@
     var $mapRows = $('#dbcmp-dbmap-rows');
     var $modSummary = $('#dbcmp-mods-summary');
     var DBMAP_KEY = 'toolbox.dbcmpDbMap';
+    var MODE_KEY = 'toolbox.dbcmpModsMode';
+    var MODS_MODES = ['both', 'prefix', 'alter'];
+    var modsMode = MODS_MODES.indexOf(storeGet(MODE_KEY)) >= 0 ? storeGet(MODE_KEY) : 'both';
     var mapRows = []; // { key, name, count, suggest, value }
     // Script files carry no collation, so it is never part of the comparison.
     var OPTS = { ignoreSpace: true, ignoreCollation: true };
@@ -10352,6 +10382,7 @@
     function convert() {
       var tgt = targetDb();
       return dbcmpConvertScript(modFile.text, {
+        mode: modsMode,
         map: currentMap(),
         exists: tgt ? function (schema, name) { return !!tgt.modules[dbcmpKey(schema, name)]; } : null
       });
@@ -10368,8 +10399,12 @@
       var st = modFile.out.stats;
       var types = Object.keys(st.types).map(function (t) { return t + ' ' + st.types[t].toLocaleString(); });
       $modSummary.append(line('text-ink font-semibold', 'พบ ' + (types.join(' · ') || 'ไม่พบ View / Procedure / Function')));
-      $modSummary.append(line('text-good', 'เปลี่ยน CREATE เป็น ALTER ' + st.alter.toLocaleString() + ' ตัว · เปลี่ยนชื่อ DB ' + st.replaced.toLocaleString() + ' จุด'));
-      if (!targetDb()) {
+      var done = [];
+      if (modsMode !== 'prefix') done.push('เปลี่ยน CREATE เป็น ALTER ' + st.alter.toLocaleString() + ' ตัว');
+      if (modsMode !== 'alter') done.push('เปลี่ยนชื่อ DB ' + st.replaced.toLocaleString() + ' จุด');
+      $modSummary.append(line('text-good', done.join(' · ')));
+      // In prefix mode CREATE is kept, so objects missing on the target are fine.
+      if (modsMode !== 'prefix' && !targetDb()) {
         $modSummary.append(line('text-inksoft', 'ยังไม่ได้เลือกไฟล์ Target จึงตรวจไม่ได้ว่าตัวไหนยังไม่มีบน Target (ตัวที่ยังไม่มีจะ error ตอนรัน)'));
       } else if (st.missing.length) {
         $modSummary.append(line('text-accentdeep', 'ยังไม่มีในไฟล์ Target ' + st.missing.length.toLocaleString() + ' ตัว ต้องรันไฟล์ ' + KINDS.newmods.file + '*.sql ก่อน: ' + st.missing.join(', ')));
@@ -10386,7 +10421,7 @@
       if (modFile && modFile.text) {
         var saved = loadSavedMap();
         // First pass without a map only collects the database names in the file.
-        var found = dbcmpConvertScript(modFile.text, { map: null, exists: null }).stats.dbs;
+        var found = dbcmpConvertScript(modFile.text, { mode: 'both', map: null, exists: null }).stats.dbs;
         dbcmpSuggestDbMap(found, targetDb()).forEach(function (r) {
           var sv = Object.prototype.hasOwnProperty.call(saved, r.key) ? saved[r.key] : null;
           r.value = typeof sv === 'string' ? sv : r.suggest;
@@ -10414,9 +10449,16 @@
         });
         modFile.out = convert();
       }
-      $mapBox.attr('hidden', !mapRows.length);
+      $mapBox.attr('hidden', !mapRows.length || modsMode === 'alter');
       renderModSummary();
     }
+    $('#dbcmp-mods-mode').val(modsMode).on('change', function () {
+      modsMode = MODS_MODES.indexOf(this.value) >= 0 ? this.value : 'both';
+      storeSet(MODE_KEY, modsMode);
+      $mapBox.attr('hidden', !mapRows.length || modsMode === 'alter');
+      if (modFile && modFile.text) modFile.out = convert();
+      renderModSummary();
+    });
 
     // A clickable row; clicking it shows the script underneath, the button copies it.
     function makeEntry($head, script) {
@@ -11062,6 +11104,407 @@
     document.addEventListener('visibilitychange', function () {
       if (document.hidden) pause();
     });
+
+    newGame();
+  }
+
+  // ---------- Spot the difference game (views/spot-difference.html) ----------
+  function initSpotDifferenceView() {
+    var canvasA = document.getElementById('sd-canvas-a');
+    var canvasB = document.getElementById('sd-canvas-b');
+    if (!canvasA || !canvasB || !canvasA.getContext) return;
+
+    // Fixed logical board; CSS scales both canvases to fit.
+    var W = 480, H = 360;
+    var BEST_KEY = 'toolbox.spotDiffBest';
+    var BEST_LEVEL_KEY = 'toolbox.spotDiffBestLevel';
+    var START_HINTS = 2;
+    var MISS_PENALTY = 5; // seconds lost per wrong click
+    var MISS_TIME = 0.7, HINT_TIME = 2.5;
+    var SHAPES = ['circle', 'ring', 'rect', 'diamond', 'tri', 'star'];
+    var DIFF_KINDS = ['color', 'light', 'size', 'rotate', 'move', 'shape', 'missing', 'extra'];
+
+    var dpr = Math.min(window.devicePixelRatio || 1, 2);
+    var ctxA = setupCanvas(canvasA);
+    var ctxB = setupCanvas(canvasB);
+    // Scenes are painted once per level; frames only add markers on top.
+    var layerA = document.createElement('canvas');
+    var layerB = document.createElement('canvas');
+    var lctxA = setupCanvas(layerA);
+    var lctxB = setupCanvas(layerB);
+
+    var $stage = $('#sd-stage');
+    var $overlay = $('#sd-overlay');
+    var $overlayTitle = $('#sd-overlay-title');
+    var $overlaySub = $('#sd-overlay-sub');
+    var $start = $('#sd-btn-start');
+    var $timebar = $('#sd-timebar');
+    var $hud = { level: $('#sd-level'), score: $('#sd-score'), found: $('#sd-found'), time: $('#sd-time'), best: $('#sd-best'), hints: $('#sd-hints') };
+    var hudShown = {};
+
+    var level = 1;
+    var score = 0;
+    var hints = START_HINTS;
+    var best = parseInt(storeGet(BEST_KEY), 10) || 0;
+    var bestLevel = parseInt(storeGet(BEST_LEVEL_KEY), 10) || 0;
+    var diffs = [];
+    var misses = [];
+    var hint = null;
+    var cfg = null;
+    var timeLeft = 0;
+    var needBuild = true;
+    var state = 'ready'; // ready | playing | paused | cleared | over
+    var running = false;
+    var lastTs = 0;
+
+    function setupCanvas(c) {
+      c.width = W * dpr;
+      c.height = H * dpr;
+      var x = c.getContext('2d');
+      x.setTransform(dpr, 0, 0, dpr, 0, 0);
+      return x;
+    }
+    function rand(a, b) { return a + Math.random() * (b - a); }
+    function pick(list) { return list[Math.floor(Math.random() * list.length)]; }
+    function shuffle(list) {
+      for (var i = list.length - 1; i > 0; i--) {
+        var j = Math.floor(Math.random() * (i + 1));
+        var t = list[i]; list[i] = list[j]; list[j] = t;
+      }
+      return list;
+    }
+
+    // Difficulty curve: more clutter, more differences, subtler changes, less time.
+    function levelConfig(lv) {
+      return {
+        shapes: Math.min(34 + lv * 6, 120),
+        diffs: Math.min(4 + Math.floor((lv - 1) / 2), 10),
+        time: Math.max(30, 70 - (lv - 1) * 3),
+        sMin: Math.max(6, 11 - Math.floor(lv / 2)),
+        sMax: Math.max(15, 32 - lv),
+        hue: Math.max(14, 60 - lv * 4),
+        light: Math.max(7, 24 - lv * 2),
+        scale: Math.max(1.14, 1.45 - lv * 0.03),
+        move: Math.max(5, 15 - lv),
+        rot: Math.max(14, 45 - lv * 3)
+      };
+    }
+
+    function randShape(minS) {
+      var s = rand(Math.max(minS, cfg.sMin), cfg.sMax);
+      return {
+        type: pick(SHAPES), x: rand(s, W - s), y: rand(s, H - s), s: s, rot: rand(0, 360),
+        h: Math.floor(rand(0, 360)), sat: Math.floor(rand(55, 85)), l: Math.floor(rand(38, 66))
+      };
+    }
+
+    function changeShape(kind, sh) {
+      var d = $.extend({}, sh);
+      var sign = Math.random() < 0.5 ? -1 : 1;
+      if (kind === 'color') d.h = (sh.h + sign * cfg.hue + 360) % 360;
+      else if (kind === 'light') d.l = sh.l > 52 ? sh.l - cfg.light : sh.l + cfg.light;
+      else if (kind === 'size') d.s = sh.s * (sign > 0 ? cfg.scale : 1 / cfg.scale);
+      else if (kind === 'rotate') d.rot = sh.rot + sign * cfg.rot;
+      else if (kind === 'move') {
+        var a = rand(0, Math.PI * 2);
+        d.x = Math.max(sh.s, Math.min(W - sh.s, sh.x + Math.cos(a) * cfg.move));
+        d.y = Math.max(sh.s, Math.min(H - sh.s, sh.y + Math.sin(a) * cfg.move));
+      } else if (kind === 'shape') d.type = pick(SHAPES.filter(function (t) { return t !== sh.type; }));
+      return d;
+    }
+
+    function buildLevel() {
+      cfg = levelConfig(level);
+      var bgHue = Math.floor(rand(0, 360));
+      var blobs = [];
+      for (var b = 0; b < 8; b++) blobs.push({ x: rand(0, W), y: rand(0, H), r: rand(40, 110), h: (bgHue + rand(-60, 60) + 360) % 360 });
+      var base = [];
+      for (var i = 0; i < cfg.shapes; i++) base.push(randShape(0));
+
+      // Changed shapes go on top so nothing can hide a difference.
+      var left = [], right = [], tops = [];
+      diffs = [];
+      function clear(x, y, r) {
+        return diffs.every(function (d) { return Math.hypot(d.x - x, d.y - y) > d.r + r + 6; });
+      }
+      var pool = shuffle(base.slice());
+      var used = [];
+      for (var k = 0; k < pool.length && diffs.length < cfg.diffs; k++) {
+        var sh = pool[k];
+        var kind = pick(DIFF_KINDS);
+        if (kind === 'extra') sh = randShape(cfg.sMin + 3);
+        else if (sh.s < cfg.sMin + 3) continue;
+        // Round shapes look the same rotated.
+        if (kind === 'rotate' && (sh.type === 'circle' || sh.type === 'ring')) kind = 'color';
+        var r = Math.max(sh.s * 1.15, 16) + (kind === 'move' ? cfg.move : 0);
+        if (!clear(sh.x, sh.y, r)) continue;
+        diffs.push({ x: sh.x, y: sh.y, r: r, kind: kind, found: false });
+        if (kind !== 'extra') used.push(sh);
+        tops.push({ a: kind === 'extra' ? null : sh, b: kind === 'missing' ? null : (kind === 'extra' ? sh : changeShape(kind, sh)) });
+      }
+      base.forEach(function (sh) {
+        if (used.indexOf(sh) !== -1) return;
+        left.push(sh);
+        right.push(sh);
+      });
+      tops.forEach(function (t) {
+        if (t.a) left.push(t.a);
+        if (t.b) right.push(t.b);
+      });
+      paintScene(lctxA, bgHue, blobs, left);
+      paintScene(lctxB, bgHue, blobs, right);
+      misses = [];
+      hint = null;
+      timeLeft = cfg.time;
+      needBuild = false;
+    }
+
+    function paintScene(c, bgHue, blobs, list) {
+      var g = c.createLinearGradient(0, 0, W, H);
+      g.addColorStop(0, 'hsl(' + bgHue + ',40%,88%)');
+      g.addColorStop(1, 'hsl(' + ((bgHue + 40) % 360) + ',45%,76%)');
+      c.fillStyle = g;
+      c.fillRect(0, 0, W, H);
+      blobs.forEach(function (bl) {
+        c.fillStyle = 'hsla(' + bl.h + ',50%,60%,0.18)';
+        c.beginPath();
+        c.arc(bl.x, bl.y, bl.r, 0, Math.PI * 2);
+        c.fill();
+      });
+      list.forEach(function (sh) { drawShape(c, sh); });
+    }
+
+    function drawShape(c, sh) {
+      var s = sh.s, i, a;
+      c.save();
+      c.translate(sh.x, sh.y);
+      c.rotate(sh.rot * Math.PI / 180);
+      c.fillStyle = 'hsl(' + sh.h + ',' + sh.sat + '%,' + sh.l + '%)';
+      c.strokeStyle = 'rgba(0,0,0,0.28)';
+      c.lineWidth = 1;
+      c.beginPath();
+      if (sh.type === 'circle') c.arc(0, 0, s, 0, Math.PI * 2);
+      else if (sh.type === 'ring') {
+        c.arc(0, 0, s, 0, Math.PI * 2);
+        c.moveTo(s * 0.55, 0);
+        c.arc(0, 0, s * 0.55, 0, Math.PI * 2, true);
+      } else if (sh.type === 'rect') c.rect(-s, -s * 0.6, s * 2, s * 1.2);
+      else if (sh.type === 'diamond') {
+        c.moveTo(0, -s); c.lineTo(s * 0.62, 0); c.lineTo(0, s); c.lineTo(-s * 0.62, 0); c.closePath();
+      } else if (sh.type === 'tri') {
+        for (i = 0; i < 3; i++) {
+          a = -Math.PI / 2 + i * Math.PI * 2 / 3;
+          if (i) c.lineTo(Math.cos(a) * s, Math.sin(a) * s); else c.moveTo(Math.cos(a) * s, Math.sin(a) * s);
+        }
+        c.closePath();
+      } else {
+        for (i = 0; i < 10; i++) {
+          a = -Math.PI / 2 + i * Math.PI / 5;
+          var rr = i % 2 ? s * 0.45 : s;
+          if (i) c.lineTo(Math.cos(a) * rr, Math.sin(a) * rr); else c.moveTo(Math.cos(a) * rr, Math.sin(a) * rr);
+        }
+        c.closePath();
+      }
+      c.fill();
+      c.stroke();
+      c.restore();
+    }
+
+    function ring(c, x, y, r, color, width, dash) {
+      c.save();
+      c.setLineDash(dash || []);
+      c.lineWidth = width + 2;
+      c.strokeStyle = 'rgba(255,255,255,0.85)';
+      c.beginPath();
+      c.arc(x, y, r, 0, Math.PI * 2);
+      c.stroke();
+      c.lineWidth = width;
+      c.strokeStyle = color;
+      c.stroke();
+      c.restore();
+    }
+    function drawMarkers(c) {
+      diffs.forEach(function (d) {
+        if (d.found) ring(c, d.x, d.y, d.r, '#22c55e', 3);
+        else if (state === 'over') ring(c, d.x, d.y, d.r, '#f43f5e', 3, [6, 4]);
+      });
+      if (hint) {
+        var pulse = 1 + Math.sin(hint.t * 8) * 0.12;
+        ring(c, hint.x, hint.y, hint.r * 1.6 * pulse, '#facc15', 3, [5, 5]);
+      }
+      misses.forEach(function (m) {
+        c.save();
+        c.globalAlpha = Math.max(0, 1 - m.t / MISS_TIME);
+        c.strokeStyle = '#ef4444';
+        c.lineWidth = 3;
+        c.beginPath();
+        c.moveTo(m.x - 8, m.y - 8); c.lineTo(m.x + 8, m.y + 8);
+        c.moveTo(m.x + 8, m.y - 8); c.lineTo(m.x - 8, m.y + 8);
+        c.stroke();
+        c.restore();
+      });
+    }
+    function draw() {
+      [[ctxA, layerA], [ctxB, layerB]].forEach(function (p) {
+        p[0].clearRect(0, 0, W, H);
+        p[0].drawImage(p[1], 0, 0, W, H);
+        drawMarkers(p[0]);
+      });
+    }
+
+    function foundCount() { return diffs.filter(function (d) { return d.found; }).length; }
+    function setHud(key, value) {
+      if (hudShown[key] === value) return;
+      hudShown[key] = value;
+      $hud[key].text(value);
+    }
+    function renderHud() {
+      setHud('level', level);
+      setHud('score', score);
+      setHud('found', foundCount() + '/' + diffs.length);
+      setHud('time', Math.ceil(Math.max(0, timeLeft)));
+      setHud('best', best);
+      setHud('hints', hints);
+      var pct = cfg ? Math.max(0, timeLeft / cfg.time) : 1;
+      $timebar.css({ width: (pct * 100) + '%', background: pct > 0.5 ? '#22c55e' : (pct > 0.2 ? '#f59e0b' : '#ef4444') });
+    }
+    // Opaque overlay hides the boards so they cannot be studied off the clock.
+    function showOverlay(title, sub, btn, seeThrough) {
+      $overlayTitle.text(title);
+      $overlaySub.text(sub);
+      $start.text(btn);
+      $overlay.css('background', seeThrough ? 'rgba(0,0,0,0.45)' : 'rgba(0,0,0,0.92)').css('display', 'flex');
+    }
+    function levelInfo() {
+      var c = levelConfig(level);
+      return 'หา ' + c.diffs + ' จุดต่าง ภายใน ' + c.time + ' วินาที';
+    }
+    function saveBest() {
+      if (score > best) { best = score; storeSet(BEST_KEY, String(best)); }
+      if (level > bestLevel) { bestLevel = level; storeSet(BEST_LEVEL_KEY, String(bestLevel)); }
+    }
+
+    function newGame() {
+      level = 1;
+      score = 0;
+      hints = START_HINTS;
+      buildLevel();
+      state = 'ready';
+      showOverlay('ด่าน 1', levelInfo() + '\nคลิกผิดเสีย ' + MISS_PENALTY + ' วินาที' + (bestLevel ? '\nด่านสูงสุดที่เคยไป: ' + bestLevel : ''), 'เริ่มเกม');
+      renderHud();
+      draw();
+    }
+    function pause() {
+      if (state !== 'playing') return;
+      state = 'paused';
+      showOverlay('หยุดชั่วคราว', 'กด Space หรือปุ่มด้านล่างเพื่อเล่นต่อ', 'เล่นต่อ');
+    }
+    function play() {
+      if (state === 'over') { newGame(); return; }
+      if (state === 'playing') return;
+      if (needBuild) buildLevel();
+      state = 'playing';
+      $overlay.hide();
+      renderHud();
+      if (running) return;
+      running = true;
+      lastTs = 0;
+      requestAnimationFrame(frame);
+    }
+    function levelCleared() {
+      var bonus = Math.ceil(timeLeft) * 10 * level;
+      score += bonus;
+      saveBest();
+      level++;
+      if ((level - 1) % 3 === 0) hints++;
+      needBuild = true;
+      state = 'cleared';
+      showOverlay('ผ่านด่าน ' + (level - 1) + '!', 'โบนัสเวลา +' + bonus + '\nด่าน ' + level + ': ' + levelInfo(), 'ด่านถัดไป', true);
+    }
+    function gameOver() {
+      timeLeft = 0;
+      state = 'over';
+      saveBest();
+      showOverlay('หมดเวลา!', 'ไปถึงด่าน ' + level + ' · คะแนน ' + score + '\nวงสีแดงคือจุดที่ยังหาไม่เจอ', 'เล่นอีกครั้ง', true);
+    }
+
+    function frame(ts) {
+      // Leaving the view hides the canvas; stop the clock instead of running blind.
+      if (canvasA.offsetParent === null) pause();
+      if (state !== 'playing') { running = false; renderHud(); draw(); return; }
+      var dt = lastTs ? Math.min((ts - lastTs) / 1000, 0.1) : 0;
+      lastTs = ts;
+      timeLeft -= dt;
+      for (var i = misses.length - 1; i >= 0; i--) {
+        misses[i].t += dt;
+        if (misses[i].t >= MISS_TIME) misses.splice(i, 1);
+      }
+      if (hint) {
+        hint.t += dt;
+        if (hint.t >= HINT_TIME || hint.src.found) hint = null;
+      }
+      if (timeLeft <= 0) gameOver();
+      renderHud();
+      draw();
+      if (state === 'playing') requestAnimationFrame(frame); else running = false;
+    }
+
+    function onBoardClick(e) {
+      if (state !== 'playing') return;
+      var rect = this.getBoundingClientRect();
+      if (!rect.width) return;
+      var x = (e.clientX - rect.left) / rect.width * W;
+      var y = (e.clientY - rect.top) / rect.height * H;
+      var hit = null, hitDist = Infinity;
+      for (var i = 0; i < diffs.length; i++) {
+        var dist = Math.hypot(diffs[i].x - x, diffs[i].y - y);
+        if (dist <= diffs[i].r && dist < hitDist) { hit = diffs[i]; hitDist = dist; }
+      }
+      if (hit && hit.found) return; // re-clicking a found spot is free
+      if (hit) {
+        hit.found = true;
+        score += 100 * level;
+        if (foundCount() === diffs.length) levelCleared();
+      } else {
+        misses.push({ x: x, y: y, t: 0 });
+        timeLeft -= MISS_PENALTY;
+        if (timeLeft <= 0) gameOver();
+      }
+      renderHud();
+      draw();
+    }
+
+    canvasA.addEventListener('pointerdown', onBoardClick);
+    canvasB.addEventListener('pointerdown', onBoardClick);
+    $start.on('click', play);
+    $('#sd-btn-pause').on('click', function () {
+      if (state === 'playing') pause(); else if (state === 'paused') play();
+    });
+    $('#sd-btn-restart').on('click', newGame);
+    $('#sd-btn-hint').on('click', function () {
+      if (state !== 'playing' || hints <= 0 || hint) return;
+      var left = diffs.filter(function (d) { return !d.found; });
+      if (!left.length) return;
+      hints--;
+      // Circle is offset and enlarged so the hint narrows the area without giving the exact spot.
+      var d = pick(left);
+      var off = d.r * 0.5, a = rand(0, Math.PI * 2);
+      hint = { x: d.x + Math.cos(a) * off, y: d.y + Math.sin(a) * off, r: d.r, src: d, t: 0 };
+      renderHud();
+    });
+
+    $(document).on('keydown', function (e) {
+      if (canvasA.offsetParent === null) return;
+      if ($(e.target).is('input, textarea, select, button, [contenteditable]')) return;
+      if (e.key !== ' ' && e.key !== 'Spacebar') return;
+      e.preventDefault();
+      if (e.originalEvent.repeat) return;
+      if (state === 'playing') pause(); else play();
+    });
+    document.addEventListener('visibilitychange', function () {
+      if (document.hidden) pause();
+    });
+    $stage.on('contextmenu', function (e) { e.preventDefault(); });
 
     newGame();
   }

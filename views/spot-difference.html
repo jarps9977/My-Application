@@ -1,0 +1,82 @@
+<section id="view-spot-difference" class="animate-fade-in" hidden>
+  <div class="mt-4 mb-3">
+    <button class="inline-flex items-center gap-1.5 bg-transparent border-none text-inksoft text-sm font-semibold cursor-pointer py-1.5 hover:text-ink" id="btn-spot-difference-back" type="button">
+      <i class="bi bi-chevron-left text-base leading-none"></i>
+      กลับหน้าหลัก
+    </button>
+  </div>
+
+  <div class="flex items-center justify-between flex-wrap gap-3 mb-3">
+    <div class="flex items-center gap-3">
+      <span class="flex h-9 w-9 flex-none items-center justify-center rounded-full bg-accentsoft text-accent">
+        <i class="bi bi-eye text-lg leading-none"></i>
+      </span>
+      <div>
+        <h2 class="text-xl font-extrabold leading-tight">จับผิดภาพ</h2>
+        <span class="text-[12px] text-inksoft">คลิกจุดที่ต่างกันบนภาพใดก็ได้ คลิกผิดเสีย <b>5 วินาที</b>, Space เพื่อหยุด / เล่นต่อ</span>
+      </div>
+    </div>
+    <div class="flex items-center gap-2 flex-wrap">
+      <button type="button" id="sd-btn-hint" class="flex items-center gap-1.5 bg-surface border border-line text-ink text-[12.5px] font-bold px-3 py-1.5 rounded-lg cursor-pointer hover:border-accent hover:text-accentdeep">
+        <i class="bi bi-lightbulb text-sm leading-none"></i> คำใบ้ (<span id="sd-hints">0</span>)
+      </button>
+      <button type="button" id="sd-btn-pause" class="flex items-center gap-1.5 bg-surface border border-line text-ink text-[12.5px] font-bold px-3 py-1.5 rounded-lg cursor-pointer hover:border-accent hover:text-accentdeep">
+        <i class="bi bi-pause-fill text-sm leading-none"></i> หยุด / เล่นต่อ
+      </button>
+      <button type="button" id="sd-btn-restart" class="flex items-center gap-1.5 bg-surface border border-line text-ink text-[12.5px] font-bold px-3 py-1.5 rounded-lg cursor-pointer hover:border-bad hover:text-bad">
+        <i class="bi bi-arrow-counterclockwise text-sm leading-none"></i> เริ่มใหม่
+      </button>
+    </div>
+  </div>
+
+  <div class="grid grid-cols-5 gap-2 mb-2 text-center">
+    <div class="bg-surface border border-line rounded-xl py-1.5">
+      <div class="text-[11px] text-inksoft">ด่าน</div>
+      <div class="text-[15px] font-extrabold" id="sd-level">1</div>
+    </div>
+    <div class="bg-surface border border-line rounded-xl py-1.5">
+      <div class="text-[11px] text-inksoft">คะแนน</div>
+      <div class="text-[15px] font-extrabold" id="sd-score">0</div>
+    </div>
+    <div class="bg-surface border border-line rounded-xl py-1.5">
+      <div class="text-[11px] text-inksoft">เจอแล้ว</div>
+      <div class="text-[15px] font-extrabold" id="sd-found">0/0</div>
+    </div>
+    <div class="bg-surface border border-line rounded-xl py-1.5">
+      <div class="text-[11px] text-inksoft">เวลา</div>
+      <div class="text-[15px] font-extrabold tabular-nums" id="sd-time">0</div>
+    </div>
+    <div class="bg-surface border border-line rounded-xl py-1.5">
+      <div class="text-[11px] text-inksoft">สูงสุด</div>
+      <div class="text-[15px] font-extrabold" id="sd-best">0</div>
+    </div>
+  </div>
+
+  <div class="h-1.5 rounded-full bg-line overflow-hidden mb-3">
+    <div id="sd-timebar" class="h-full rounded-full" style="width:100%;background:#22c55e;transition:background .3s;"></div>
+  </div>
+
+  <!-- Both boards share one overlay so neither can be studied before the timer runs. -->
+  <div id="sd-stage" class="relative select-none">
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+      <div class="relative rounded-xl overflow-hidden shadow-sm ring-1 ring-line" style="aspect-ratio:4/3;">
+        <canvas id="sd-canvas-a" class="block w-full h-full cursor-crosshair"></canvas>
+        <span class="absolute top-1.5 left-2 text-[11px] font-bold text-white px-1.5 rounded" style="background:rgba(0,0,0,.45);">ภาพต้นฉบับ</span>
+      </div>
+      <div class="relative rounded-xl overflow-hidden shadow-sm ring-1 ring-line" style="aspect-ratio:4/3;">
+        <canvas id="sd-canvas-b" class="block w-full h-full cursor-crosshair"></canvas>
+        <span class="absolute top-1.5 left-2 text-[11px] font-bold text-white px-1.5 rounded" style="background:rgba(0,0,0,.45);">ภาพที่ถูกแก้</span>
+      </div>
+    </div>
+    <div id="sd-overlay" class="absolute inset-0 flex flex-col items-center justify-center gap-2 px-6 text-center rounded-xl" style="background:rgba(0,0,0,.92);">
+      <div class="text-xl font-extrabold text-white" id="sd-overlay-title"></div>
+      <div class="text-[12.5px] text-white/80 leading-relaxed whitespace-pre-line" id="sd-overlay-sub"></div>
+      <button type="button" id="sd-btn-start" class="mt-2 bg-accent border-none text-accentink text-sm font-bold px-5 py-2 rounded-lg cursor-pointer hover:bg-accentdeep"></button>
+    </div>
+  </div>
+
+  <div class="flex items-center justify-center flex-wrap gap-x-4 gap-y-1.5 mt-3 text-[12px] text-inksoft">
+    <span>จุดต่างอาจเป็น: สีเพี้ยน, ความสว่าง, ขนาด, หมุน, ขยับตำแหน่ง, เปลี่ยนรูปทรง, หายไป หรือมีเพิ่มมา</span>
+    <span>ยิ่งด่านสูง วัตถุยิ่งเยอะ จุดต่างยิ่งเนียน และเวลายิ่งน้อย · ได้คำใบ้เพิ่ม 1 ทุก 3 ด่าน</span>
+  </div>
+</section>

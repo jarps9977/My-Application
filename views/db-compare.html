@@ -140,7 +140,12 @@
         <div class="flex items-center gap-2 text-[13px] font-extrabold"><i class="bi bi-code-square text-accent text-base leading-none"></i> View / Procedure / Function</div>
         <div class="text-[11.5px] text-inksoft">เลือกไฟล์ script ที่ Generate จาก SSMS โปรแกรมจะเปลี่ยน CREATE VIEW / PROCEDURE / FUNCTION เป็น ALTER และเปลี่ยนชื่อ DB เท่านั้น ส่วนอื่นคงเดิมทุกตัวอักษร</div>
       </div>
-      <div class="flex items-center gap-2 flex-none">
+      <div class="flex items-center gap-2 flex-none flex-wrap">
+        <select id="dbcmp-mods-mode" aria-label="รูปแบบการแปลง script" class="bg-surface border border-line rounded-lg px-2.5 py-1.5 text-[12.5px] font-semibold text-ink outline-none cursor-pointer focus:border-accent">
+          <option value="both">CREATE &rarr; ALTER + เปลี่ยนชื่อ DB</option>
+          <option value="prefix">เปลี่ยนชื่อ DB (Prefix) อย่างเดียว</option>
+          <option value="alter">CREATE &rarr; ALTER อย่างเดียว</option>
+        </select>
         <button type="button" class="dbcmp-open flex items-center gap-1.5 bg-accent border-none text-accentink text-[12.5px] font-bold px-3 py-1.5 rounded-lg cursor-pointer hover:bg-accentdeep" data-target="mods">
           <i class="bi bi-folder2-open text-sm leading-none"></i> เลือกไฟล์
         </button>
