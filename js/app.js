@@ -9418,7 +9418,7 @@
   }
 
   function dbcmpParseScript(text, fallbackName) {
-    var raw = { db: fallbackName || 'Script', at: '', schemas: [], sequences: [], tableTypes: [], tables: [], modules: [] };
+    var raw = { db: fallbackName || 'Script', at: '', schemas: [], sequences: [], tableTypes: [], tables: [], modules: [], scripts: [] };
     var tables = dbcmpMap();
     var ansiNulls = true;
     var quotedId = true;
@@ -9468,6 +9468,10 @@
       var orAlter = !isAlter && cur.isW('OR') && cur.isW('ALTER', 1);
       if (orAlter) cur.i += 2;
       var kind = cur.peek() && cur.peek().u;
+      // Text of every view/procedure/function/trigger/type, in file order, for card 4.
+      if (!isAlter && (kind === 'VIEW' || kind === 'PROC' || kind === 'PROCEDURE' || kind === 'FUNCTION' || kind === 'TRIGGER' || kind === 'TYPE')) {
+        raw.scripts.push(text.slice(scriptStart, bt.end));
+      }
 
       if (!isAlter && !orAlter && kind === 'SCHEMA') {
         cur.i++;
@@ -9598,6 +9602,7 @@
   // XML cell or a saved file) or a DDL script from SSMS "Generate Scripts".
   function dbcmpParse(text, fallbackName) {
     var raw;
+    var fromScript = false;
     if (/^\s*(\{|<\?dbcompare\b)/.test(text)) {
       var start = text.indexOf('{');
       var end = text.lastIndexOf('}');
@@ -9605,6 +9610,7 @@
       try { raw = JSON.parse(text.slice(start, end + 1)); } catch (e) { throw new Error('ข้อมูลไม่ครบหรือถูกตัด (JSON ไม่ถูกต้อง)'); }
     } else if (/\bCREATE\s+(OR\s+ALTER\s+)?(TABLE|VIEW|PROC|PROCEDURE|FUNCTION|TRIGGER|TYPE|SEQUENCE)\b/i.test(text)) {
       raw = dbcmpParseScript(text, fallbackName);
+      fromScript = true;
     } else {
       throw new Error('ไม่พบข้อมูล schema (ต้องเป็นผลลัพธ์จาก Query หรือ script จาก Generate Scripts)');
     }
@@ -9624,7 +9630,9 @@
       tableTypeCount: 0,
       sequenceCount: 0,
       moduleCount: 0,
-      encrypted: []
+      encrypted: [],
+      // Object scripts as written in a Generate Scripts file; a query extract has none.
+      scripts: fromScript ? raw.scripts : []
     };
     function tableShape(t) {
       t.columns = arr(t.columns).filter(function (c) { return named(c) && typeof c.type === 'string'; });
@@ -10275,7 +10283,6 @@
   function initDbCompareView() {
     var $fileInput = $('#dbcmp-file-input');
     var $statusEl = $('#dbcmp-status');
-    var $result = $('#dbcmp-result');
     var $tables = $('#dbcmp-new-tables');
     var $cols = $('#dbcmp-new-cols');
     var $newMods = $('#dbcmp-new-mods');
@@ -10298,7 +10305,7 @@
     var newmodRows = []; // { key, sql, $check, $head }
     var colRows = []; // { cols: [{ key, $check, $li }], script(), $check, $head, $pre }
     // The view/procedure script is converted as text, so its content is kept.
-    var modFile = null; // { file, text, error, out }
+    var modFile = null; // { side, db, file, text, error, out }, built from the Source side
     var last = null; // { src, tgt }
     var fileTarget = null;
 
@@ -10324,11 +10331,18 @@
       tableRows = [];
       colRows = [];
       newmodRows = [];
-      $tables.empty();
-      $cols.empty();
-      $newMods.empty();
-      $result.attr('hidden', true);
+      // The cards stay on screen so card 4 can be used without a comparison.
+      [$tables, $cols, $newMods].forEach(function ($list) {
+        $list.empty().append($('<div>').addClass('px-4 py-2.5 text-inkfaint').text('เลือกไฟล์ Source / Target แล้วกดเปรียบเทียบ'));
+      });
+      syncScripts();
       setStatus('', 'neutral');
+    }
+    // Only files that would have content are counted, e.g. 3 when card 4 has no file.
+    function updateDownloadAll() {
+      var n = ['tables', 'cols', 'newmods', 'mods'].filter(function (k) { return !!allScript(k); }).length;
+      $('#dbcmp-download-all-label').text(n ? 'ดาวน์โหลดทั้งหมด (' + n + ' ไฟล์)' : 'ดาวน์โหลดทั้งหมด');
+      $('#btn-dbcmp-download-all').prop('disabled', !n).toggleClass('opacity-50 cursor-not-allowed', !n);
     }
 
     async function copyText(text, $btn) {
@@ -10426,7 +10440,8 @@
       $modSummary.empty();
       var ready = !!(modFile && modFile.out);
       $('#btn-dbcmp-mods-save').prop('disabled', !ready).toggleClass('opacity-50 cursor-not-allowed', !ready);
-      $('#dbcmp-mods-name').text(modFile ? modFile.file : 'ยังไม่ได้เลือกไฟล์');
+      updateDownloadAll();
+      $('#dbcmp-mods-name').text(modFile ? 'Source: ' + modFile.file : 'ยังไม่ได้เลือกไฟล์ Source');
       if (!modFile) return;
       if (modFile.error) { $modSummary.append(line('text-bad', modFile.error)); return; }
       if (!modFile.out) { $modSummary.append(line('text-inksoft', 'กำลังอ่านไฟล์...')); return; }
@@ -10448,8 +10463,26 @@
       var others = Object.keys(st.others).map(function (k) { return k + ' ' + st.others[k].toLocaleString(); });
       if (others.length) $modSummary.append(line('text-bad', 'ไม่ได้แก้ไข (คงไว้ตามไฟล์เดิม): ' + others.join(' · ')));
     }
+    // Card 4 works on the Source file: its view/procedure/function/type scripts,
+    // in file order and as written, become the text to convert.
+    function sourceModFile() {
+      var s = sides.source;
+      if (!s) return null;
+      if (modFile && modFile.side === s && modFile.db === s.db && modFile.srcError === s.error) return modFile;
+      var mf = { side: s, db: s.db, srcError: s.error, file: s.file, text: '', error: s.error, out: null };
+      if (s.db && !s.error) {
+        if (!s.db.scripts.length) {
+          mf.error = 'ไม่พบ View / Procedure / Function ใน Source (ต้องเป็นไฟล์จาก SSMS Generate Scripts ไม่ใช่ Query extract)';
+        } else {
+          var eol = s.db.scripts[0].indexOf('\r\n') >= 0 ? '\r\n' : '\n';
+          mf.text = s.db.scripts.map(function (t) { return /\n$/.test(t) ? t : t + eol; }).join('');
+        }
+      }
+      return mf;
+    }
     // Rebuilds the database rows from the file, then converts with them.
     function refreshMods() {
+      modFile = sourceModFile();
       mapRows = [];
       $mapRows.empty();
       if (modFile && modFile.text) {
@@ -10712,6 +10745,7 @@
       boxState($('.dbcmp-check-all[data-kind="cols"]'), colCount, colTotal);
       $('#dbcmp-new-tables-count').text(countText(scripts.tables.length, tableRows.length));
       $('#dbcmp-new-cols-count').text(countText(colCount, colTotal));
+      updateDownloadAll();
       return colCount;
     }
     $('.dbcmp-check-all').on('change', function () {
@@ -10741,7 +10775,6 @@
       var dbMap = newModsMap(src.db, tgt.db);
       var colCount = render(dbcmpCompare(src.db, tgt.db, $.extend({}, OPTS, { dbMap: dbMap.map })), dbMap.notes);
       setStatus('ตารางใหม่ ' + scripts.tables.length.toLocaleString() + ' ตาราง · คอลัมน์ใหม่/แก้ไข ' + colCount.toLocaleString() + ' คอลัมน์ · View/SP ใหม่ ' + scripts.newmods.length.toLocaleString() + ' ตัว', 'good');
-      $result.removeAttr('hidden');
     }
 
     $('#btn-dbcmp-run').on('click', run);
@@ -10778,8 +10811,7 @@
     });
 
     $('.dbcmp-open').on('click', function () {
-      var t = $(this).data('target');
-      fileTarget = t === 'target' || t === 'mods' ? t : 'source';
+      fileTarget = $(this).data('target') === 'target' ? 'target' : 'source';
       $fileInput.trigger('click');
     });
     $fileInput.on('change', function () {
@@ -10788,42 +10820,28 @@
       $fileInput.val('');
       if (!file || !side) return;
       if (file.size > DBCMP_MAX_FILE_BYTES) { setStatus('ไฟล์ใหญ่เกิน 50 MB', 'bad'); return; }
-      if (side === 'mods') {
-        var mf = { file: file.name, text: '', error: '', out: null };
-        modFile = mf;
-        refreshMods();
-        // The upload button sits in the header, away from the result card.
-        $('#dbcmp-mods-card')[0].scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-        file.arrayBuffer().then(function (buf) {
-          setTimeout(function () {
-            if (modFile !== mf) return;
-            mf.text = dbcmpDecode(buf);
-            if (!mf.text.trim()) mf.error = 'ไฟล์ว่าง';
-            refreshMods();
-          }, 30);
-        }).catch(function () {
-          mf.error = 'อ่านไฟล์ไม่สำเร็จ';
-          if (modFile === mf) renderModSummary();
-        });
-        return;
-      }
       var entry = { file: file.name, db: null, error: '' };
       sides[side] = entry;
       renderSide(side);
       reset();
+      refreshMods();
       file.arrayBuffer().then(function (buf) {
         // Let "reading" paint before a large script is parsed.
         setTimeout(function () {
           try { entry.db = dbcmpParse(dbcmpDecode(buf), file.name.replace(/\.[^.]+$/, '')); } catch (e) { entry.error = e.message; }
           if (sides.source === entry) renderSide('source');
-          if (sides.target === entry) { renderSide('target'); refreshMods(); }
+          if (sides.target === entry) renderSide('target');
+          // Card 4 converts the source scripts and checks them against the target.
+          if (sides.source === entry || sides.target === entry) refreshMods();
         }, 30);
       }).catch(function () {
         entry.error = 'อ่านไฟล์ไม่สำเร็จ';
         if (sides.source === entry) renderSide('source');
         if (sides.target === entry) renderSide('target');
+        if (sides.source === entry) refreshMods();
       });
     });
+    reset();
     renderModSummary();
   }
 
