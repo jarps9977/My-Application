@@ -72,8 +72,8 @@
   </div>
 
   <!-- Click a row to get its script. -->
-  <div id="dbcmp-result" class="grid grid-cols-1 xl:grid-cols-2 gap-3 items-start">
-    <div class="bg-surface border border-line rounded-2xl shadow-sm overflow-hidden flex flex-col min-w-0">
+  <div id="dbcmp-result" class="grid grid-cols-1 xl:grid-cols-2 gap-3 items-stretch">
+    <div class="bg-surface border border-line rounded-2xl shadow-sm overflow-hidden flex flex-col min-w-0 h-[60vh] min-h-[360px]">
       <div class="flex items-center justify-between flex-wrap gap-2 px-4 py-2.5 border-b border-line">
         <span class="flex items-center gap-2 text-[13px] font-extrabold">
           <input type="checkbox" class="dbcmp-check-all accent-accent w-[15px] h-[15px] cursor-pointer" data-kind="tables" aria-label="เลือกตารางใหม่ทั้งหมด" checked />
@@ -89,9 +89,9 @@
           </button>
         </div>
       </div>
-      <div id="dbcmp-new-tables" class="max-h-[60vh] overflow-auto text-[12.5px]"></div>
+      <div id="dbcmp-new-tables" class="flex-1 min-h-0 overflow-auto text-[12.5px]"></div>
     </div>
-    <div class="bg-surface border border-line rounded-2xl shadow-sm overflow-hidden flex flex-col min-w-0">
+    <div class="bg-surface border border-line rounded-2xl shadow-sm overflow-hidden flex flex-col min-w-0 h-[60vh] min-h-[360px]">
       <div class="flex items-center justify-between flex-wrap gap-2 px-4 py-2.5 border-b border-line">
         <span class="flex items-center gap-2 text-[13px] font-extrabold">
           <input type="checkbox" class="dbcmp-check-all accent-accent w-[15px] h-[15px] cursor-pointer" data-kind="cols" aria-label="เลือกคอลัมน์ทั้งหมด" checked />
@@ -107,9 +107,9 @@
           </button>
         </div>
       </div>
-      <div id="dbcmp-new-cols" class="max-h-[60vh] overflow-auto text-[12.5px]"></div>
+      <div id="dbcmp-new-cols" class="flex-1 min-h-0 overflow-auto text-[12.5px]"></div>
     </div>
-    <div class="bg-surface border border-line rounded-2xl shadow-sm overflow-hidden flex flex-col min-w-0">
+    <div class="bg-surface border border-line rounded-2xl shadow-sm overflow-hidden flex flex-col min-w-0 h-[60vh] min-h-[360px]">
       <div class="flex items-center justify-between flex-wrap gap-2 px-4 py-2.5 border-b border-line">
         <span class="flex items-center gap-2 text-[13px] font-extrabold">
           <input type="checkbox" class="dbcmp-check-all accent-accent w-[15px] h-[15px] cursor-pointer" data-kind="newmods" aria-label="เลือก View / Procedure / Function ใหม่ทั้งหมด" checked />
@@ -125,11 +125,11 @@
           </button>
         </div>
       </div>
-      <div id="dbcmp-new-mods" class="max-h-[60vh] overflow-auto text-[12.5px]"></div>
+      <div id="dbcmp-new-mods" class="flex-1 min-h-0 overflow-auto text-[12.5px]"></div>
     </div>
 
     <!-- Existing view / procedure / function: a generated script is converted in place. -->
-    <div id="dbcmp-mods-card" class="bg-surface border border-line rounded-2xl shadow-sm overflow-hidden flex flex-col min-w-0">
+    <div id="dbcmp-mods-card" class="bg-surface border border-line rounded-2xl shadow-sm overflow-hidden flex flex-col min-w-0 h-[60vh] min-h-[360px]">
       <div class="flex items-center justify-between flex-wrap gap-2 px-4 py-2.5 border-b border-line">
         <span class="flex items-center gap-2 text-[13px] font-extrabold">
           <span class="flex h-5 w-5 items-center justify-center rounded-full bg-accentsoft text-accentdeep text-[11px] font-bold">4</span> แก้ไข View / Procedure / Function เดิม
@@ -150,11 +150,13 @@
         <span class="text-[11px] text-inkfaint">ส่วนอื่นคงเดิมทุกตัวอักษร</span>
       </div>
       <div class="px-4 py-2 border-b border-line text-[12.5px] font-mono font-semibold text-ink truncate" id="dbcmp-mods-name">ยังไม่ได้เลือกไฟล์ Source</div>
-      <div id="dbcmp-dbmap" hidden>
-        <div class="px-4 py-2 border-b border-line text-[11.5px] font-bold text-inksoft">ชื่อ DB ที่พบในไฟล์ &rarr; เปลี่ยนเป็น (เฉพาะตำแหน่งชื่อ DB เช่น [db].[dbo].[object] รวมถึงใน dynamic SQL)</div>
-        <div id="dbcmp-dbmap-rows" class="max-h-[30vh] overflow-auto"></div>
+      <div class="flex-1 min-h-0 overflow-auto">
+        <div id="dbcmp-dbmap" hidden>
+          <div class="px-4 py-2 border-b border-line text-[11.5px] font-bold text-inksoft">ชื่อ DB ที่พบในไฟล์ &rarr; เปลี่ยนเป็น (เฉพาะตำแหน่งชื่อ DB เช่น [db].[dbo].[object] รวมถึงใน dynamic SQL)</div>
+          <div id="dbcmp-dbmap-rows"></div>
+        </div>
+        <div id="dbcmp-mods-summary" class="px-4 py-2.5 text-[12.5px] leading-relaxed"></div>
       </div>
-      <div id="dbcmp-mods-summary" class="px-4 py-2.5 text-[12.5px] leading-relaxed max-h-[40vh] overflow-auto"></div>
     </div>
   </div>
 </section>
