@@ -9423,11 +9423,28 @@
     var ansiNulls = true;
     var quotedId = true;
     // sqlcmd-style batch split: a line holding only GO.
-    var batches = text.split(/^[ \t]*GO[ \t]*(?:--[^\n]*)?\r?$/im);
-    batches.forEach(function (batch) {
+    var goRe = /^[ \t]*GO[ \t]*(?:--[^\n]*)?\r?$/gim;
+    var batches = []; // { text, start, end }: start/end span the batch, its GO line and line break
+    var pos = 0;
+    var from = 0;
+    var gm;
+    while ((gm = goRe.exec(text))) {
+      var goEnd = gm.index + gm[0].length;
+      batches.push({ text: text.slice(pos, gm.index), start: from, end: text.charAt(goEnd) === '\n' ? goEnd + 1 : goEnd });
+      pos = goEnd;
+      from = batches[batches.length - 1].end;
+    }
+    batches.push({ text: text.slice(pos), start: from, end: text.length });
+    // SSMS writes the object header comment and SET batches before each object;
+    // they are kept with the object so its script matches the file exactly.
+    var leadStart = -1;
+    batches.forEach(function (bt) {
+      var batch = bt.text;
       var head = dbcmpTokenize(batch, 0, batch.length, 12);
       if (!head.length) return;
       var cur = new DbcmpCursor(batch, head);
+      var scriptStart = leadStart < 0 ? bt.start : leadStart;
+      if (!cur.isW('SET')) leadStart = -1;
       if (cur.isW('USE')) {
         cur.i++;
         var db = cur.ident();
@@ -9435,6 +9452,7 @@
         return;
       }
       if (cur.isW('SET')) {
+        if (leadStart < 0) leadStart = bt.start;
         var setRe = /\bSET\s+(ANSI_NULLS|QUOTED_IDENTIFIER)\s+(ON|OFF)\b/gi;
         var sm;
         while ((sm = setRe.exec(batch))) {
@@ -9470,7 +9488,8 @@
         raw.modules.push({ schema: mn.length > 1 ? mn[mn.length - 2] : 'dbo', name: mn[mn.length - 1], type: dbcmpScriptModuleType(mc, kind),
           // Kept byte for byte: only the line break that belongs to the GO line
           // before it and the one SSMS puts in front of the GO after it are removed.
-          def: batch.replace(/^\r?\n/, '').replace(/\r?\n$/, ''), ansiNulls: ansiNulls, quotedId: quotedId });
+          def: batch.replace(/^\r?\n/, '').replace(/\r?\n$/, ''), ansiNulls: ansiNulls, quotedId: quotedId,
+          script: text.slice(scriptStart, bt.end) });
         return;
       }
 
@@ -9488,7 +9507,8 @@
         c.i++;
         var ttn = c.name();
         if (!ttn || !c.acceptW('AS') || !c.acceptW('TABLE')) return;
-        var tt = { schema: ttn.length > 1 ? ttn[ttn.length - 2] : 'dbo', name: ttn[ttn.length - 1], columns: [], indexes: [], checks: [], usedBy: [] };
+        var tt = { schema: ttn.length > 1 ? ttn[ttn.length - 2] : 'dbo', name: ttn[ttn.length - 1], columns: [], indexes: [], checks: [], usedBy: [],
+          script: text.slice(scriptStart, bt.end) };
         dbcmpScriptTableBody(c, tt);
         raw.tableTypes.push(tt);
       } else if (!isAlter && kind === 'SEQUENCE') {
@@ -10209,6 +10229,8 @@
         item = $.extend(base, { status: 'same', checked: false });
       }
       item.def = def;
+      // The object's text as it is in the source file, header and SET batches included.
+      item.script = s && typeof s.script === 'string' ? dbcmpApplyDbMap(s.script, opts.dbMap) : null;
       item.unmapped = s ? unknownDbs(def) : [];
       if (item.unmapped.length) {
         item.warnings.push(m.schema + '.' + m.name + ': อ้างอิงฐานข้อมูล ' + item.unmapped.join(', ') + ' ซึ่งฝั่งปลายทางไม่ได้ใช้');
@@ -10271,8 +10293,9 @@
     var sides = { source: null, target: null }; // { file, db, error }
     var scripts = { tables: [], cols: [], newmods: [] };
     // Unticked rows, kept across re-runs: table key, and 'table key|column' for columns.
-    var skipped = { tables: dbcmpMap(), cols: dbcmpMap() };
+    var skipped = { tables: dbcmpMap(), cols: dbcmpMap(), newmods: dbcmpMap() };
     var tableRows = []; // { key, sql, $check, $head }
+    var newmodRows = []; // { key, sql, $check, $head }
     var colRows = []; // { cols: [{ key, $check, $li }], script(), $check, $head, $pre }
     // The view/procedure script is converted as text, so its content is kept.
     var modFile = null; // { file, text, error, out }
@@ -10300,6 +10323,7 @@
       scripts = { tables: [], cols: [], newmods: [] };
       tableRows = [];
       colRows = [];
+      newmodRows = [];
       $tables.empty();
       $cols.empty();
       $newMods.empty();
@@ -10337,6 +10361,10 @@
       // The converted view/procedure script goes out as is: no header, nothing added.
       if (kind === 'mods') return modFile && modFile.out ? modFile.out.text : '';
       if (!last || !scripts[kind].length) return '';
+      // New objects go out exactly as in the source file: no header, line breaks untouched.
+      if (kind === 'newmods') {
+        return scripts.newmods.map(function (s) { return /\n$/.test(s) ? s : s + (s.indexOf('\r\n') >= 0 ? '\r\n' : '\n'); }).join('');
+      }
       var head = '/*\n  ' + KINDS[kind].title + '\n  Source : ' + dbcmpSafeComment(last.src.name) +
         '\n  Target : ' + dbcmpSafeComment(last.tgt.name) + '\n  Run against the TARGET database.\n*/\n';
       return (head + scripts[kind].join('\n')).replace(/\r?\n/g, '\r\n');
@@ -10536,30 +10564,34 @@
       var order = dbcmpMap();
       if (last) Object.keys(last.src.modules).forEach(function (k, i) { order[k] = i; });
       // New table types go first: a new procedure that takes one cannot be created without it.
+      tableRows = [];
+      colRows = [];
+      newmodRows = [];
+      function addNewMod(it, create) {
+        var name = it.schema + '.' + it.name;
+        var key = it.kind + ':' + it.key;
+        var mr = { key: key, sql: create, $check: makeCheck(!skipped.newmods[key], 'เลือก ' + name) };
+        mr.$head = $('<span>').addClass('flex flex-1 min-w-0 items-center justify-between gap-3').append(
+          $('<span>').addClass('font-mono font-semibold text-good break-all').text(name),
+          $('<span>').addClass('flex-none text-inksoft').text(it.typeLabel)
+        );
+        mr.$check.on('change', function () {
+          if (this.checked) delete skipped.newmods[key]; else skipped.newmods[key] = true;
+          syncScripts();
+        });
+        newmodRows.push(mr);
+        $newMods.append(makeEntry(mr.$head, create, mr.$check));
+      }
+      // Scripts are taken from the source file as they are; generated only for query extracts.
       items.forEach(function (it) {
         if (it.kind !== 'tabletype' || it.status !== 'add') return;
-        var create = dbcmpTypeCreate(it.src, OPTS) + '\nGO\n';
-        scripts.newmods.push(create);
-        $newMods.append(makeEntry($('<span>').addClass('flex flex-1 min-w-0 items-center justify-between gap-3').append(
-          $('<span>').addClass('font-mono font-semibold text-good break-all').text(it.schema + '.' + it.name),
-          $('<span>').addClass('flex-none text-inksoft').text(it.typeLabel)
-        ), create));
+        addNewMod(it, typeof it.src.script === 'string' ? it.src.script : dbcmpTypeCreate(it.src, OPTS) + '\nGO\n');
       });
       items.filter(function (it) { return it.kind === 'module' && it.status === 'add'; })
         .sort(function (a, b) { return order[a.key] - order[b.key]; })
-        .forEach(function (it) {
-          var create = it.def + '\nGO\n';
-          scripts.newmods.push(create);
-          $newMods.append(makeEntry($('<span>').addClass('flex flex-1 min-w-0 items-center justify-between gap-3').append(
-            $('<span>').addClass('font-mono font-semibold text-good break-all').text(it.schema + '.' + it.name),
-            $('<span>').addClass('flex-none text-inksoft').text(it.typeLabel)
-          ), create));
-        });
-      if (!scripts.newmods.length) $newMods.append($('<div>').addClass('px-4 py-2.5 text-inkfaint').text('ไม่มี View / Procedure / Function ใหม่'));
+        .forEach(function (it) { addNewMod(it, it.script !== null ? it.script : it.def + '\nGO\n'); });
+      if (!newmodRows.length) $newMods.append($('<div>').addClass('px-4 py-2.5 text-inkfaint').text('ไม่มี View / Procedure / Function ใหม่'));
       else if (dbNotes.length) $newMods.prepend($('<div>').addClass('px-4 py-2 border-b border-line text-[11.5px] text-inksoft break-all').text('ชื่อ DB: ' + dbNotes.join(' · ')));
-      $('#dbcmp-new-mods-count').text(scripts.newmods.length.toLocaleString());
-      tableRows = [];
-      colRows = [];
       items.forEach(function (it) {
         if (it.kind !== 'table') return;
         var name = it.schema + '.' + it.name;
@@ -10648,6 +10680,15 @@
         r.$head.toggleClass('opacity-50', !checked);
         if (checked) scripts.tables.push(r.sql);
       });
+      scripts.newmods = [];
+      newmodRows.forEach(function (r) {
+        var checked = !skipped.newmods[r.key];
+        r.$check.prop('checked', checked);
+        r.$head.toggleClass('opacity-50', !checked);
+        if (checked) scripts.newmods.push(r.sql);
+      });
+      boxState($('.dbcmp-check-all[data-kind="newmods"]'), scripts.newmods.length, newmodRows.length);
+      $('#dbcmp-new-mods-count').text(countText(scripts.newmods.length, newmodRows.length));
       scripts.cols = [];
       var colCount = 0;
       var colTotal = 0;
@@ -10675,10 +10716,13 @@
     }
     $('.dbcmp-check-all').on('change', function () {
       var checked = this.checked;
-      if ($(this).data('kind') === 'cols') {
+      var kind = $(this).data('kind');
+      if (kind === 'cols') {
         colRows.forEach(function (r) {
           r.cols.forEach(function (c) { if (checked) delete skipped.cols[c.key]; else skipped.cols[c.key] = true; });
         });
+      } else if (kind === 'newmods') {
+        newmodRows.forEach(function (r) { if (checked) delete skipped.newmods[r.key]; else skipped.newmods[r.key] = true; });
       } else {
         tableRows.forEach(function (r) {
           r.$check.prop('checked', checked);
@@ -10712,7 +10756,7 @@
     });
     $('#btn-dbcmp-clear').on('click', function () {
       sides = { source: null, target: null };
-      skipped = { tables: dbcmpMap(), cols: dbcmpMap() };
+      skipped = { tables: dbcmpMap(), cols: dbcmpMap(), newmods: dbcmpMap() };
       modFile = null;
       renderSide('source');
       renderSide('target');
