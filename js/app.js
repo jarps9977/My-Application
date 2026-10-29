@@ -681,7 +681,7 @@
     $categoryFilter.empty();
     TOOL_CATEGORIES.forEach(function (cat) {
       var active = cat.id === activeCategory;
-      var count = TOOLS.filter(function (t) { return inCategory(t, cat.id); }).length;
+      var count = TOOLS.filter(function (t) { return inCategory(t, cat.id) && !isHidden(t.id); }).length;
       var $chip = $('<button>').attr({ type: 'button', role: 'tab', 'aria-selected': active ? 'true' : 'false' })
         .addClass('inline-flex flex-none items-center gap-1.5 rounded-full px-3.5 py-1.5 text-[12.5px] font-bold whitespace-nowrap border transition-colors duration-150 cursor-pointer')
         .addClass(active ? 'bg-accent border-accent text-accentink' : 'bg-surface border-line text-inksoft hover:text-accentdeep hover:border-accent')
@@ -724,6 +724,30 @@
   }
   var arranging = false;
 
+  // Tools the user ticked to hide from the home grid (per browser).
+  var HIDDEN_KEY = 'toolbox.hidden';
+  function loadHidden() {
+    try {
+      var list = JSON.parse(storeGet(HIDDEN_KEY) || '[]');
+      return Array.isArray(list) ? list.filter(function (id, i) { return typeof id === 'string' && isToolId(id) && list.indexOf(id) === i; }) : [];
+    } catch (e) { return []; }
+  }
+  var hiddenTools = loadHidden();
+  function isHidden(id) { return hiddenTools.indexOf(id) !== -1; }
+  function toggleHidden(id) {
+    var i = hiddenTools.indexOf(id);
+    if (i === -1) hiddenTools.push(id); else hiddenTools.splice(i, 1);
+    storeSet(HIDDEN_KEY, hiddenTools.length ? JSON.stringify(hiddenTools) : null);
+  }
+  var hiding = false;
+  function renderHideCheck($tile, hidden) {
+    $tile.attr('aria-checked', hidden ? 'true' : 'false');
+    $tile.children().not('.hide-check').toggleClass('opacity-40', hidden);
+    $tile.find('.hide-check')
+      .toggleClass('bg-accent border-accent text-accentink', hidden)
+      .toggleClass('bg-surface border-line text-transparent', !hidden);
+  }
+
   function renderCategories() {
     var query = $toolSearch.val().trim().toLowerCase();
     var matches = function (t) { return !query || (t.label + ' ' + t.desc).toLowerCase().indexOf(query) !== -1; };
@@ -745,6 +769,18 @@
       });
       return;
     }
+    if (hiding) {
+      // Every tool is listed with a tick box; ticked tools are hidden from the home grid.
+      orderedTools().forEach(function (t) {
+        var $tile = makeToolTile(t).attr({ 'data-hide-id': t.id, role: 'checkbox', tabindex: 0, 'aria-label': 'ซ่อน ' + t.label });
+        $tile.find('button').attr('tabindex', -1);
+        $tile.append($('<span>').addClass('hide-check absolute right-3 top-3 flex h-5 w-5 items-center justify-center rounded-md border-2 transition-colors duration-150')
+          .attr('aria-hidden', 'true').append($('<i>').addClass('bi bi-check-lg text-[13px] leading-none')));
+        renderHideCheck($tile, isHidden(t.id));
+        $categoryGrid.append($tile);
+      });
+      return;
+    }
     if (homeMode === 'favorites') {
       items = favorites.map(toolById).filter(function (t) { return t && matches(t); }).map(function (t) { return { tool: t }; });
       empty = query ? 'ไม่พบเครื่องมือที่ค้นหาในรายการโปรด' : 'ยังไม่มีรายการโปรด กดรูปหัวใจที่มุมไอคอนเครื่องมือเพื่อเพิ่ม';
@@ -753,7 +789,7 @@
         .filter(function (it) { return it.tool && matches(it.tool); });
       empty = query ? 'ไม่พบเครื่องมือที่ค้นหาในประวัติ' : (historyEnabled() ? 'ยังไม่มีประวัติการใช้งาน' : 'ปิดการบันทึกประวัติอยู่ เปิดได้ที่ ตั้งค่า');
     } else {
-      items = orderedTools().filter(function (t) { return inCategory(t, activeCategory) && matches(t); }).map(function (t) { return { tool: t }; });
+      items = orderedTools().filter(function (t) { return inCategory(t, activeCategory) && !isHidden(t.id) && matches(t); }).map(function (t) { return { tool: t }; });
       empty = query ? (activeCategory === 'all' ? 'ไม่พบเครื่องมือที่ค้นหา' : 'ไม่พบเครื่องมือที่ค้นหาในหมวดนี้') : 'ยังไม่มีเครื่องมือในหมวดนี้';
     }
     if (!items.length) {
@@ -785,7 +821,8 @@
   var $homeNavBtns = $('#home-nav [data-nav]');
   function setHomeMode(mode) {
     homeMode = mode;
-    if (mode !== 'home') arranging = false;
+    if (mode !== 'home') arranging = hiding = false;
+    var editing = arranging || hiding;
     $homeNavBtns.each(function () {
       var on = $(this).data('nav') === mode;
       $(this).attr('aria-current', on ? 'page' : null)
@@ -793,14 +830,21 @@
         .toggleClass('text-inksoft hover:text-ink hover:bg-surface2', !on);
     });
     $('#home-section-title').text(HOME_SECTION_TEXT[mode][0]);
-    $('#home-section-sub').text(arranging ? 'ลากเมนูไปวางตำแหน่งที่ต้องการ แล้วกด "เสร็จ"' : HOME_SECTION_TEXT[mode][1]);
-    $categoryFilter.toggle(mode === 'home' && !arranging);
+    $('#home-section-sub').text(arranging ? 'ลากเมนูไปวางตำแหน่งที่ต้องการ แล้วกด "เสร็จ"'
+      : hiding ? 'ติ๊กเลือกเมนูที่ต้องการซ่อน แล้วกด "เสร็จ"' : HOME_SECTION_TEXT[mode][1]);
+    $categoryFilter.toggle(mode === 'home' && !editing);
     $('#home-filter-row').toggle(mode === 'home');
-    $('#home-quote').toggleClass('md:block', mode === 'home' && !arranging);
+    $('#home-quote').toggleClass('md:block', mode === 'home' && !editing);
     $('#btn-history-clear').css('display', mode === 'history' && historyList.length ? 'inline-flex' : 'none');
-    $toolSearch.prop('disabled', arranging);
-    $categoryGrid.toggleClass('is-arranging', arranging);
-    $('#btn-arrange').css('display', mode === 'home' ? 'inline-flex' : 'none')
+    $toolSearch.prop('disabled', editing);
+    $categoryGrid.toggleClass('is-arranging', arranging).toggleClass('is-hiding', hiding);
+    $('#btn-hide').css('display', mode === 'home' && !arranging ? 'inline-flex' : 'none')
+      .attr('aria-pressed', hiding ? 'true' : 'false')
+      .toggleClass('bg-accent border-accent text-accentink hover:bg-accentdeep', hiding)
+      .toggleClass('bg-surface border-line text-inksoft hover:border-accent hover:text-accentdeep', !hiding)
+      .find('span').text(hiding ? 'เสร็จ' : 'ซ่อน' + (hiddenTools.length ? ' (' + hiddenTools.length + ')' : ''));
+    $('#btn-hide i').toggleClass('bi-eye-slash', !hiding).toggleClass('bi-check-lg', hiding);
+    $('#btn-arrange').css('display', mode === 'home' && !hiding ? 'inline-flex' : 'none')
       .attr('aria-pressed', arranging ? 'true' : 'false')
       .toggleClass('bg-accent border-accent text-accentink hover:bg-accentdeep', arranging)
       .toggleClass('bg-surface border-line text-inksoft hover:border-accent hover:text-accentdeep', !arranging)
@@ -829,15 +873,42 @@
     setHomeMode('home');
   });
   $(document).on('keydown', function (e) {
-    if (e.key === 'Escape' && arranging && $settings.attr('hidden') !== undefined) setArranging(false);
+    if (e.key !== 'Escape' || $settings.attr('hidden') === undefined) return;
+    if (arranging) setArranging(false);
+    else if (hiding) setHiding(false);
   });
+
+  // ----- Hide mode: tick tools to hide them from the home grid -----
+  function setHiding(on) {
+    if (on) $toolSearch.val('');
+    hiding = on;
+    if (!on) renderCategoryFilter();
+    setHomeMode('home');
+  }
+  function toggleHideTile(tile) {
+    var id = tile.getAttribute('data-hide-id');
+    toggleHidden(id);
+    renderHideCheck($(tile), isHidden(id));
+  }
+  $('#btn-hide').on('click', function () { setHiding(!hiding); });
 
   var gridEl = $categoryGrid[0];
   var drag = null;
-  // Tiles open their tool on click; arrange mode swallows those clicks.
+  // Tiles open their tool on click; arrange and hide modes swallow those clicks.
   gridEl.addEventListener('click', function (e) {
-    if (arranging) { e.preventDefault(); e.stopPropagation(); }
+    if (!arranging && !hiding) return;
+    e.preventDefault();
+    e.stopPropagation();
+    var tile = hiding && e.target.closest('[data-hide-id]');
+    if (tile) toggleHideTile(tile);
   }, true);
+  gridEl.addEventListener('keydown', function (e) {
+    if (!hiding || (e.key !== ' ' && e.key !== 'Enter')) return;
+    var tile = e.target.closest('[data-hide-id]');
+    if (!tile) return;
+    e.preventDefault();
+    toggleHideTile(tile);
+  });
 
   // Layout position of a tile, ignoring an in-flight FLIP transform.
   function layoutRect(el) {

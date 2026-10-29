@@ -123,6 +123,8 @@ body::before {
 @media (prefers-reduced-motion: reduce) {
   #category-grid.is-arranging .tool-tile { animation: none; }
 }
+#category-grid.is-hiding .tool-tile:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+#category-grid.is-hiding .fav-btn { display: none; }
 
 /* Text compare side-by-side diff (views/text-compare.html) */
 .app.app-wide { max-width: 72rem; }
