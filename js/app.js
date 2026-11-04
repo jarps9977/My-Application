@@ -11651,7 +11651,8 @@
         blasts[j].t += dt;
         if (blasts[j].t >= BLAST_TIME) blasts.splice(j, 1);
       }
-      if (boss ? boss.hp <= 0 : remaining === 0) {
+      // <= 0: a warp sets remaining to 0 mid-frame, and later substeps can still break bricks.
+      if (boss ? boss.hp <= 0 : remaining <= 0) {
         if (boss) score += 50 + level * 5;
         saveBest();
         level++;
