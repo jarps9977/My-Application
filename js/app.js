@@ -10966,29 +10966,34 @@
     var COLS = 40, ROWS = 38, CELL = 9, TOP = 18;
     var PAD_W = 64, PAD_H = 6, PAD_Y = 556, PAD_SPEED = 420;
     var BALL_R = 2.5, BALL_SPEED = 330, MAX_BALLS = 800;
-    var DROP_R = 6, DROP_SPEED = 140;
+    var DROP_R = 10, DROP_SPEED = 140;
     var SUBSTEPS = 3; // keeps per-step travel below one cell
     var LIVES = 3;
     var BEST_KEY = 'toolbox.brickBreakerBest';
     var BRICK = 1, BRICK_SPLIT = 2, BRICK_ADD = 3, BRICK_WIDE = 4, BRICK_FIRE = 5, BRICK_LIFE = 6, BRICK_BOMB = 7;
     var BRICK_GUARD = 9, BRICK_SLOW = 10, BRICK_MAGNET = 11, BRICK_LASER = 12, BRICK_MEGA = 13, BRICK_WARP = 14;
     // Penalty drops; catching them hurts.
-    var BRICK_SHRINK = 15, BRICK_FAST = 16, BRICK_REVERSE = 17;
+    var BRICK_FAST = 16, BRICK_REVERSE = 17;
     // Drop colors; item bricks themselves are painted like plain bricks.
     var COLORS = {
       1: '#e6c229', 2: '#22d3ee', 3: '#fb923c', 4: '#4ade80', 5: '#f43f5e', 6: '#f472b6', 7: '#a78bfa', 9: '#3b82f6', 10: '#e2e8f0',
-      11: '#fde047', 12: '#ef4444', 13: '#14b8a6', 14: '#fbbf24', 15: '#57534e', 16: '#991b1b', 17: '#5b21b6'
+      11: '#fde047', 12: '#ef4444', 13: '#14b8a6', 14: '#fbbf24', 16: '#991b1b', 17: '#5b21b6'
     };
-    var LABELS = { 2: '3', 3: '+', 4: 'W', 5: 'F', 6: '♥', 9: 'G', 10: 'S', 11: 'M', 12: 'L', 13: 'B', 14: '★', 15: '-', 16: '!', 17: '?' };
+    // Emoji drawn inside each drop so its effect reads at a glance.
+    var ICONS = {
+      2: '🔱', 3: '➕', 4: '↔️', 5: '🔥', 6: '❤️', 9: '🛡️', 10: '🐢',
+      11: '🧲', 12: '⚡', 13: '💥', 14: '🚀', 16: '⏩', 17: '🔄'
+    };
+    var ICON_FONT = '13px "Segoe UI Emoji","Apple Color Emoji","Noto Color Emoji",sans-serif';
     var GOOD_DROPS = [BRICK_SPLIT, BRICK_ADD, BRICK_WIDE, BRICK_FIRE, BRICK_GUARD, BRICK_SLOW, BRICK_MAGNET, BRICK_LASER, BRICK_MEGA];
-    var BAD_DROPS = [BRICK_SHRINK, BRICK_FAST, BRICK_REVERSE];
+    var BAD_DROPS = [BRICK_FAST, BRICK_REVERSE];
     // Brick shade by hits left (index = hp).
     var HP_COLORS = [null, COLORS[BRICK], '#d9822b', '#b4532a'];
     // Cumulative spawn odds per brick; anything above the last is a plain brick.
     var SPAWN = [
       [0.012, BRICK_SPLIT], [0.03, BRICK_ADD], [0.036, BRICK_WIDE], [0.04, BRICK_FIRE], [0.042, BRICK_LIFE], [0.052, BRICK_BOMB],
       [0.057, BRICK_GUARD], [0.062, BRICK_SLOW], [0.067, BRICK_MAGNET], [0.072, BRICK_LASER], [0.076, BRICK_MEGA], [0.0775, BRICK_WARP],
-      [0.0825, BRICK_SHRINK], [0.0875, BRICK_FAST], [0.0915, BRICK_REVERSE]
+      [0.0825, BRICK_FAST], [0.0865, BRICK_REVERSE]
     ];
     var WIDE_W = 112, WIDE_TIME = 12, FIRE_TIME = 6, BOMB_RADIUS = 3;
     var GUARD_Y = 590, GUARD_H = 3, GUARD_TIME = 10, GUARD_MAX = 20;
@@ -10996,7 +11001,7 @@
     var MAGNET_TIME = 10, MAGNET_HOLD = 2.5; // stuck balls auto-launch after MAGNET_HOLD
     var LASER_TIME = 8, LASER_RATE = 0.3, LASER_SPEED = 600;
     var MEGA_TIME = 6, MEGA_R = 4;
-    var SHRINK_W = 40, SHRINK_TIME = 10, FAST_TIME = 8, FAST_FACTOR = 1.3, REVERSE_TIME = 6;
+    var FAST_TIME = 8, FAST_FACTOR = 1.3, REVERSE_TIME = 6;
     // Speed cap keeps per-substep travel below one cell at the 1/30s frame clamp,
     // including FAST_FACTOR (540 * 1.3 / 90 < CELL).
     var MAX_BALL_SPEED = 540;
@@ -11033,7 +11038,8 @@
       } }
     ];
 
-    var dpr = Math.min(window.devicePixelRatio || 1, 2);
+    // Backing store above devicePixelRatio since CSS scales the board well past 360x600.
+    var dpr = Math.min((window.devicePixelRatio || 1) * 1.75, 3.5);
     canvas.width = W * dpr;
     canvas.height = H * dpr;
     var ctx = canvas.getContext('2d');
@@ -11050,7 +11056,7 @@
     var $overlayTitle = $('#bb-overlay-title');
     var $overlaySub = $('#bb-overlay-sub');
     var $start = $('#bb-btn-start');
-    var $hud = { level: $('#bb-level'), score: $('#bb-score'), balls: $('#bb-balls'), lives: $('#bb-lives'), best: $('#bb-best') };
+    var $hud = { level: $('#bb-level'), score: $('#bb-score'), lives: $('#bb-lives'), best: $('#bb-best') };
     var hudShown = {};
 
     var grid = new Uint8Array(COLS * ROWS);
@@ -11073,7 +11079,7 @@
     var guardT = 0; // seconds left on the safety barrier
     var slowT = 0; // seconds left on slowed balls
     var magnetT = 0, laserT = 0, laserCd = 0, megaT = 0;
-    var shrinkT = 0, fastT = 0, reverseT = 0;
+    var fastT = 0, reverseT = 0;
     var shots = []; // laser bolts
     var combo = 0;
     var moving = []; // { r, dir } rows that slide sideways
@@ -11102,7 +11108,6 @@
     function renderHud() {
       setHud('level', level + 1);
       setHud('score', score);
-      setHud('balls', balls.length);
       setHud('lives', lives);
       setHud('best', best);
     }
@@ -11287,7 +11292,6 @@
     function releaseAll() {
       for (var i = 0; i < balls.length; i++) if (balls[i].stuck) launchBall(balls[i]);
     }
-    function basePadWidth() { return wideT > 0 ? WIDE_W : shrinkT > 0 ? SHRINK_W : PAD_W; }
     // Resizes around the paddle center.
     function setPadWidth(w) {
       var cx = padX + padW / 2;
@@ -11303,7 +11307,7 @@
       guardT = 0;
       slowT = 0;
       magnetT = laserT = laserCd = megaT = 0;
-      shrinkT = fastT = reverseT = 0;
+      fastT = reverseT = 0;
       shots.length = 0;
       combo = 0;
       setPadWidth(PAD_W);
@@ -11331,13 +11335,8 @@
         score += remaining;
         remaining = 0;
         if (boss) boss.hp = 0;
-      } else if (kind === BRICK_SHRINK) {
-        shrinkT = SHRINK_TIME;
-        wideT = 0;
-        setPadWidth(SHRINK_W);
       } else if (kind === BRICK_WIDE) {
         wideT = WIDE_TIME;
-        shrinkT = 0;
         setPadWidth(WIDE_W);
       } else if (kind === BRICK_FIRE) {
         fireT = FIRE_TIME;
@@ -11480,17 +11479,21 @@
       ctx.clearRect(0, 0, W, H);
       ctx.drawImage(layer, 0, 0, W, H);
       var i;
-      ctx.font = 'bold 8px sans-serif';
+      ctx.font = ICON_FONT;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
+      ctx.lineWidth = 1.5;
       for (i = 0; i < drops.length; i++) {
         var dk = drops[i].kind;
         ctx.fillStyle = COLORS[dk];
         ctx.beginPath();
         ctx.arc(drops[i].x, drops[i].y, DROP_R, 0, Math.PI * 2);
         ctx.fill();
-        ctx.fillStyle = BAD_DROPS.indexOf(dk) >= 0 ? '#ffffff' : '#18181b';
-        ctx.fillText(LABELS[dk] || '', drops[i].x, drops[i].y + 0.5);
+        // Penalties get a red ring as a warning.
+        ctx.strokeStyle = BAD_DROPS.indexOf(dk) >= 0 ? '#ef4444' : 'rgba(255,255,255,.85)';
+        ctx.stroke();
+        ctx.fillStyle = '#ffffff';
+        ctx.fillText(ICONS[dk] || '', drops[i].x, drops[i].y + 1);
       }
       if (boss && boss.hp > 0) {
         ctx.fillStyle = boss.hitT > 0 ? '#ffffff' : '#7c3aed';
@@ -11521,7 +11524,7 @@
         ctx.arc(balls[i].x, balls[i].y, br, 0, Math.PI * 2);
       }
       ctx.fill();
-      ctx.fillStyle = reverseT > 0 ? COLORS[BRICK_REVERSE] : wideT > 0 ? COLORS[BRICK_WIDE] : shrinkT > 0 ? COLORS[BRICK_SHRINK] : '#f4743b';
+      ctx.fillStyle = reverseT > 0 ? COLORS[BRICK_REVERSE] : wideT > 0 ? COLORS[BRICK_WIDE] : '#f4743b';
       ctx.fillRect(padX, PAD_Y, padW, PAD_H);
       if (magnetT > 0) {
         ctx.fillStyle = COLORS[BRICK_MAGNET];
@@ -11620,11 +11623,7 @@
       if (reverseT > 0) reverseT -= dt;
       if (wideT > 0) {
         wideT -= dt;
-        if (wideT <= 0) setPadWidth(basePadWidth());
-      }
-      if (shrinkT > 0) {
-        shrinkT -= dt;
-        if (shrinkT <= 0) setPadWidth(basePadWidth());
+        if (wideT <= 0) setPadWidth(PAD_W);
       }
       for (var j = blasts.length - 1; j >= 0; j--) {
         blasts[j].t += dt;
