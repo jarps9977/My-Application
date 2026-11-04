@@ -10971,39 +10971,65 @@
     var LIVES = 3;
     var BEST_KEY = 'toolbox.brickBreakerBest';
     var BRICK = 1, BRICK_SPLIT = 2, BRICK_ADD = 3, BRICK_WIDE = 4, BRICK_FIRE = 5, BRICK_LIFE = 6, BRICK_BOMB = 7;
-    var COLORS = { 1: '#e6c229', 2: '#22d3ee', 3: '#fb923c', 4: '#4ade80', 5: '#f43f5e', 6: '#f472b6', 7: '#a78bfa' };
+    var BRICK_GUARD = 9, BRICK_SLOW = 10, BRICK_MAGNET = 11, BRICK_LASER = 12, BRICK_MEGA = 13, BRICK_WARP = 14;
+    // Penalty drops; catching them hurts.
+    var BRICK_SHRINK = 15, BRICK_FAST = 16, BRICK_REVERSE = 17;
+    // Drop colors; item bricks themselves are painted like plain bricks.
+    var COLORS = {
+      1: '#e6c229', 2: '#22d3ee', 3: '#fb923c', 4: '#4ade80', 5: '#f43f5e', 6: '#f472b6', 7: '#a78bfa', 9: '#3b82f6', 10: '#e2e8f0',
+      11: '#fde047', 12: '#ef4444', 13: '#14b8a6', 14: '#fbbf24', 15: '#57534e', 16: '#991b1b', 17: '#5b21b6'
+    };
+    var LABELS = { 2: '3', 3: '+', 4: 'W', 5: 'F', 6: '♥', 9: 'G', 10: 'S', 11: 'M', 12: 'L', 13: 'B', 14: '★', 15: '-', 16: '!', 17: '?' };
+    var GOOD_DROPS = [BRICK_SPLIT, BRICK_ADD, BRICK_WIDE, BRICK_FIRE, BRICK_GUARD, BRICK_SLOW, BRICK_MAGNET, BRICK_LASER, BRICK_MEGA];
+    var BAD_DROPS = [BRICK_SHRINK, BRICK_FAST, BRICK_REVERSE];
+    // Brick shade by hits left (index = hp).
+    var HP_COLORS = [null, COLORS[BRICK], '#d9822b', '#b4532a'];
     // Cumulative spawn odds per brick; anything above the last is a plain brick.
-    var SPAWN = [[0.012, BRICK_SPLIT], [0.03, BRICK_ADD], [0.036, BRICK_WIDE], [0.04, BRICK_FIRE], [0.042, BRICK_LIFE], [0.052, BRICK_BOMB]];
+    var SPAWN = [
+      [0.012, BRICK_SPLIT], [0.03, BRICK_ADD], [0.036, BRICK_WIDE], [0.04, BRICK_FIRE], [0.042, BRICK_LIFE], [0.052, BRICK_BOMB],
+      [0.057, BRICK_GUARD], [0.062, BRICK_SLOW], [0.067, BRICK_MAGNET], [0.072, BRICK_LASER], [0.076, BRICK_MEGA], [0.0775, BRICK_WARP],
+      [0.0825, BRICK_SHRINK], [0.0875, BRICK_FAST], [0.0915, BRICK_REVERSE]
+    ];
     var WIDE_W = 112, WIDE_TIME = 12, FIRE_TIME = 6, BOMB_RADIUS = 3;
+    var GUARD_Y = 590, GUARD_H = 3, GUARD_TIME = 10, GUARD_MAX = 20;
+    var SLOW_TIME = 8, SLOW_FACTOR = 0.6;
+    var MAGNET_TIME = 10, MAGNET_HOLD = 2.5; // stuck balls auto-launch after MAGNET_HOLD
+    var LASER_TIME = 8, LASER_RATE = 0.3, LASER_SPEED = 600;
+    var MEGA_TIME = 6, MEGA_R = 4;
+    var SHRINK_W = 40, SHRINK_TIME = 10, FAST_TIME = 8, FAST_FACTOR = 1.3, REVERSE_TIME = 6;
+    // Speed cap keeps per-substep travel below one cell at the 1/30s frame clamp,
+    // including FAST_FACTOR (540 * 1.3 / 90 < CELL).
+    var MAX_BALL_SPEED = 540;
+    var COMBO_STEP = 25, COMBO_MAX = 5; // multiplier +1 per COMBO_STEP hits without touching the paddle
+    // Every 10th level is a boss that moves sideways and drops penalties.
+    var BOSS_EVERY = 10, BOSS_W = 96, BOSS_H = 30, BOSS_Y = TOP + 13 * CELL, BOSS_DROP_TIME = 5, BOSS_GIFT_EVERY = 40;
+    var MIN_BREAKABLE = 120;
     // Unbreakable; not counted toward clearing a level.
     var STEEL = 8;
     COLORS[STEEL] = '#71717a';
-    // Each layout maps a cell to 0 (empty), BRICK or STEEL.
-    var LEVELS = [
-      { name: 'ช่องกลาง', cell: function (c, r) {
-        return (c === 19 || c === 20) && r < 28 ? 0 : BRICK;
+    // Steel patterns for the left half (c < COLS / 2); the right half mirrors it.
+    // rows = brick rows in use, lv = zero-based level.
+    var PATTERNS = [
+      { name: 'เสาเหล็ก', steel: function (c, r, rows, lv) {
+        var gap = Math.max(5, 10 - Math.floor(lv / 4));
+        // Pillars break every 10 rows so no column is sealed off.
+        return c % gap === Math.floor(gap / 2) && r >= 2 && r < rows - 3 && r % 10 < 8;
       } },
-      { name: 'กำแพงเหล็ก', cell: function (c, r) {
-        if (r >= 28) return BRICK;
-        if (c === 19 || c === 20) return 0;
-        return c === 18 || c === 21 ? STEEL : BRICK;
+      { name: 'ชั้นซิกแซก', steel: function (c, r, rows, lv) {
+        var gap = Math.max(5, 9 - Math.floor(lv / 5));
+        if (r % gap !== gap - 1 || r >= rows - 3) return false;
+        // Shelves alternate center / edge openings so balls must zigzag up.
+        return Math.floor(r / gap) % 2 === 0 ? c < COLS / 2 - 3 : c > 2;
       } },
-      { name: 'เสาเหล็ก', cell: function (c, r) {
-        if ((c === 9 || c === 30) && r >= 4) return STEEL;
-        if (r === 18 && c >= 14 && c <= 25) return STEEL;
-        return BRICK;
-      } },
-      { name: 'ชั้นซิกแซก', cell: function (c, r) {
-        // Shelves alternate their gap side so balls must zigzag up.
-        if (r % 8 === 4 && r < 34) return (Math.floor(r / 8) % 2 === 0 ? c < 32 : c > 7) ? STEEL : BRICK;
-        return BRICK;
-      } },
-      { name: 'กล่องเหล็ก', cell: function (c, r) {
-        if (r >= 36) return BRICK;
+      { name: 'กล่องเหล็ก', steel: function (c, r, rows) {
+        if (r >= rows - 2) return false;
         var bx = c % 10, by = r % 9;
         var edge = bx === 0 || bx === 9 || by === 0 || by === 8;
         var door = (by === 0 || by === 8) && (bx === 4 || bx === 5);
-        return edge && !door ? STEEL : BRICK;
+        return edge && !door;
+      } },
+      { name: 'ตาข่ายเหล็ก', steel: function (c, r, rows) {
+        return r % 6 === 3 && c % 6 < 3 && r < rows - 3;
       } }
     ];
 
@@ -11028,6 +11054,9 @@
     var hudShown = {};
 
     var grid = new Uint8Array(COLS * ROWS);
+    var hp = new Uint8Array(COLS * ROWS); // hits left per brick
+    var levelName = '';
+    var ballSpeed = BALL_SPEED;
     var balls = [];
     var drops = [];
     var blasts = []; // short-lived bomb rings
@@ -11041,8 +11070,17 @@
     var padW = PAD_W;
     var wideT = 0; // seconds left on the wide paddle
     var fireT = 0; // seconds left on piercing balls
+    var guardT = 0; // seconds left on the safety barrier
+    var slowT = 0; // seconds left on slowed balls
+    var magnetT = 0, laserT = 0, laserCd = 0, megaT = 0;
+    var shrinkT = 0, fastT = 0, reverseT = 0;
+    var shots = []; // laser bolts
+    var combo = 0;
+    var moving = []; // { r, dir } rows that slide sideways
+    var moveStep = 0, moveT = 0;
+    var boss = null;
     var keys = { left: false, right: false };
-    var state = 'ready'; // ready | playing | paused | over | won
+    var state = 'ready'; // ready | playing | paused | over
     var running = false;
     var lastTs = 0;
 
@@ -11062,7 +11100,7 @@
       $hud[key].text(value);
     }
     function renderHud() {
-      setHud('level', (level + 1) + '/' + LEVELS.length);
+      setHud('level', level + 1);
       setHud('score', score);
       setHud('balls', balls.length);
       setHud('lives', lives);
@@ -11077,47 +11115,179 @@
       if (isLocked()) document.exitPointerLock();
     }
 
-    function buildLevel(n) {
-      var layout = LEVELS[n].cell;
-      lctx.clearRect(0, 0, W, H);
-      remaining = 0;
-      for (var r = 0; r < ROWS; r++) {
-        for (var c = 0; c < COLS; c++) {
-          var i = r * COLS + c;
-          var type = layout(c, r);
-          grid[i] = type;
-          if (!type) continue;
-          var x = c * CELL, y = TOP + r * CELL;
-          if (type === STEEL) {
-            lctx.fillStyle = COLORS[STEEL];
-            lctx.fillRect(x + 0.5, y + 0.5, CELL - 1, CELL - 1);
-            lctx.fillStyle = '#a1a1aa';
-            lctx.fillRect(x + 0.5, y + 0.5, CELL - 1, 2);
-            continue;
-          }
-          var roll = Math.random();
-          for (var k = 0; k < SPAWN.length; k++) {
-            if (roll < SPAWN[k][0]) { grid[i] = SPAWN[k][1]; break; }
-          }
-          lctx.fillStyle = COLORS[grid[i]];
-          lctx.fillRect(x + 0.5, y + 0.5, CELL - 1, CELL - 1);
-          remaining++;
+    function paintCell(c, r) {
+      var i = r * COLS + c;
+      var x = c * CELL, y = TOP + r * CELL;
+      lctx.clearRect(x, y, CELL, CELL);
+      if (!grid[i]) return;
+      lctx.fillStyle = grid[i] === STEEL ? COLORS[STEEL] : HP_COLORS[hp[i]];
+      lctx.fillRect(x + 0.5, y + 0.5, CELL - 1, CELL - 1);
+      if (grid[i] === STEEL) {
+        lctx.fillStyle = '#a1a1aa';
+        lctx.fillRect(x + 0.5, y + 0.5, CELL - 1, 2);
+      } else if (hp[i] > 1) {
+        lctx.fillStyle = 'rgba(255,255,255,.3)';
+        lctx.fillRect(x + 0.5, y + 0.5, CELL - 1, 1.5);
+      }
+    }
+
+    // Marks bricks the ball can reach: 4-connected non-steel paths from the open
+    // area below the grid, plus the open strip above row 0. Unreachable bricks are
+    // removed so every level stays clearable. Returns the breakable count left.
+    function pruneUnreachable() {
+      var seen = new Uint8Array(COLS * ROWS);
+      var queue = [];
+      var topLinked = false;
+      var c, r, i, count = 0;
+      function visit(cc, rr) {
+        if (cc < 0 || cc >= COLS || rr < 0 || rr >= ROWS) return;
+        var j = rr * COLS + cc;
+        if (seen[j] || grid[j] === STEEL) return;
+        seen[j] = 1;
+        queue.push(j);
+      }
+      for (c = 0; c < COLS; c++) visit(c, ROWS - 1);
+      while (queue.length) {
+        i = queue.pop();
+        c = i % COLS;
+        r = (i - c) / COLS;
+        if (r === 0 && !topLinked) {
+          topLinked = true;
+          for (var t = 0; t < COLS; t++) visit(t, 0);
         }
+        visit(c - 1, r); visit(c + 1, r); visit(c, r - 1); visit(c, r + 1);
+      }
+      for (i = 0; i < grid.length; i++) {
+        if (!grid[i] || grid[i] === STEEL) continue;
+        if (seen[i]) count++; else grid[i] = 0;
+      }
+      return count;
+    }
+
+    // Procedural level: more brick rows, multi-hit bricks and steel as lv grows.
+    function buildLevel(n) {
+      var isBoss = n % BOSS_EVERY === BOSS_EVERY - 1;
+      // Boss levels keep a short brick ceiling above the boss lane.
+      var rows = isBoss ? 10 : Math.min(ROWS, 16 + n * 2);
+      var pattern = n > 0 && !isBoss ? PATTERNS[(n - 1) % PATTERNS.length] : null;
+      var scatter = Math.min(0.12, Math.max(0, n - 3) * 0.008);
+      var p2 = Math.min(0.45, n * 0.05);
+      var p3 = n >= 5 ? Math.min(0.3, (n - 4) * 0.03) : 0;
+      var half = COLS / 2;
+      var c, r, i, k;
+      levelName = isBoss ? 'บอส' : pattern ? pattern.name : 'อุ่นเครื่อง';
+      boss = isBoss ? { x: (W - BOSS_W) / 2, vx: 50 + n * 2, hp: 200 + n * 20, max: 200 + n * 20, hitT: 0, dropT: BOSS_DROP_TIME } : null;
+      ballSpeed = Math.min(MAX_BALL_SPEED, BALL_SPEED + n * 12);
+      for (var attempt = 0; attempt < 6; attempt++) {
+        // Last attempt drops all steel as a guaranteed fallback.
+        var useSteel = attempt < 5;
+        grid.fill(0);
+        for (r = 0; r < rows; r++) {
+          for (c = 0; c < half; c++) {
+            var steel = useSteel && pattern && (pattern.steel(c, r, rows, n) || (r < rows - 2 && Math.random() < scatter));
+            grid[r * COLS + c] = grid[r * COLS + (COLS - 1 - c)] = steel ? STEEL : BRICK;
+          }
+        }
+        remaining = pruneUnreachable();
+        if (remaining >= MIN_BREAKABLE || !useSteel) break;
+      }
+      lctx.clearRect(0, 0, W, H);
+      for (r = 0; r < ROWS; r++) {
+        for (c = 0; c < COLS; c++) {
+          i = r * COLS + c;
+          hp[i] = 0;
+          if (grid[i] === BRICK) {
+            var roll = Math.random();
+            for (k = 0; k < SPAWN.length; k++) {
+              if (roll < SPAWN[k][0]) { grid[i] = SPAWN[k][1]; break; }
+            }
+            roll = Math.random();
+            hp[i] = roll < p3 ? 3 : roll < p3 + p2 ? 2 : 1;
+          }
+          paintCell(c, r);
+        }
+      }
+      // Sliding rows: only steel-free rows, so reachability never changes.
+      moving = [];
+      moveT = 0;
+      moveStep = Math.max(0.15, 0.6 - n * 0.015);
+      var slides = n >= 4 && !isBoss ? Math.min(6, Math.floor((n - 2) / 2)) : 0;
+      for (r = 1; r < rows - 2 && moving.length < slides; r += 4) {
+        var ok = true;
+        for (c = 0; c < COLS; c++) if (grid[r * COLS + c] === STEEL) { ok = false; break; }
+        if (ok) moving.push({ r: r, dir: moving.length % 2 ? -1 : 1 });
+      }
+    }
+
+    // Rotates one row by a single cell, wrapping at the edges.
+    function shiftRow(r, dir) {
+      var base = r * COLS, c, g, p;
+      if (dir > 0) {
+        g = grid[base + COLS - 1]; p = hp[base + COLS - 1];
+        for (c = COLS - 1; c > 0; c--) { grid[base + c] = grid[base + c - 1]; hp[base + c] = hp[base + c - 1]; }
+        grid[base] = g; hp[base] = p;
+      } else {
+        g = grid[base]; p = hp[base];
+        for (c = 0; c < COLS - 1; c++) { grid[base + c] = grid[base + c + 1]; hp[base + c] = hp[base + c + 1]; }
+        grid[base + COLS - 1] = g; hp[base + COLS - 1] = p;
+      }
+      for (c = 0; c < COLS; c++) paintCell(c, r);
+    }
+
+    function comboMult() { return Math.min(COMBO_MAX, 1 + Math.floor(combo / COMBO_STEP)); }
+    function randomOf(list) { return list[Math.floor(Math.random() * list.length)]; }
+
+    function inBoss(x, y) {
+      return boss && boss.hp > 0 && x >= boss.x && x <= boss.x + BOSS_W && y >= BOSS_Y && y <= BOSS_Y + BOSS_H;
+    }
+    function damageBoss() {
+      if (!boss || boss.hp <= 0) return;
+      boss.hp--;
+      boss.hitT = 0.08;
+      score += comboMult();
+      combo++;
+      if (boss.hp > 0 && boss.hp % BOSS_GIFT_EVERY === 0) {
+        drops.push({ x: boss.x + BOSS_W / 2, y: BOSS_Y + BOSS_H, kind: randomOf(GOOD_DROPS) });
+      }
+    }
+    function updateBoss(dt) {
+      if (!boss || boss.hp <= 0) return;
+      boss.x += boss.vx * dt;
+      if (boss.x < 0) { boss.x = 0; boss.vx = Math.abs(boss.vx); }
+      else if (boss.x > W - BOSS_W) { boss.x = W - BOSS_W; boss.vx = -Math.abs(boss.vx); }
+      if (boss.hitT > 0) boss.hitT -= dt;
+      boss.dropT -= dt;
+      if (boss.dropT <= 0) {
+        boss.dropT = BOSS_DROP_TIME;
+        drops.push({ x: boss.x + BOSS_W / 2, y: BOSS_Y + BOSS_H, kind: randomOf(BAD_DROPS) });
       }
     }
 
     function addBall(x, y, ang) {
       if (balls.length >= MAX_BALLS) return;
-      var vx = BALL_SPEED * Math.sin(ang);
-      var vy = -BALL_SPEED * Math.cos(ang);
+      var vx = ballSpeed * Math.sin(ang);
+      var vy = -ballSpeed * Math.cos(ang);
       // Avoid near-horizontal paths that never come back down.
-      var minVy = BALL_SPEED * 0.25;
+      var minVy = ballSpeed * 0.25;
       if (Math.abs(vy) < minVy) {
         vy = vy < 0 ? -minVy : minVy;
-        vx = (vx < 0 ? -1 : 1) * Math.sqrt(BALL_SPEED * BALL_SPEED - vy * vy);
+        vx = (vx < 0 ? -1 : 1) * Math.sqrt(ballSpeed * ballSpeed - vy * vy);
       }
-      balls.push({ x: x, y: y, vx: vx, vy: vy });
+      balls.push({ x: x, y: y, vx: vx, vy: vy, stuck: false, off: 0, stickT: 0 });
     }
+    // Paddle bounce: angle follows where the ball sits on the paddle.
+    function launchBall(b) {
+      var t = (b.x - (padX + padW / 2)) / (padW / 2);
+      var ang = Math.max(-1, Math.min(1, t)) * (Math.PI / 3);
+      b.vx = ballSpeed * Math.sin(ang);
+      b.vy = -ballSpeed * Math.cos(ang);
+      b.y = PAD_Y - BALL_R;
+      b.stuck = false;
+    }
+    function releaseAll() {
+      for (var i = 0; i < balls.length; i++) if (balls[i].stuck) launchBall(balls[i]);
+    }
+    function basePadWidth() { return wideT > 0 ? WIDE_W : shrinkT > 0 ? SHRINK_W : PAD_W; }
     // Resizes around the paddle center.
     function setPadWidth(w) {
       var cx = padX + padW / 2;
@@ -11130,12 +11300,44 @@
       blasts.length = 0;
       wideT = 0;
       fireT = 0;
+      guardT = 0;
+      slowT = 0;
+      magnetT = laserT = laserCd = megaT = 0;
+      shrinkT = fastT = reverseT = 0;
+      shots.length = 0;
+      combo = 0;
       setPadWidth(PAD_W);
       addBall(padX + padW / 2, PAD_Y - BALL_R, 0);
     }
     function applyDrop(kind) {
-      if (kind === BRICK_WIDE) {
+      if (kind === BRICK_GUARD) {
+        guardT = Math.min(GUARD_MAX, guardT + GUARD_TIME);
+      } else if (kind === BRICK_SLOW) {
+        slowT = SLOW_TIME;
+        fastT = 0;
+      } else if (kind === BRICK_FAST) {
+        fastT = FAST_TIME;
+        slowT = 0;
+      } else if (kind === BRICK_MAGNET) {
+        magnetT = MAGNET_TIME;
+      } else if (kind === BRICK_LASER) {
+        laserT = LASER_TIME;
+      } else if (kind === BRICK_MEGA) {
+        megaT = MEGA_TIME;
+      } else if (kind === BRICK_REVERSE) {
+        reverseT = REVERSE_TIME;
+      } else if (kind === BRICK_WARP) {
+        // Clears the level; leftover bricks still score.
+        score += remaining;
+        remaining = 0;
+        if (boss) boss.hp = 0;
+      } else if (kind === BRICK_SHRINK) {
+        shrinkT = SHRINK_TIME;
+        wideT = 0;
+        setPadWidth(SHRINK_W);
+      } else if (kind === BRICK_WIDE) {
         wideT = WIDE_TIME;
+        shrinkT = 0;
         setPadWidth(WIDE_W);
       } else if (kind === BRICK_FIRE) {
         fireT = FIRE_TIME;
@@ -11156,22 +11358,30 @@
       }
     }
 
-    // Returns 0 for no hit, 1 for a broken brick, 2 for steel.
-    function breakCell(c, r) {
+    // Returns 0 for no hit, 1 for a hit or broken brick, 2 for steel.
+    // force skips remaining hits (fire balls, bomb blasts).
+    function breakCell(c, r, force) {
       if (c < 0 || c >= COLS || r < 0 || r >= ROWS) return 0;
       var i = r * COLS + c;
       var kind = grid[i];
       if (!kind) return 0;
       if (kind === STEEL) return 2;
+      score += comboMult();
+      combo++;
+      if (!force && hp[i] > 1) {
+        hp[i]--;
+        paintCell(c, r);
+        return 1;
+      }
       // Cleared before the blast so chained bombs cannot recurse back here.
       grid[i] = 0;
+      hp[i] = 0;
       lctx.clearRect(c * CELL, TOP + r * CELL, CELL, CELL);
       remaining--;
-      score++;
       if (kind === BRICK_BOMB) {
         for (var dr = -BOMB_RADIUS; dr <= BOMB_RADIUS; dr++) {
           for (var dc = -BOMB_RADIUS; dc <= BOMB_RADIUS; dc++) {
-            if (dr * dr + dc * dc <= BOMB_RADIUS * BOMB_RADIUS) breakCell(c + dc, r + dr);
+            if (dr * dr + dc * dc <= BOMB_RADIUS * BOMB_RADIUS) breakCell(c + dc, r + dr, true);
           }
         }
         blasts.push({ x: c * CELL + CELL / 2, y: TOP + r * CELL + CELL / 2, t: 0 });
@@ -11180,31 +11390,64 @@
       }
       return 1;
     }
-    function hitBrick(x, y) {
-      return breakCell(Math.floor(x / CELL), Math.floor((y - TOP) / CELL));
+    function hitBrick(x, y, force) {
+      var c = Math.floor(x / CELL), r = Math.floor((y - TOP) / CELL);
+      var res = breakCell(c, r, force);
+      // Mega balls also smash the 8 surrounding cells.
+      if (res === 1 && megaT > 0) {
+        for (var dr = -1; dr <= 1; dr++) {
+          for (var dc = -1; dc <= 1; dc++) if (dr || dc) breakCell(c + dc, r + dr, force);
+        }
+      }
+      return res;
     }
 
     function step(h) {
       var i;
       var pierce = fireT > 0;
       var hit;
+      var bh = h * (slowT > 0 ? SLOW_FACTOR : fastT > 0 ? FAST_FACTOR : 1); // ball time step
       for (i = balls.length - 1; i >= 0; i--) {
         var b = balls[i];
-        b.x += b.vx * h;
+        if (b.stuck) {
+          b.x = padX + Math.max(0, Math.min(padW, b.off));
+          b.y = PAD_Y - BALL_R;
+          b.stickT -= h;
+          if (b.stickT <= 0 || magnetT <= 0) launchBall(b);
+          continue;
+        }
+        b.x += b.vx * bh;
         if (b.x < BALL_R) { b.x = BALL_R; b.vx = -b.vx; }
         else if (b.x > W - BALL_R) { b.x = W - BALL_R; b.vx = -b.vx; }
         // Fire balls pass through bricks but still bounce off steel.
-        else if ((hit = hitBrick(b.x, b.y)) && (hit === 2 || !pierce)) { b.vx = -b.vx; b.x += b.vx * h; }
-        b.y += b.vy * h;
+        else if ((hit = hitBrick(b.x, b.y, pierce)) && (hit === 2 || !pierce)) { b.vx = -b.vx; b.x += b.vx * bh; }
+        else if (inBoss(b.x, b.y)) {
+          // Eject to the nearer side; the boss itself may have moved into the ball.
+          damageBoss();
+          if (b.x < boss.x + BOSS_W / 2) { b.vx = -Math.abs(b.vx); b.x = boss.x - BALL_R; }
+          else { b.vx = Math.abs(b.vx); b.x = boss.x + BOSS_W + BALL_R; }
+        }
+        b.y += b.vy * bh;
         if (b.y < BALL_R) { b.y = BALL_R; b.vy = -b.vy; }
-        else if ((hit = hitBrick(b.x, b.y))) { if (hit === 2 || !pierce) { b.vy = -b.vy; b.y += b.vy * h; } }
+        else if ((hit = hitBrick(b.x, b.y, pierce))) { if (hit === 2 || !pierce) { b.vy = -b.vy; b.y += b.vy * bh; } }
+        else if (inBoss(b.x, b.y)) {
+          damageBoss();
+          if (b.vy > 0) { b.vy = -b.vy; b.y = BOSS_Y - BALL_R; }
+          else { b.vy = -b.vy; b.y = BOSS_Y + BOSS_H + BALL_R; }
+        }
         else if (b.vy > 0 && b.y + BALL_R >= PAD_Y && b.y - BALL_R <= PAD_Y + PAD_H && b.x >= padX - BALL_R && b.x <= padX + padW + BALL_R) {
-          // Bounce angle follows where the ball lands on the paddle.
-          var t = (b.x - (padX + padW / 2)) / (padW / 2);
-          var ang = Math.max(-1, Math.min(1, t)) * (Math.PI / 3);
-          b.vx = BALL_SPEED * Math.sin(ang);
-          b.vy = -BALL_SPEED * Math.cos(ang);
-          b.y = PAD_Y - BALL_R;
+          combo = 0;
+          if (magnetT > 0) {
+            b.stuck = true;
+            b.off = b.x - padX;
+            b.stickT = MAGNET_HOLD;
+            b.y = PAD_Y - BALL_R;
+          } else {
+            launchBall(b);
+          }
+        } else if (guardT > 0 && b.vy > 0 && b.y + BALL_R >= GUARD_Y) {
+          b.vy = -b.vy;
+          b.y = GUARD_Y - BALL_R;
         } else if (b.y > H + BALL_R) {
           balls[i] = balls[balls.length - 1];
           balls.pop();
@@ -11220,18 +11463,48 @@
           if (caught) applyDrop(d.kind);
         }
       }
+      for (i = shots.length - 1; i >= 0; i--) {
+        var s = shots[i];
+        s.y -= LASER_SPEED * h;
+        var gone = s.y < 0;
+        if (!gone && inBoss(s.x, s.y)) { damageBoss(); gone = true; }
+        else if (!gone && breakCell(Math.floor(s.x / CELL), Math.floor((s.y - TOP) / CELL), false)) gone = true;
+        if (gone) {
+          shots[i] = shots[shots.length - 1];
+          shots.pop();
+        }
+      }
     }
 
     function draw() {
       ctx.clearRect(0, 0, W, H);
       ctx.drawImage(layer, 0, 0, W, H);
       var i;
+      ctx.font = 'bold 8px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
       for (i = 0; i < drops.length; i++) {
-        ctx.fillStyle = COLORS[drops[i].kind];
+        var dk = drops[i].kind;
+        ctx.fillStyle = COLORS[dk];
         ctx.beginPath();
         ctx.arc(drops[i].x, drops[i].y, DROP_R, 0, Math.PI * 2);
         ctx.fill();
+        ctx.fillStyle = BAD_DROPS.indexOf(dk) >= 0 ? '#ffffff' : '#18181b';
+        ctx.fillText(LABELS[dk] || '', drops[i].x, drops[i].y + 0.5);
       }
+      if (boss && boss.hp > 0) {
+        ctx.fillStyle = boss.hitT > 0 ? '#ffffff' : '#7c3aed';
+        ctx.fillRect(boss.x, BOSS_Y, BOSS_W, BOSS_H);
+        ctx.fillStyle = '#18181b';
+        ctx.fillRect(boss.x + 24, BOSS_Y + 9, 10, 8);
+        ctx.fillRect(boss.x + BOSS_W - 34, BOSS_Y + 9, 10, 8);
+        ctx.fillStyle = 'rgba(0,0,0,.5)';
+        ctx.fillRect(boss.x, BOSS_Y - 6, BOSS_W, 3);
+        ctx.fillStyle = '#f43f5e';
+        ctx.fillRect(boss.x, BOSS_Y - 6, BOSS_W * boss.hp / boss.max, 3);
+      }
+      ctx.fillStyle = COLORS[BRICK_LASER];
+      for (i = 0; i < shots.length; i++) ctx.fillRect(shots[i].x - 0.75, shots[i].y - 5, 1.5, 5);
       for (i = 0; i < blasts.length; i++) {
         var k = blasts[i].t / BLAST_TIME;
         ctx.strokeStyle = 'rgba(167,139,250,' + (1 - k) + ')';
@@ -11240,15 +11513,36 @@
         ctx.arc(blasts[i].x, blasts[i].y, (0.3 + 0.7 * k) * BOMB_RADIUS * CELL, 0, Math.PI * 2);
         ctx.stroke();
       }
-      ctx.fillStyle = fireT > 0 ? COLORS[BRICK_FIRE] : '#ffffff';
+      var br = megaT > 0 ? MEGA_R : BALL_R; // visual only; hits stay cell based
+      ctx.fillStyle = fireT > 0 ? COLORS[BRICK_FIRE] : megaT > 0 ? COLORS[BRICK_MEGA] : '#ffffff';
       ctx.beginPath();
       for (i = 0; i < balls.length; i++) {
-        ctx.moveTo(balls[i].x + BALL_R, balls[i].y);
-        ctx.arc(balls[i].x, balls[i].y, BALL_R, 0, Math.PI * 2);
+        ctx.moveTo(balls[i].x + br, balls[i].y);
+        ctx.arc(balls[i].x, balls[i].y, br, 0, Math.PI * 2);
       }
       ctx.fill();
-      ctx.fillStyle = wideT > 0 ? COLORS[BRICK_WIDE] : '#f4743b';
+      ctx.fillStyle = reverseT > 0 ? COLORS[BRICK_REVERSE] : wideT > 0 ? COLORS[BRICK_WIDE] : shrinkT > 0 ? COLORS[BRICK_SHRINK] : '#f4743b';
       ctx.fillRect(padX, PAD_Y, padW, PAD_H);
+      if (magnetT > 0) {
+        ctx.fillStyle = COLORS[BRICK_MAGNET];
+        ctx.fillRect(padX, PAD_Y, padW, 2);
+      }
+      if (laserT > 0) {
+        ctx.fillStyle = COLORS[BRICK_LASER];
+        ctx.fillRect(padX + 1.5, PAD_Y - 4, 3, 4);
+        ctx.fillRect(padX + padW - 4.5, PAD_Y - 4, 3, 4);
+      }
+      if (combo >= 10) {
+        ctx.font = 'bold 11px sans-serif';
+        ctx.textAlign = 'right';
+        ctx.fillStyle = '#ffffff';
+        ctx.fillText('COMBO ' + combo + ' x' + comboMult(), W - 6, 9);
+      }
+      // Barrier blinks during its last 2 seconds.
+      if (guardT > 2 || (guardT > 0 && Math.floor(guardT * 8) % 2 === 0)) {
+        ctx.fillStyle = COLORS[BRICK_GUARD];
+        ctx.fillRect(0, GUARD_Y, W, GUARD_H);
+      }
       renderHud();
     }
 
@@ -11272,7 +11566,7 @@
       buildLevel(level);
       serve();
       state = 'ready';
-      showOverlay('ด่าน 1: ' + LEVELS[0].name, 'ทุบอิฐให้หมด เก็บไอเทมที่ตกลงมาเพื่อเพิ่มลูกบอล อิฐสีเทาทำลายไม่ได้', 'เริ่มเกม');
+      showOverlay('ด่าน 1: ' + levelName, 'ทุบอิฐให้หมด ไอเทมซ่อนอยู่ในอิฐ (บางอันเป็นของเสีย) อิฐสีเข้มต้องตีหลายครั้ง อิฐสีเทาทำลายไม่ได้ ทุก 10 ด่านมีบอส', 'เริ่มเกม');
       draw();
     }
     function pause() {
@@ -11281,7 +11575,7 @@
       showOverlay('หยุดชั่วคราว', 'กด Space หรือปุ่มด้านล่างเพื่อเล่นต่อ', 'เล่นต่อ');
     }
     function play() {
-      if (state === 'over' || state === 'won') newGame();
+      if (state === 'over') newGame();
       state = 'playing';
       $overlay.hide();
       // Cursor would cover the paddle while playing.
@@ -11299,28 +11593,51 @@
       if (state !== 'playing') { running = false; draw(); return; }
       var dt = lastTs ? Math.min((ts - lastTs) / 1000, 1 / 30) : 0;
       lastTs = ts;
-      if (keys.left !== keys.right) movePaddle(padX + (keys.left ? -1 : 1) * PAD_SPEED * dt);
+      if (keys.left !== keys.right) movePaddle(padX + (keys.left ? -1 : 1) * (reverseT > 0 ? -1 : 1) * PAD_SPEED * dt);
+      if (laserT > 0) {
+        laserCd -= dt;
+        if (laserCd <= 0) {
+          laserCd = LASER_RATE;
+          shots.push({ x: padX + 3, y: PAD_Y - 4 }, { x: padX + padW - 3, y: PAD_Y - 4 });
+        }
+      }
+      updateBoss(dt);
+      if (moving.length) {
+        moveT += dt;
+        while (moveT >= moveStep) {
+          moveT -= moveStep;
+          for (var m = 0; m < moving.length; m++) shiftRow(moving[m].r, moving[m].dir);
+        }
+      }
       for (var s = 0; s < SUBSTEPS; s++) step(dt / SUBSTEPS);
       if (fireT > 0) fireT -= dt;
+      if (guardT > 0) guardT -= dt;
+      if (slowT > 0) slowT -= dt;
+      if (fastT > 0) fastT -= dt;
+      if (magnetT > 0) magnetT -= dt;
+      if (laserT > 0) laserT -= dt;
+      if (megaT > 0) megaT -= dt;
+      if (reverseT > 0) reverseT -= dt;
       if (wideT > 0) {
         wideT -= dt;
-        if (wideT <= 0) setPadWidth(PAD_W);
+        if (wideT <= 0) setPadWidth(basePadWidth());
+      }
+      if (shrinkT > 0) {
+        shrinkT -= dt;
+        if (shrinkT <= 0) setPadWidth(basePadWidth());
       }
       for (var j = blasts.length - 1; j >= 0; j--) {
         blasts[j].t += dt;
         if (blasts[j].t >= BLAST_TIME) blasts.splice(j, 1);
       }
-      if (remaining === 0 && level < LEVELS.length - 1) {
+      if (boss ? boss.hp <= 0 : remaining === 0) {
+        if (boss) score += 50 + level * 5;
         saveBest();
         level++;
         buildLevel(level);
         serve();
         state = 'ready';
-        showOverlay('ผ่านด่าน ' + level + '!', 'ด่าน ' + (level + 1) + ': ' + LEVELS[level].name, 'ด่านถัดไป');
-      } else if (remaining === 0) {
-        state = 'won';
-        saveBest();
-        showOverlay('ชนะครบทุกด่าน!', 'คะแนน ' + score, 'เล่นอีกครั้ง');
+        showOverlay('ผ่านด่าน ' + level + '!', 'ด่าน ' + (level + 1) + ': ' + levelName, 'ด่านถัดไป');
       } else if (balls.length === 0) {
         lives--;
         if (lives <= 0) {
@@ -11349,11 +11666,14 @@
       if (state !== 'playing' && !$stage[0].contains(e.target)) return;
       var rect = canvas.getBoundingClientRect();
       if (!rect.width) return;
+      if (e.type === 'pointerdown' && state === 'playing') releaseAll();
+      var flip = reverseT > 0 ? -1 : 1;
       if (isLocked()) {
-        if (e.type === 'pointermove') movePaddle(padX + (e.originalEvent.movementX || 0) / rect.width * W);
+        if (e.type === 'pointermove') movePaddle(padX + flip * (e.originalEvent.movementX || 0) / rect.width * W);
         return;
       }
-      movePaddle((e.clientX - rect.left) / rect.width * W - padW / 2);
+      var px = (e.clientX - rect.left) / rect.width * W - padW / 2;
+      movePaddle(flip > 0 ? px : W - padW - px);
       if (state !== 'playing') draw();
     });
     // Esc releases the lock; pause so the ball is not left unattended.
@@ -11367,6 +11687,7 @@
       var down = e.type === 'keydown';
       if (e.key === 'ArrowLeft') keys.left = down;
       else if (e.key === 'ArrowRight') keys.right = down;
+      else if (e.key === 'ArrowUp') { if (down && state === 'playing') releaseAll(); }
       else if (e.key === ' ' || e.key === 'Spacebar') {
         if (down && !e.originalEvent.repeat) { if (state === 'playing') pause(); else play(); }
       } else return;
