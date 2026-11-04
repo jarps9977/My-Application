@@ -10972,28 +10972,24 @@
     var BEST_KEY = 'toolbox.brickBreakerBest';
     var BRICK = 1, BRICK_SPLIT = 2, BRICK_ADD = 3, BRICK_WIDE = 4, BRICK_FIRE = 5, BRICK_LIFE = 6, BRICK_BOMB = 7;
     var BRICK_GUARD = 9, BRICK_SLOW = 10, BRICK_MAGNET = 11, BRICK_LASER = 12, BRICK_MEGA = 13, BRICK_WARP = 14;
-    // Penalty drops; catching them hurts.
-    var BRICK_FAST = 16, BRICK_REVERSE = 17;
     // Drop colors; item bricks themselves are painted like plain bricks.
     var COLORS = {
       1: '#e6c229', 2: '#22d3ee', 3: '#fb923c', 4: '#4ade80', 5: '#f43f5e', 6: '#f472b6', 7: '#a78bfa', 9: '#3b82f6', 10: '#e2e8f0',
-      11: '#fde047', 12: '#ef4444', 13: '#14b8a6', 14: '#fbbf24', 16: '#991b1b', 17: '#5b21b6'
+      11: '#fde047', 12: '#ef4444', 13: '#14b8a6', 14: '#fbbf24'
     };
     // Emoji drawn inside each drop so its effect reads at a glance.
     var ICONS = {
-      2: '🔱', 3: '➕', 4: '↔️', 5: '🔥', 6: '❤️', 9: '🛡️', 10: '🐢',
-      11: '🧲', 12: '⚡', 13: '💥', 14: '🚀', 16: '⏩', 17: '🔄'
+      2: '✨', 3: '➕', 4: '↔️', 5: '🔥', 6: '❤️', 9: '🛡️', 10: '🐢',
+      11: '🧲', 12: '⚡', 13: '💥', 14: '🚀'
     };
     var ICON_FONT = '13px "Segoe UI Emoji","Apple Color Emoji","Noto Color Emoji",sans-serif';
     var GOOD_DROPS = [BRICK_SPLIT, BRICK_ADD, BRICK_WIDE, BRICK_FIRE, BRICK_GUARD, BRICK_SLOW, BRICK_MAGNET, BRICK_LASER, BRICK_MEGA];
-    var BAD_DROPS = [BRICK_FAST, BRICK_REVERSE];
     // Brick shade by hits left (index = hp).
     var HP_COLORS = [null, COLORS[BRICK], '#d9822b', '#b4532a'];
     // Cumulative spawn odds per brick; anything above the last is a plain brick.
     var SPAWN = [
       [0.012, BRICK_SPLIT], [0.03, BRICK_ADD], [0.036, BRICK_WIDE], [0.04, BRICK_FIRE], [0.042, BRICK_LIFE], [0.052, BRICK_BOMB],
-      [0.057, BRICK_GUARD], [0.062, BRICK_SLOW], [0.067, BRICK_MAGNET], [0.072, BRICK_LASER], [0.076, BRICK_MEGA], [0.0775, BRICK_WARP],
-      [0.0825, BRICK_FAST], [0.0865, BRICK_REVERSE]
+      [0.057, BRICK_GUARD], [0.062, BRICK_SLOW], [0.067, BRICK_MAGNET], [0.072, BRICK_LASER], [0.076, BRICK_MEGA], [0.0775, BRICK_WARP]
     ];
     var WIDE_W = 112, WIDE_TIME = 12, FIRE_TIME = 6, BOMB_RADIUS = 3;
     var GUARD_Y = 590, GUARD_H = 3, GUARD_TIME = 10, GUARD_MAX = 20;
@@ -11001,13 +10997,11 @@
     var MAGNET_TIME = 10, MAGNET_HOLD = 2.5; // stuck balls auto-launch after MAGNET_HOLD
     var LASER_TIME = 8, LASER_RATE = 0.3, LASER_SPEED = 600;
     var MEGA_TIME = 6, MEGA_R = 4;
-    var FAST_TIME = 8, FAST_FACTOR = 1.3, REVERSE_TIME = 6;
-    // Speed cap keeps per-substep travel below one cell at the 1/30s frame clamp,
-    // including FAST_FACTOR (540 * 1.3 / 90 < CELL).
+    // Speed cap keeps per-substep travel below one cell at the 1/30s frame clamp.
     var MAX_BALL_SPEED = 540;
     var COMBO_STEP = 25, COMBO_MAX = 5; // multiplier +1 per COMBO_STEP hits without touching the paddle
-    // Every 10th level is a boss that moves sideways and drops penalties.
-    var BOSS_EVERY = 10, BOSS_W = 96, BOSS_H = 30, BOSS_Y = TOP + 13 * CELL, BOSS_DROP_TIME = 5, BOSS_GIFT_EVERY = 40;
+    // Every 10th level is a boss that moves sideways.
+    var BOSS_EVERY = 10, BOSS_W = 96, BOSS_H = 30, BOSS_Y = TOP + 13 * CELL, BOSS_GIFT_EVERY = 40;
     var MIN_BREAKABLE = 120;
     // Unbreakable; not counted toward clearing a level.
     var STEEL = 8;
@@ -11079,7 +11073,6 @@
     var guardT = 0; // seconds left on the safety barrier
     var slowT = 0; // seconds left on slowed balls
     var magnetT = 0, laserT = 0, laserCd = 0, megaT = 0;
-    var fastT = 0, reverseT = 0;
     var shots = []; // laser bolts
     var combo = 0;
     var moving = []; // { r, dir } rows that slide sideways
@@ -11181,7 +11174,7 @@
       var half = COLS / 2;
       var c, r, i, k;
       levelName = isBoss ? 'บอส' : pattern ? pattern.name : 'อุ่นเครื่อง';
-      boss = isBoss ? { x: (W - BOSS_W) / 2, vx: 50 + n * 2, hp: 200 + n * 20, max: 200 + n * 20, hitT: 0, dropT: BOSS_DROP_TIME } : null;
+      boss = isBoss ? { x: (W - BOSS_W) / 2, vx: 50 + n * 2, hp: 200 + n * 20, max: 200 + n * 20, hitT: 0 } : null;
       ballSpeed = Math.min(MAX_BALL_SPEED, BALL_SPEED + n * 12);
       for (var attempt = 0; attempt < 6; attempt++) {
         // Last attempt drops all steel as a guaranteed fallback.
@@ -11261,11 +11254,6 @@
       if (boss.x < 0) { boss.x = 0; boss.vx = Math.abs(boss.vx); }
       else if (boss.x > W - BOSS_W) { boss.x = W - BOSS_W; boss.vx = -Math.abs(boss.vx); }
       if (boss.hitT > 0) boss.hitT -= dt;
-      boss.dropT -= dt;
-      if (boss.dropT <= 0) {
-        boss.dropT = BOSS_DROP_TIME;
-        drops.push({ x: boss.x + BOSS_W / 2, y: BOSS_Y + BOSS_H, kind: randomOf(BAD_DROPS) });
-      }
     }
 
     function addBall(x, y, ang) {
@@ -11282,12 +11270,17 @@
     }
     // Paddle bounce: angle follows where the ball sits on the paddle.
     function launchBall(b) {
-      var t = (b.x - (padX + padW / 2)) / (padW / 2);
-      var ang = Math.max(-1, Math.min(1, t)) * (Math.PI / 3);
+      var ang = launchAngle(b);
       b.vx = ballSpeed * Math.sin(ang);
       b.vy = -ballSpeed * Math.cos(ang);
       b.y = PAD_Y - BALL_R;
       b.stuck = false;
+    }
+    // Stuck (magnet) balls aim by where the paddle sits on the board so the player
+    // can steer the shot; otherwise the angle follows the hit point on the paddle.
+    function launchAngle(b) {
+      var t = b.stuck ? (padX + padW / 2) / W * 2 - 1 : (b.x - (padX + padW / 2)) / (padW / 2);
+      return Math.max(-1, Math.min(1, t)) * (Math.PI / 3);
     }
     function releaseAll() {
       for (var i = 0; i < balls.length; i++) if (balls[i].stuck) launchBall(balls[i]);
@@ -11307,7 +11300,6 @@
       guardT = 0;
       slowT = 0;
       magnetT = laserT = laserCd = megaT = 0;
-      fastT = reverseT = 0;
       shots.length = 0;
       combo = 0;
       setPadWidth(PAD_W);
@@ -11318,18 +11310,12 @@
         guardT = Math.min(GUARD_MAX, guardT + GUARD_TIME);
       } else if (kind === BRICK_SLOW) {
         slowT = SLOW_TIME;
-        fastT = 0;
-      } else if (kind === BRICK_FAST) {
-        fastT = FAST_TIME;
-        slowT = 0;
       } else if (kind === BRICK_MAGNET) {
         magnetT = MAGNET_TIME;
       } else if (kind === BRICK_LASER) {
         laserT = LASER_TIME;
       } else if (kind === BRICK_MEGA) {
         megaT = MEGA_TIME;
-      } else if (kind === BRICK_REVERSE) {
-        reverseT = REVERSE_TIME;
       } else if (kind === BRICK_WARP) {
         // Clears the level; leftover bricks still score.
         score += remaining;
@@ -11405,7 +11391,7 @@
       var i;
       var pierce = fireT > 0;
       var hit;
-      var bh = h * (slowT > 0 ? SLOW_FACTOR : fastT > 0 ? FAST_FACTOR : 1); // ball time step
+      var bh = slowT > 0 ? h * SLOW_FACTOR : h; // ball time step
       for (i = balls.length - 1; i >= 0; i--) {
         var b = balls[i];
         if (b.stuck) {
@@ -11475,6 +11461,44 @@
       }
     }
 
+    // True when a ball at (x, y) would bounce off a cell (fire balls only bounce off steel).
+    function blocksAim(x, y) {
+      var c = Math.floor(x / CELL), r = Math.floor((y - TOP) / CELL);
+      if (c < 0 || c >= COLS || r < 0 || r >= ROWS) return false;
+      var kind = grid[r * COLS + c];
+      return kind && (kind === STEEL || fireT <= 0);
+    }
+    // Magnet aim: traces the first stuck ball's launch path through a few bounces,
+    // using the same axis-split collision as step().
+    function drawAimGuide() {
+      var b = null, i;
+      for (i = 0; i < balls.length; i++) if (balls[i].stuck) { b = balls[i]; break; }
+      if (!b) return;
+      var ang = launchAngle(b);
+      var vx = Math.sin(ang), vy = -Math.cos(ang);
+      var x = b.x, y = b.y, bounces = 0, STEP = 3, MAX_BOUNCES = 3;
+      ctx.save();
+      ctx.setLineDash([4, 4]);
+      ctx.strokeStyle = 'rgba(253,224,71,.85)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      for (i = 0; i < 400 && bounces < MAX_BOUNCES; i++) {
+        x += vx * STEP;
+        if (x < BALL_R || x > W - BALL_R || blocksAim(x, y) || inBoss(x, y)) {
+          x -= vx * STEP; vx = -vx; bounces++; ctx.lineTo(x, y);
+        }
+        y += vy * STEP;
+        if (y < BALL_R || blocksAim(x, y) || inBoss(x, y)) {
+          y -= vy * STEP; vy = -vy; bounces++; ctx.lineTo(x, y);
+        }
+        if (y > PAD_Y) break;
+      }
+      ctx.lineTo(x, y);
+      ctx.stroke();
+      ctx.restore();
+    }
+
     function draw() {
       ctx.clearRect(0, 0, W, H);
       ctx.drawImage(layer, 0, 0, W, H);
@@ -11489,8 +11513,7 @@
         ctx.beginPath();
         ctx.arc(drops[i].x, drops[i].y, DROP_R, 0, Math.PI * 2);
         ctx.fill();
-        // Penalties get a red ring as a warning.
-        ctx.strokeStyle = BAD_DROPS.indexOf(dk) >= 0 ? '#ef4444' : 'rgba(255,255,255,.85)';
+        ctx.strokeStyle = 'rgba(255,255,255,.85)';
         ctx.stroke();
         ctx.fillStyle = '#ffffff';
         ctx.fillText(ICONS[dk] || '', drops[i].x, drops[i].y + 1);
@@ -11524,7 +11547,8 @@
         ctx.arc(balls[i].x, balls[i].y, br, 0, Math.PI * 2);
       }
       ctx.fill();
-      ctx.fillStyle = reverseT > 0 ? COLORS[BRICK_REVERSE] : wideT > 0 ? COLORS[BRICK_WIDE] : '#f4743b';
+      drawAimGuide();
+      ctx.fillStyle = wideT > 0 ? COLORS[BRICK_WIDE] : '#f4743b';
       ctx.fillRect(padX, PAD_Y, padW, PAD_H);
       if (magnetT > 0) {
         ctx.fillStyle = COLORS[BRICK_MAGNET];
@@ -11569,7 +11593,7 @@
       buildLevel(level);
       serve();
       state = 'ready';
-      showOverlay('ด่าน 1: ' + levelName, 'ทุบอิฐให้หมด ไอเทมซ่อนอยู่ในอิฐ (บางอันเป็นของเสีย) อิฐสีเข้มต้องตีหลายครั้ง อิฐสีเทาทำลายไม่ได้ ทุก 10 ด่านมีบอส', 'เริ่มเกม');
+      showOverlay('ด่าน 1: ' + levelName, 'ทุบอิฐให้หมด ไอเทมซ่อนอยู่ในอิฐ อิฐสีเข้มต้องตีหลายครั้ง อิฐสีเทาทำลายไม่ได้ ทุก 10 ด่านมีบอส', 'เริ่มเกม');
       draw();
     }
     function pause() {
@@ -11596,7 +11620,7 @@
       if (state !== 'playing') { running = false; draw(); return; }
       var dt = lastTs ? Math.min((ts - lastTs) / 1000, 1 / 30) : 0;
       lastTs = ts;
-      if (keys.left !== keys.right) movePaddle(padX + (keys.left ? -1 : 1) * (reverseT > 0 ? -1 : 1) * PAD_SPEED * dt);
+      if (keys.left !== keys.right) movePaddle(padX + (keys.left ? -1 : 1) * PAD_SPEED * dt);
       if (laserT > 0) {
         laserCd -= dt;
         if (laserCd <= 0) {
@@ -11616,11 +11640,9 @@
       if (fireT > 0) fireT -= dt;
       if (guardT > 0) guardT -= dt;
       if (slowT > 0) slowT -= dt;
-      if (fastT > 0) fastT -= dt;
       if (magnetT > 0) magnetT -= dt;
       if (laserT > 0) laserT -= dt;
       if (megaT > 0) megaT -= dt;
-      if (reverseT > 0) reverseT -= dt;
       if (wideT > 0) {
         wideT -= dt;
         if (wideT <= 0) setPadWidth(PAD_W);
@@ -11661,18 +11683,18 @@
 
     $(document).on('pointermove pointerdown', function (e) {
       if (canvas.offsetParent === null) return;
+      // Paused / game over: the paddle stays put, only the cursor shows.
+      if (state !== 'playing' && state !== 'ready') return;
       // While playing the paddle keeps following outside the board too.
       if (state !== 'playing' && !$stage[0].contains(e.target)) return;
       var rect = canvas.getBoundingClientRect();
       if (!rect.width) return;
       if (e.type === 'pointerdown' && state === 'playing') releaseAll();
-      var flip = reverseT > 0 ? -1 : 1;
       if (isLocked()) {
-        if (e.type === 'pointermove') movePaddle(padX + flip * (e.originalEvent.movementX || 0) / rect.width * W);
+        if (e.type === 'pointermove') movePaddle(padX + (e.originalEvent.movementX || 0) / rect.width * W);
         return;
       }
-      var px = (e.clientX - rect.left) / rect.width * W - padW / 2;
-      movePaddle(flip > 0 ? px : W - padW - px);
+      movePaddle((e.clientX - rect.left) / rect.width * W - padW / 2);
       if (state !== 'playing') draw();
     });
     // Esc releases the lock; pause so the ball is not left unattended.
