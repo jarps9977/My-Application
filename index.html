@@ -78,7 +78,8 @@
 
     <label class="flex items-center gap-2 bg-surface border border-line rounded-2xl pl-4 pr-1.5 py-1.5 mb-8 shadow-sm cursor-text max-w-xl mx-auto" for="tool-search">
       <img src="assets/icons/icon-search.svg" alt="" class="h-[18px] w-[18px] flex-none" />
-      <input type="text" id="tool-search" class="flex-1 min-w-0 border-none bg-transparent text-ink text-sm outline-none py-2" placeholder="ค้นหาเครื่องมือ เช่น PDF, แปลงไฟล์, รูปภาพ ..." autocomplete="off" />
+      <!-- type="search" stops Chrome's password manager from treating this as a username field (it ignores autocomplete="off"). -->
+      <input type="search" id="tool-search" name="tool-search" class="flex-1 min-w-0 border-none bg-transparent text-ink text-sm outline-none py-2" placeholder="ค้นหาเครื่องมือ เช่น PDF, แปลงไฟล์, รูปภาพ ..." autocomplete="off" />
       <button type="button" class="inline-flex items-center gap-1 flex-none rounded-xl bg-accent text-accentink text-[13px] font-bold px-4 py-2.5 hover:bg-accentdeep transition-colors duration-150">
         ค้นหา <i class="bi bi-chevron-right text-xs leading-none"></i>
       </button>
@@ -203,7 +204,7 @@
         </div>
       </div>
       <div class="flex gap-2.5">
-        <input type="password" id="password-input" class="flex-1 w-full px-2.5 py-2 rounded-lg border border-line bg-surface2 text-ink text-[13.5px] focus:outline focus:outline-2 focus:outline-accent focus:outline-offset-1" placeholder="รหัสผ่าน" autocomplete="off" />
+        <input type="password" id="password-input" class="flex-1 w-full px-2.5 py-2 rounded-lg border border-line bg-surface2 text-ink text-[13.5px] focus:outline focus:outline-2 focus:outline-accent focus:outline-offset-1" placeholder="รหัสผ่าน" autocomplete="new-password" />
         <button class="btn w-auto mt-0 px-4 py-2 whitespace-nowrap rounded-xl border-none bg-accent text-accentink text-sm font-bold cursor-pointer flex items-center justify-center gap-2 hover:bg-accentdeep" id="btn-unlock" type="button">
           <span class="spinner hidden w-[15px] h-[15px] rounded-full border-2 border-white/40 border-t-current animate-spin"></span>
           <span class="btn-label">ปลดล็อก</span>
