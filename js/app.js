@@ -11760,6 +11760,7 @@
     var MISS_TIME = 0.7, HINT_TIME = 2.5;
     var SHAPES = ['circle', 'ring', 'rect', 'diamond', 'tri', 'star'];
     var DIFF_KINDS = ['color', 'light', 'size', 'rotate', 'move', 'shape', 'missing', 'extra'];
+    var STICKERS = ['🍎', '🦋', '⭐', '🐞', '🌸', '🍄', '🎈', '🐦', '🍃', '🔑', '🧩', '🐟', '🍬', '💎'];
     var PHOTO_TIMEOUT = 8000;
     var photoFails = 0; // after repeated failures stay on the offline shape scenes
     var nextPhoto = null;
@@ -11831,16 +11832,19 @@
         rot: Math.max(14, 45 - lv * 3),
         // Photo mode: patch radius, edit strength, minimum visible change.
         patch: Math.max(10, 32 - lv * 1.6),
-        hueP: Math.max(30, 150 - lv * 10),
-        lightP: Math.max(0.1, 0.36 - lv * 0.025),
-        grayP: Math.max(0.45, 1 - lv * 0.05),
-        minDiff: Math.max(6, 24 - lv * 1.5),
+        hueP: Math.max(25, 110 - lv * 9),
+        lightP: Math.max(0.08, 0.26 - lv * 0.02),
+        grayP: Math.max(0.4, 0.9 - lv * 0.05),
+        minDiff: Math.max(6, 20 - lv * 1.2),
+        maxDiff: Math.max(Math.max(6, 20 - lv * 1.2) + 5, 34 - lv * 2.2),
+        decoys: Math.min(2 + lv * 2, 20),
+        sticker: Math.max(11, 28 - lv * 1.5),
         kinds: photoKinds(lv)
       };
     }
     // Early levels only use edits that stand out; subtler ones unlock as levels rise.
     function photoKinds(lv) {
-      var k = ['color', 'color', 'erase', 'erase', 'flip', 'flip'];
+      var k = ['color', 'erase', 'erase', 'sticker', 'missing', 'swap', 'flip'];
       if (lv >= 3) k.push('rotate', 'light');
       if (lv >= 5) k.push('gray', 'zoom', 'light');
       if (lv >= 8) k.push('gray', 'zoom', 'color');
@@ -11882,18 +11886,26 @@
       if (slot.ready) cb(slot.img); else slot.cbs.push(cb);
     }
 
-    // Blends a feathered circular patch; returns the mean per-channel change so invisible edits can be rejected.
-    function patchPass(src, out, cx, cy, R, sampler, tone, write) {
+    // Blends a feathered circular patch; returns the visible change so invisible edits can be rejected.
+    // Score compares block-averaged colour, not raw pixels: shuffling uniform texture (dirt, grass) scores near zero.
+    // alpha scales edit strength; shape wobbles the edge so the patch does not read as a disc.
+    function patchPass(src, out, cx, cy, R, sampler, tone, write, alpha, shape) {
       var w = src.width, h = src.height, s = src.data, o = out.data;
       var x0 = Math.max(0, Math.floor(cx - R)), x1 = Math.min(w - 1, Math.ceil(cx + R));
       var y0 = Math.max(0, Math.floor(cy - R)), y1 = Math.min(h - 1, Math.ceil(cy + R));
-      var inner = R * 0.6, total = 0, weight = 0, px = [0, 0, 0], v = { x: 0, y: 0 };
+      var px = [0, 0, 0], v = { x: 0, y: 0 };
+      var G = 4, cellSize = (2 * R) / G;
+      var sumA = new Float64Array(G * G * 3), sumB = new Float64Array(G * G * 3), cw = new Float64Array(G * G);
       for (var y = y0; y <= y1; y++) {
         for (var x = x0; x <= x1; x++) {
           var dx = x - cx, dy = y - cy, dist = Math.sqrt(dx * dx + dy * dy);
           if (dist >= R) continue;
-          var t = dist <= inner ? 1 : 1 - (dist - inner) / (R - inner);
-          t = t * t * (3 - 2 * t);
+          var ang = Math.atan2(dy, dx);
+          var edge = R * (0.72 + shape.a1 * Math.sin(3 * ang + shape.p1) + shape.a2 * Math.sin(5 * ang + shape.p2));
+          if (dist >= edge) continue;
+          var inner = edge * 0.4;
+          var t = dist <= inner ? 1 : 1 - (dist - inner) / (edge - inner);
+          t = t * t * (3 - 2 * t) * alpha;
           sampler(dx, dy, v);
           var sx = Math.min(w - 1, Math.max(0, Math.round(cx + v.x)));
           var sy = Math.min(h - 1, Math.max(0, Math.round(cy + v.y)));
@@ -11903,10 +11915,19 @@
           var r = s[di] + (px[0] - s[di]) * t;
           var g = s[di + 1] + (px[1] - s[di + 1]) * t;
           var b = s[di + 2] + (px[2] - s[di + 2]) * t;
-          total += (Math.abs(r - s[di]) + Math.abs(g - s[di + 1]) + Math.abs(b - s[di + 2])) / 3 * t;
-          weight += t;
+          var ci = Math.min(G - 1, Math.floor((dy + R) / cellSize)) * G + Math.min(G - 1, Math.floor((dx + R) / cellSize));
+          sumA[ci * 3] += s[di] * t; sumA[ci * 3 + 1] += s[di + 1] * t; sumA[ci * 3 + 2] += s[di + 2] * t;
+          sumB[ci * 3] += r * t; sumB[ci * 3 + 1] += g * t; sumB[ci * 3 + 2] += b * t;
+          cw[ci] += t;
           if (write) { o[di] = r; o[di + 1] = g; o[di + 2] = b; }
         }
+      }
+      var total = 0, weight = 0;
+      for (var c = 0; c < G * G; c++) {
+        if (!cw[c]) continue;
+        var diff = (Math.abs(sumB[c * 3] - sumA[c * 3]) + Math.abs(sumB[c * 3 + 1] - sumA[c * 3 + 1]) + Math.abs(sumB[c * 3 + 2] - sumA[c * 3 + 2])) / 3 / cw[c];
+        total += diff * cw[c];
+        weight += cw[c];
       }
       return weight ? total / weight : 0;
     }
@@ -11961,6 +11982,19 @@
       }
       return null;
     }
+    function drawSticker(c, st, emoji) {
+      c.save();
+      c.font = Math.round(st.s) + 'px "Segoe UI Emoji","Apple Color Emoji","Noto Color Emoji",sans-serif';
+      c.textAlign = 'center';
+      c.textBaseline = 'middle';
+      c.shadowColor = 'rgba(0,0,0,0.35)';
+      c.shadowBlur = 3;
+      c.shadowOffsetY = 1;
+      c.translate(st.x, st.y);
+      c.rotate(st.rot);
+      c.fillText(emoji, 0, 0);
+      c.restore();
+    }
 
     function buildPhotoLevel(img) {
       var iw = img.naturalWidth, ih = img.naturalHeight;
@@ -11979,12 +12013,25 @@
       out.data.set(src.data);
       var ratio = src.width / W;
       var spots = [];
+      var stickers = [];
       function free(x, y, r) {
         return spots.every(function (o) { return Math.hypot(o.x - x, o.y - y) > o.r + r + 6; });
       }
       diffs = [];
       for (var n = 0; n < 400 && diffs.length < cfg.diffs; n++) {
         var kind = pick(cfg.kinds);
+        if (kind === 'sticker' || kind === 'missing' || kind === 'swap') {
+          var ss = rand(cfg.sticker * 0.85, cfg.sticker * 1.15);
+          var st = { x: rand(ss, W - ss), y: rand(ss, H - ss), s: ss, rot: rand(-0.5, 0.5) };
+          var sr = Math.max(ss * 0.8, 16);
+          if (!free(st.x, st.y, sr)) continue;
+          st.a = kind === 'sticker' ? null : pick(STICKERS);
+          st.b = kind === 'missing' ? null : pick(STICKERS.filter(function (e) { return e !== st.a; }));
+          stickers.push(st);
+          spots.push({ x: st.x, y: st.y, r: sr });
+          diffs.push({ x: st.x, y: st.y, r: sr, kind: kind, found: false });
+          continue;
+        }
         var R = rand(cfg.patch * 0.75, cfg.patch);
         var x = rand(R + 6, W - R - 6), y = rand(R + 6, H - R - 6);
         var hitR = Math.max(R * 1.1, 16);
@@ -11992,14 +12039,34 @@
         var cx = x * ratio, cy = y * ratio, Rd = R * ratio;
         var ed = photoEdit(kind, cx, cy, Rd, src.width, src.height);
         if (!ed) continue;
+        var shape = { a1: rand(0.08, 0.18), p1: rand(0, 6.3), a2: rand(0.04, 0.1), p2: rand(0, 6.3) };
         // Flat areas (sky, walls) hide flips and colour shifts; skip spots nobody could see.
-        if (patchPass(src, out, cx, cy, Rd, ed.sampler, ed.tone, false) < cfg.minDiff) continue;
-        patchPass(src, out, cx, cy, Rd, ed.sampler, ed.tone, true);
+        var vis = patchPass(src, out, cx, cy, Rd, ed.sampler, ed.tone, false, 1, shape);
+        if (vis < cfg.minDiff) continue;
+        // Tone down loud edits to the level's ceiling; score is roughly linear in alpha.
+        var alpha = Math.min(1, cfg.maxDiff / vis);
+        if (alpha < 0.55) continue; // a faint ghost of a large move looks like a smudge, not a difference
+        if (alpha < 1 && patchPass(src, out, cx, cy, Rd, ed.sampler, ed.tone, false, alpha, shape) < cfg.minDiff) continue;
+        patchPass(src, out, cx, cy, Rd, ed.sampler, ed.tone, true, alpha, shape);
         spots.push({ x: x, y: y, r: hitR });
         diffs.push({ x: x, y: y, r: hitR, kind: kind, found: false });
       }
       if (diffs.length < Math.min(3, cfg.diffs)) return false;
       lctxB.putImageData(out, 0, 0);
+      // Identical decoy stickers on both sides so sticker differences do not stand out.
+      for (var d = 0, tries = 0; d < cfg.decoys && tries < 200; tries++) {
+        var ds = rand(cfg.sticker * 0.85, cfg.sticker * 1.15);
+        var dc = { x: rand(ds, W - ds), y: rand(ds, H - ds), s: ds, rot: rand(-0.5, 0.5) };
+        if (!free(dc.x, dc.y, ds * 0.8)) continue;
+        spots.push({ x: dc.x, y: dc.y, r: ds * 0.8 });
+        dc.a = dc.b = pick(STICKERS);
+        stickers.push(dc);
+        d++;
+      }
+      stickers.forEach(function (s) {
+        if (s.a) drawSticker(lctxA, s, s.a);
+        if (s.b) drawSticker(lctxB, s, s.b);
+      });
       return true;
     }
 
