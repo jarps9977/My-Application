@@ -429,9 +429,9 @@
     { id: 'compress', label: 'บีบอัดรูปภาพ', desc: 'ลดขนาดไฟล์รูปภาพ แบบไม่เสียคุณภาพ', enabled: true, img: 'assets/compress-image.png', cats: ['image'] },
     { id: 'ocr', label: 'อ่านข้อความจากภาพ', desc: 'ดึงข้อความจากรูปภาพ (OCR)', enabled: true, img: 'assets/ocr.png', cats: ['image', 'text'] },
     { id: 'color-picker', label: 'ดึงสีจากรูป', desc: 'ดูดสีและชุดสีหลักจากรูป ได้ค่า HEX, RGB, HSL', enabled: true, img: 'assets/pick-color.png', cats: ['image'] },
-    { id: 'brick-breaker', label: 'Brick Breaker', desc: 'เกมทุบอิฐ เก็บไอเทมเพิ่มลูกบอลให้เต็มจอ', enabled: true, img: 'assets/brick-breaker.svg', cats: ['game'] },
-    { id: 'spot-difference', label: 'จับผิดภาพ', desc: 'หาจุดต่างระหว่างสองภาพ ยิ่งด่านสูงยิ่งยาก', enabled: true, img: 'assets/spot-difference.svg', cats: ['game'] },
-    { id: 'stardew-mods', label: 'อัปเดต Mod Stardew Valley', desc: 'ติดตั้ง SMAPI และ Mod ล่าสุดผ่าน Win+R โดยไม่ต้องโหลดไฟล์', enabled: true, img: 'assets/stardew-mods.svg', cats: ['game'] }
+    { id: 'brick-breaker', label: 'Brick Breaker', desc: 'เกมทุบอิฐ เก็บไอเทมเพิ่มลูกบอลให้เต็มจอ', enabled: true, img: 'assets/brick-breaker.png', cats: ['game'] },
+    { id: 'spot-difference', label: 'จับผิดภาพ', desc: 'หาจุดต่างระหว่างสองภาพ ยิ่งด่านสูงยิ่งยาก', enabled: true, img: 'assets/spot-difference.png', cats: ['game'] },
+    { id: 'stardew-mods', label: 'อัปเดต Mod Stardew Valley', desc: 'ติดตั้ง SMAPI และ Mod ล่าสุดผ่าน Win+R โดยไม่ต้องโหลดไฟล์', enabled: true, img: 'assets/stardew-mods.png', cats: ['game'] }
   ];
   // Home-page category filter; a tool can sit in more than one category.
   var TOOL_CATEGORIES = [
