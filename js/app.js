@@ -11755,9 +11755,15 @@
     var BEST_LEVEL_KEY = 'toolbox.spotDiffBestLevel';
     var START_HINTS = 2;
     var MISS_PENALTY = 5; // seconds lost per wrong click
+    var START_EXTENDS = 1;
+    var EXTEND_SEC = 15;
     var MISS_TIME = 0.7, HINT_TIME = 2.5;
     var SHAPES = ['circle', 'ring', 'rect', 'diamond', 'tri', 'star'];
     var DIFF_KINDS = ['color', 'light', 'size', 'rotate', 'move', 'shape', 'missing', 'extra'];
+    var PHOTO_TIMEOUT = 8000;
+    var photoFails = 0; // after repeated failures stay on the offline shape scenes
+    var nextPhoto = null;
+    var buildToken = 0;
 
     var dpr = Math.min(window.devicePixelRatio || 1, 2);
     var ctxA = setupCanvas(canvasA);
@@ -11774,12 +11780,13 @@
     var $overlaySub = $('#sd-overlay-sub');
     var $start = $('#sd-btn-start');
     var $timebar = $('#sd-timebar');
-    var $hud = { level: $('#sd-level'), score: $('#sd-score'), found: $('#sd-found'), time: $('#sd-time'), best: $('#sd-best'), hints: $('#sd-hints') };
+    var $hud = { level: $('#sd-level'), score: $('#sd-score'), found: $('#sd-found'), time: $('#sd-time'), best: $('#sd-best'), hints: $('#sd-hints'), extends: $('#sd-extends') };
     var hudShown = {};
 
     var level = 1;
     var score = 0;
     var hints = START_HINTS;
+    var extendsLeft = START_EXTENDS;
     var best = parseInt(storeGet(BEST_KEY), 10) || 0;
     var bestLevel = parseInt(storeGet(BEST_LEVEL_KEY), 10) || 0;
     var diffs = [];
@@ -11788,7 +11795,7 @@
     var cfg = null;
     var timeLeft = 0;
     var needBuild = true;
-    var state = 'ready'; // ready | playing | paused | cleared | over
+    var state = 'ready'; // loading | ready | playing | paused | cleared | over
     var running = false;
     var lastTs = 0;
 
@@ -11821,8 +11828,179 @@
         light: Math.max(7, 24 - lv * 2),
         scale: Math.max(1.14, 1.45 - lv * 0.03),
         move: Math.max(5, 15 - lv),
-        rot: Math.max(14, 45 - lv * 3)
+        rot: Math.max(14, 45 - lv * 3),
+        // Photo mode: patch radius, edit strength, minimum visible change.
+        patch: Math.max(10, 32 - lv * 1.6),
+        hueP: Math.max(30, 150 - lv * 10),
+        lightP: Math.max(0.1, 0.36 - lv * 0.025),
+        grayP: Math.max(0.45, 1 - lv * 0.05),
+        minDiff: Math.max(6, 24 - lv * 1.5),
+        kinds: photoKinds(lv)
       };
+    }
+    // Early levels only use edits that stand out; subtler ones unlock as levels rise.
+    function photoKinds(lv) {
+      var k = ['color', 'color', 'erase', 'erase', 'flip', 'flip'];
+      if (lv >= 3) k.push('rotate', 'light');
+      if (lv >= 5) k.push('gray', 'zoom', 'light');
+      if (lv >= 8) k.push('gray', 'zoom', 'color');
+      return k;
+    }
+
+    // picsum.photos serves CORS-enabled photos, so the canvas stays readable for pixel edits.
+    function loadPhoto(cb) {
+      var img = new Image();
+      var done = false;
+      var timer = setTimeout(function () { finish(null); }, PHOTO_TIMEOUT);
+      function finish(res) {
+        if (done) return;
+        done = true;
+        clearTimeout(timer);
+        cb(res);
+      }
+      img.crossOrigin = 'anonymous';
+      img.referrerPolicy = 'no-referrer';
+      img.onload = function () { finish(img); };
+      img.onerror = function () { finish(null); };
+      img.src = 'https://picsum.photos/seed/' + Math.random().toString(36).slice(2, 10) + '/' + Math.round(W * dpr) + '/' + Math.round(H * dpr);
+    }
+    function prefetchPhoto() {
+      if (photoFails >= 2) return;
+      var slot = { img: null, ready: false, cbs: [] };
+      loadPhoto(function (img) {
+        slot.img = img;
+        slot.ready = true;
+        slot.cbs.forEach(function (f) { f(img); });
+      });
+      nextPhoto = slot;
+    }
+    function takePhoto(cb) {
+      if (photoFails >= 2) { cb(null); return; }
+      if (!nextPhoto) prefetchPhoto();
+      var slot = nextPhoto;
+      nextPhoto = null;
+      if (slot.ready) cb(slot.img); else slot.cbs.push(cb);
+    }
+
+    // Blends a feathered circular patch; returns the mean per-channel change so invisible edits can be rejected.
+    function patchPass(src, out, cx, cy, R, sampler, tone, write) {
+      var w = src.width, h = src.height, s = src.data, o = out.data;
+      var x0 = Math.max(0, Math.floor(cx - R)), x1 = Math.min(w - 1, Math.ceil(cx + R));
+      var y0 = Math.max(0, Math.floor(cy - R)), y1 = Math.min(h - 1, Math.ceil(cy + R));
+      var inner = R * 0.6, total = 0, weight = 0, px = [0, 0, 0], v = { x: 0, y: 0 };
+      for (var y = y0; y <= y1; y++) {
+        for (var x = x0; x <= x1; x++) {
+          var dx = x - cx, dy = y - cy, dist = Math.sqrt(dx * dx + dy * dy);
+          if (dist >= R) continue;
+          var t = dist <= inner ? 1 : 1 - (dist - inner) / (R - inner);
+          t = t * t * (3 - 2 * t);
+          sampler(dx, dy, v);
+          var sx = Math.min(w - 1, Math.max(0, Math.round(cx + v.x)));
+          var sy = Math.min(h - 1, Math.max(0, Math.round(cy + v.y)));
+          var si = (sy * w + sx) * 4, di = (y * w + x) * 4;
+          px[0] = s[si]; px[1] = s[si + 1]; px[2] = s[si + 2];
+          if (tone) tone(px);
+          var r = s[di] + (px[0] - s[di]) * t;
+          var g = s[di + 1] + (px[1] - s[di + 1]) * t;
+          var b = s[di + 2] + (px[2] - s[di + 2]) * t;
+          total += (Math.abs(r - s[di]) + Math.abs(g - s[di + 1]) + Math.abs(b - s[di + 2])) / 3 * t;
+          weight += t;
+          if (write) { o[di] = r; o[di + 1] = g; o[di + 2] = b; }
+        }
+      }
+      return weight ? total / weight : 0;
+    }
+    function samePos(dx, dy, v) { v.x = dx; v.y = dy; }
+    function hueTone(deg) {
+      var a = deg * Math.PI / 180, c = Math.cos(a), s = Math.sin(a);
+      var m = [
+        0.213 + c * 0.787 - s * 0.213, 0.715 - c * 0.715 - s * 0.715, 0.072 - c * 0.072 + s * 0.928,
+        0.213 - c * 0.213 + s * 0.143, 0.715 + c * 0.285 + s * 0.140, 0.072 - c * 0.072 - s * 0.283,
+        0.213 - c * 0.213 - s * 0.787, 0.715 - c * 0.715 + s * 0.715, 0.072 + c * 0.928 + s * 0.072
+      ];
+      return function (p) {
+        var r = p[0], g = p[1], b = p[2];
+        p[0] = m[0] * r + m[1] * g + m[2] * b;
+        p[1] = m[3] * r + m[4] * g + m[5] * b;
+        p[2] = m[6] * r + m[7] * g + m[8] * b;
+      };
+    }
+    // Returns sampler/tone for a pixel edit, or null when the patch cannot host it.
+    function photoEdit(kind, cx, cy, R, w, h) {
+      var sign = Math.random() < 0.5 ? -1 : 1;
+      if (kind === 'color') return { sampler: samePos, tone: hueTone(sign * cfg.hueP) };
+      if (kind === 'light') {
+        var dl = sign * cfg.lightP * 255;
+        return { sampler: samePos, tone: function (p) { p[0] += dl; p[1] += dl; p[2] += dl; } };
+      }
+      if (kind === 'gray') {
+        var ga = cfg.grayP;
+        return { sampler: samePos, tone: function (p) {
+          var lum = 0.2126 * p[0] + 0.7152 * p[1] + 0.0722 * p[2];
+          p[0] += (lum - p[0]) * ga; p[1] += (lum - p[1]) * ga; p[2] += (lum - p[2]) * ga;
+        } };
+      }
+      if (kind === 'flip') {
+        var horiz = Math.random() < 0.5;
+        return { sampler: function (dx, dy, v) { v.x = horiz ? -dx : dx; v.y = horiz ? dy : -dy; } };
+      }
+      if (kind === 'rotate') {
+        var ang = pick([90, 180, 270]) * Math.PI / 180, ca = Math.cos(ang), sa = Math.sin(ang);
+        return { sampler: function (dx, dy, v) { v.x = dx * ca - dy * sa; v.y = dx * sa + dy * ca; } };
+      }
+      if (kind === 'zoom') {
+        var k = sign > 0 ? 1 / cfg.scale : cfg.scale;
+        return { sampler: function (dx, dy, v) { v.x = dx * k; v.y = dy * k; } };
+      }
+      // erase: clone-stamp a nearby patch over this one.
+      for (var tries = 0; tries < 8; tries++) {
+        var a = rand(0, Math.PI * 2);
+        var ox = Math.cos(a) * R * 2.2, oy = Math.sin(a) * R * 2.2;
+        if (cx + ox < R || cx + ox > w - R || cy + oy < R || cy + oy > h - R) continue;
+        return { sampler: function (dx, dy, v) { v.x = dx + ox; v.y = dy + oy; } };
+      }
+      return null;
+    }
+
+    function buildPhotoLevel(img) {
+      var iw = img.naturalWidth, ih = img.naturalHeight;
+      if (!iw || !ih) return false;
+      var sc = Math.max(W / iw, H / ih), dw = iw * sc, dh = ih * sc;
+      lctxA.clearRect(0, 0, W, H);
+      lctxA.drawImage(img, (W - dw) / 2, (H - dh) / 2, dw, dh);
+      var src;
+      try {
+        src = lctxA.getImageData(0, 0, layerA.width, layerA.height);
+      } catch (err) {
+        photoFails = 99; // tainted canvas: CORS is not honoured, photos can never work here
+        return false;
+      }
+      var out = lctxB.createImageData(src.width, src.height);
+      out.data.set(src.data);
+      var ratio = src.width / W;
+      var spots = [];
+      function free(x, y, r) {
+        return spots.every(function (o) { return Math.hypot(o.x - x, o.y - y) > o.r + r + 6; });
+      }
+      diffs = [];
+      for (var n = 0; n < 400 && diffs.length < cfg.diffs; n++) {
+        var kind = pick(cfg.kinds);
+        var R = rand(cfg.patch * 0.75, cfg.patch);
+        var x = rand(R + 6, W - R - 6), y = rand(R + 6, H - R - 6);
+        var hitR = Math.max(R * 1.1, 16);
+        if (!free(x, y, hitR)) continue;
+        var cx = x * ratio, cy = y * ratio, Rd = R * ratio;
+        var ed = photoEdit(kind, cx, cy, Rd, src.width, src.height);
+        if (!ed) continue;
+        // Flat areas (sky, walls) hide flips and colour shifts; skip spots nobody could see.
+        if (patchPass(src, out, cx, cy, Rd, ed.sampler, ed.tone, false) < cfg.minDiff) continue;
+        patchPass(src, out, cx, cy, Rd, ed.sampler, ed.tone, true);
+        spots.push({ x: x, y: y, r: hitR });
+        diffs.push({ x: x, y: y, r: hitR, kind: kind, found: false });
+      }
+      if (diffs.length < Math.min(3, cfg.diffs)) return false;
+      lctxB.putImageData(out, 0, 0);
+      return true;
     }
 
     function randShape(minS) {
@@ -11848,8 +12026,34 @@
       return d;
     }
 
-    function buildLevel() {
+    // Photo scene when reachable, else the offline shape scene; calls done() once boards are painted.
+    function buildLevel(done) {
       cfg = levelConfig(level);
+      diffs = [];
+      misses = [];
+      hint = null;
+      timeLeft = cfg.time;
+      state = 'loading';
+      showOverlay('กำลังโหลดภาพ...', 'ด่าน ' + level, '');
+      var token = ++buildToken;
+      takePhoto(function (img) {
+        if (token !== buildToken) return; // restarted while loading
+        var ok = false;
+        if (img) {
+          ok = buildPhotoLevel(img);
+          if (ok) photoFails = 0;
+        } else {
+          photoFails++;
+        }
+        if (!ok) buildShapeLevel();
+        else prefetchPhoto();
+        needBuild = false;
+        state = 'ready';
+        done();
+      });
+    }
+
+    function buildShapeLevel() {
       var bgHue = Math.floor(rand(0, 360));
       var blobs = [];
       for (var b = 0; b < 8; b++) blobs.push({ x: rand(0, W), y: rand(0, H), r: rand(40, 110), h: (bgHue + rand(-60, 60) + 360) % 360 });
@@ -11888,10 +12092,6 @@
       });
       paintScene(lctxA, bgHue, blobs, left);
       paintScene(lctxB, bgHue, blobs, right);
-      misses = [];
-      hint = null;
-      timeLeft = cfg.time;
-      needBuild = false;
     }
 
     function paintScene(c, bgHue, blobs, list) {
@@ -12000,14 +12200,15 @@
       setHud('time', Math.ceil(Math.max(0, timeLeft)));
       setHud('best', best);
       setHud('hints', hints);
-      var pct = cfg ? Math.max(0, timeLeft / cfg.time) : 1;
+      setHud('extends', extendsLeft);
+      var pct = cfg ? Math.min(1, Math.max(0, timeLeft / cfg.time)) : 1;
       $timebar.css({ width: (pct * 100) + '%', background: pct > 0.5 ? '#22c55e' : (pct > 0.2 ? '#f59e0b' : '#ef4444') });
     }
     // Opaque overlay hides the boards so they cannot be studied off the clock.
     function showOverlay(title, sub, btn, seeThrough) {
       $overlayTitle.text(title);
       $overlaySub.text(sub);
-      $start.text(btn);
+      $start.text(btn).toggle(!!btn);
       $overlay.css('background', seeThrough ? 'rgba(0,0,0,0.45)' : 'rgba(0,0,0,0.92)').css('display', 'flex');
     }
     function levelInfo() {
@@ -12023,11 +12224,13 @@
       level = 1;
       score = 0;
       hints = START_HINTS;
-      buildLevel();
-      state = 'ready';
-      showOverlay('ด่าน 1', levelInfo() + '\nคลิกผิดเสีย ' + MISS_PENALTY + ' วินาที' + (bestLevel ? '\nด่านสูงสุดที่เคยไป: ' + bestLevel : ''), 'เริ่มเกม');
+      extendsLeft = START_EXTENDS;
       renderHud();
-      draw();
+      buildLevel(function () {
+        showOverlay('ด่าน 1', levelInfo() + '\nคลิกผิดเสีย ' + MISS_PENALTY + ' วินาที' + (bestLevel ? '\nด่านสูงสุดที่เคยไป: ' + bestLevel : ''), 'เริ่มเกม');
+        renderHud();
+        draw();
+      });
     }
     function pause() {
       if (state !== 'playing') return;
@@ -12036,8 +12239,8 @@
     }
     function play() {
       if (state === 'over') { newGame(); return; }
-      if (state === 'playing') return;
-      if (needBuild) buildLevel();
+      if (state === 'playing' || state === 'loading') return;
+      if (needBuild) { buildLevel(play); return; }
       state = 'playing';
       $overlay.hide();
       renderHud();
@@ -12052,6 +12255,7 @@
       saveBest();
       level++;
       if ((level - 1) % 3 === 0) hints++;
+      if ((level - 1) % 4 === 0) extendsLeft++;
       needBuild = true;
       state = 'cleared';
       showOverlay('ผ่านด่าน ' + (level - 1) + '!', 'โบนัสเวลา +' + bonus + '\nด่าน ' + level + ': ' + levelInfo(), 'ด่านถัดไป', true);
@@ -12125,6 +12329,13 @@
       var d = pick(left);
       var off = d.r * 0.5, a = rand(0, Math.PI * 2);
       hint = { x: d.x + Math.cos(a) * off, y: d.y + Math.sin(a) * off, r: d.r, src: d, t: 0 };
+      renderHud();
+    });
+
+    $('#sd-btn-extend').on('click', function () {
+      if (state !== 'playing' || extendsLeft <= 0) return;
+      extendsLeft--;
+      timeLeft += EXTEND_SEC;
       renderHud();
     });
 
