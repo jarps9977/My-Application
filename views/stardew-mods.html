@@ -20,7 +20,11 @@
         <i class="bi bi-clipboard text-sm leading-none"></i><span>คัดลอก</span>
       </button>
     </div>
-    <textarea id="stardew-command" rows="3" readonly spellcheck="false" class="w-full px-4 py-3 border-none bg-surface2 text-ink text-[12.5px] font-mono leading-relaxed resize-none outline-none break-all"></textarea>
+    <div class="flex items-center gap-2 px-4 py-3.5 bg-surface2 text-inksoft text-[12.5px] font-mono select-none">
+      <i class="bi bi-terminal text-sm leading-none"></i>
+      <span class="font-bold tracking-wide">COMMAND</span>
+      <span class="text-inkfaint">••••••••••••••••</span>
+    </div>
   </div>
 
   <button type="button" id="btn-stardew-copy-main" class="mt-3 w-full inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-accent text-accentink border border-accent text-[14px] font-bold cursor-pointer shadow-sm hover:opacity-90">
@@ -38,18 +42,4 @@
     </ol>
   </div>
 
-  <div class="mt-4 bg-surface border border-line rounded-2xl shadow-sm px-4 py-3.5">
-    <div class="text-[13px] font-bold mb-2">สิ่งที่ script ทำ</div>
-    <ul class="list-disc pl-5 text-[12.5px] text-inksoft leading-6">
-      <li>หา folder เกมอัตโนมัติ (Steam / GOG) ถ้าไม่เจอจะให้เลือกเอง</li>
-      <li>ติดตั้ง/อัปเดต SMAPI เป็นเวอร์ชันล่าสุด</li>
-      <li>Sync Mod ให้ตรงกับ repo รวม <span class="font-mono">config.json</span> — Mod อื่นที่ไม่อยู่ใน repo ถูกย้ายไป <span class="font-mono">Mods_backup</span> (ไม่ลบ)</li>
-      <li>ตั้ง Steam Launch Options ให้เปิดผ่าน SMAPI และสั่ง Steam ตรวจไฟล์เกม</li>
-    </ul>
-    <p class="mt-2.5 text-[12px] text-bad">ถ้าเกมหรือ Steam เปิดอยู่ script จะปิดให้อัตโนมัติ — save เกมก่อนรัน</p>
-    <p class="mt-1.5 text-[12px] text-inkfaint">
-      ไม่มีไฟล์ถูกดาวน์โหลดเก็บไว้ในเครื่อง script รันจาก
-      <a id="stardew-repo-link" class="text-accentdeep underline" target="_blank" rel="noopener noreferrer" href="https://github.com/jarps9977/stardew-mods-builded">github.com/jarps9977/stardew-mods-builded</a>
-    </p>
-  </div>
 </section>

