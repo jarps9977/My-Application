@@ -51,6 +51,7 @@
   var $viewDbCompare = $(); // populated once views/db-compare.html is fetched and mounted
   var $viewBrickBreaker = $(); // populated once views/brick-breaker.html is fetched and mounted
   var $viewSpotDifference = $(); // populated once views/spot-difference.html is fetched and mounted
+  var $viewStardewMods = $(); // populated once views/stardew-mods.html is fetched and mounted
   var $viewImageCompress = $(); // populated once views/image-compress.html is fetched and mounted
   var $viewHtmlPreview = $(); // populated once views/html-preview.html is fetched and mounted
   var $viewConvertCase = $(); // populated once views/convert-case.html is fetched and mounted
@@ -75,6 +76,7 @@
     $viewDbCompare.attr('hidden', true);
     $viewBrickBreaker.attr('hidden', true);
     $viewSpotDifference.attr('hidden', true);
+    $viewStardewMods.attr('hidden', true);
     $viewImageCompress.attr('hidden', true);
     $viewHtmlPreview.attr('hidden', true);
     $viewConvertCase.attr('hidden', true);
@@ -304,6 +306,20 @@
     console.error('ไม่สามารถโหลด views/spot-difference.html ได้');
   });
 
+  // Same fetch-and-mount pattern for the "Stardew Valley mods update" view
+  // (views/stardew-mods.html).
+  var stardewModsViewReady = $.get('views/stardew-mods.html').done(function (html) {
+    $('#view-stardew-mods-mount').replaceWith(html);
+    $viewStardewMods = $('#view-stardew-mods');
+    $('#btn-stardew-mods-back').on('click', function () {
+      $viewStardewMods.attr('hidden', true);
+      $viewHome.removeAttr('hidden');
+    });
+    initStardewModsView();
+  }).fail(function () {
+    console.error('ไม่สามารถโหลด views/stardew-mods.html ได้');
+  });
+
   // Same fetch-and-mount pattern for the "image compress" view
   // (views/image-compress.html).
   var imageCompressViewReady = $.get('views/image-compress.html').done(function (html) {
@@ -414,7 +430,8 @@
     { id: 'ocr', label: 'อ่านข้อความจากภาพ', desc: 'ดึงข้อความจากรูปภาพ (OCR)', enabled: true, img: 'assets/ocr.png', cats: ['image', 'text'] },
     { id: 'color-picker', label: 'ดึงสีจากรูป', desc: 'ดูดสีและชุดสีหลักจากรูป ได้ค่า HEX, RGB, HSL', enabled: true, img: 'assets/pick-color.png', cats: ['image'] },
     { id: 'brick-breaker', label: 'Brick Breaker', desc: 'เกมทุบอิฐ เก็บไอเทมเพิ่มลูกบอลให้เต็มจอ', enabled: true, img: 'assets/brick-breaker.svg', cats: ['game'] },
-    { id: 'spot-difference', label: 'จับผิดภาพ', desc: 'หาจุดต่างระหว่างสองภาพ ยิ่งด่านสูงยิ่งยาก', enabled: true, img: 'assets/spot-difference.svg', cats: ['game'] }
+    { id: 'spot-difference', label: 'จับผิดภาพ', desc: 'หาจุดต่างระหว่างสองภาพ ยิ่งด่านสูงยิ่งยาก', enabled: true, img: 'assets/spot-difference.svg', cats: ['game'] },
+    { id: 'stardew-mods', label: 'อัปเดต Mod Stardew Valley', desc: 'ติดตั้ง SMAPI และ Mod ล่าสุดผ่าน Win+R โดยไม่ต้องโหลดไฟล์', enabled: true, img: 'assets/stardew-mods.svg', cats: ['game'] }
   ];
   // Home-page category filter; a tool can sit in more than one category.
   var TOOL_CATEGORIES = [
@@ -667,6 +684,10 @@
     } else if (tool.id === 'spot-difference') {
       $el.on('click', function () {
         $.when(spotDifferenceViewReady).done(function () { openView($viewSpotDifference); });
+      });
+    } else if (tool.id === 'stardew-mods') {
+      $el.on('click', function () {
+        $.when(stardewModsViewReady).done(function () { openView($viewStardewMods); });
       });
     }
     return $el;
@@ -12121,5 +12142,38 @@
     $stage.on('contextmenu', function (e) { e.preventDefault(); });
 
     newGame();
+  }
+
+  // ---------- Stardew Valley mods update (views/stardew-mods.html) ----------
+  // Browsers cannot launch local processes, so the view hands the user a
+  // one-liner for Win+R that runs the installer from memory (irm | iex).
+  var STARDEW_SCRIPT_URL = 'https://raw.githubusercontent.com/jarps9977/stardew-mods-builded/main/pull-mods-lasted.ps1';
+  var STARDEW_COMMAND = 'powershell -NoProfile -ExecutionPolicy Bypass -Command "irm ' + STARDEW_SCRIPT_URL + ' | iex"';
+
+  function initStardewModsView() {
+    var $command = $('#stardew-command');
+    var $statusEl = $('#stardew-status');
+    $command.val(STARDEW_COMMAND);
+
+    function setStatus(msg, kind) {
+      $statusEl.text(msg || '');
+      $statusEl.removeClass('text-good text-bad text-inksoft');
+      if (kind === 'good') $statusEl.addClass('text-good');
+      else if (kind === 'bad') $statusEl.addClass('text-bad');
+      else $statusEl.addClass('text-inksoft');
+    }
+
+    async function copyCommand() {
+      try {
+        await navigator.clipboard.writeText(STARDEW_COMMAND);
+        setStatus('คัดลอกแล้ว — กด Win+R แล้ว Ctrl+V และ Enter', 'good');
+      } catch (err) {
+        $command.trigger('focus').trigger('select');
+        setStatus('ไม่สามารถคัดลอกอัตโนมัติได้ คำสั่งถูกเลือกไว้แล้ว กด Ctrl+C', 'bad');
+      }
+    }
+
+    $('#btn-stardew-copy, #btn-stardew-copy-main').on('click', copyCommand);
+    $command.on('focus click', function () { this.select(); });
   }
 })(jQuery);

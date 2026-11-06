@@ -1,0 +1,55 @@
+<section id="view-stardew-mods" class="animate-fade-in" hidden>
+  <div class="mt-9 mb-5">
+    <button class="inline-flex items-center gap-1.5 bg-transparent border-none text-inksoft text-sm font-semibold cursor-pointer py-1.5 hover:text-ink" id="btn-stardew-mods-back" type="button">
+      <i class="bi bi-chevron-left text-base leading-none"></i>
+      กลับหน้าหลัก
+    </button>
+  </div>
+
+  <div class="flex items-center gap-3 mb-5">
+    <span class="flex h-9 w-9 flex-none items-center justify-center rounded-full bg-accentsoft text-accent">
+      <i class="bi bi-cloud-arrow-down text-lg leading-none"></i>
+    </span>
+    <h2 class="text-xl font-extrabold">อัปเดต Mod Stardew Valley</h2>
+  </div>
+
+  <div class="bg-surface border border-line rounded-2xl shadow-sm overflow-hidden">
+    <div class="flex items-center justify-between gap-2 px-4 py-2.5 border-b border-line">
+      <span class="text-[13px] font-bold">1. คัดลอกคำสั่ง</span>
+      <button type="button" id="btn-stardew-copy" title="คัดลอก" aria-label="คัดลอก" class="flex items-center gap-1 bg-transparent border-none text-inksoft text-[12px] font-semibold cursor-pointer hover:text-accentdeep">
+        <i class="bi bi-clipboard text-sm leading-none"></i><span>คัดลอก</span>
+      </button>
+    </div>
+    <textarea id="stardew-command" rows="3" readonly spellcheck="false" class="w-full px-4 py-3 border-none bg-surface2 text-ink text-[12.5px] font-mono leading-relaxed resize-none outline-none break-all"></textarea>
+  </div>
+
+  <button type="button" id="btn-stardew-copy-main" class="mt-3 w-full inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-accent text-accentink border border-accent text-[14px] font-bold cursor-pointer shadow-sm hover:opacity-90">
+    <i class="bi bi-clipboard-check text-base leading-none"></i>
+    คัดลอกคำสั่ง
+  </button>
+  <div class="status-line mt-2.5 text-[12.5px] min-h-[16px]" id="stardew-status"></div>
+
+  <div class="mt-4 bg-surface border border-line rounded-2xl shadow-sm px-4 py-3.5">
+    <div class="text-[13px] font-bold mb-2">2. รันคำสั่ง</div>
+    <ol class="list-decimal pl-5 text-[13px] text-inksoft leading-7">
+      <li>กด <kbd class="px-1.5 py-0.5 rounded border border-line bg-surface2 text-[11.5px] font-mono">Win</kbd> + <kbd class="px-1.5 py-0.5 rounded border border-line bg-surface2 text-[11.5px] font-mono">R</kbd></li>
+      <li>กด <kbd class="px-1.5 py-0.5 rounded border border-line bg-surface2 text-[11.5px] font-mono">Ctrl</kbd> + <kbd class="px-1.5 py-0.5 rounded border border-line bg-surface2 text-[11.5px] font-mono">V</kbd> แล้วกด <kbd class="px-1.5 py-0.5 rounded border border-line bg-surface2 text-[11.5px] font-mono">Enter</kbd></li>
+      <li>หน้าต่าง PowerShell จะแสดงขั้นตอนทั้งหมด รอจนขึ้น <span class="font-mono text-ink">Done.</span> แล้วกด Enter เพื่อปิด</li>
+    </ol>
+  </div>
+
+  <div class="mt-4 bg-surface border border-line rounded-2xl shadow-sm px-4 py-3.5">
+    <div class="text-[13px] font-bold mb-2">สิ่งที่ script ทำ</div>
+    <ul class="list-disc pl-5 text-[12.5px] text-inksoft leading-6">
+      <li>หา folder เกมอัตโนมัติ (Steam / GOG) ถ้าไม่เจอจะให้เลือกเอง</li>
+      <li>ติดตั้ง/อัปเดต SMAPI เป็นเวอร์ชันล่าสุด</li>
+      <li>Sync Mod ให้ตรงกับ repo รวม <span class="font-mono">config.json</span> — Mod อื่นที่ไม่อยู่ใน repo ถูกย้ายไป <span class="font-mono">Mods_backup</span> (ไม่ลบ)</li>
+      <li>ตั้ง Steam Launch Options ให้เปิดผ่าน SMAPI และสั่ง Steam ตรวจไฟล์เกม</li>
+    </ul>
+    <p class="mt-2.5 text-[12px] text-bad">ถ้าเกมหรือ Steam เปิดอยู่ script จะปิดให้อัตโนมัติ — save เกมก่อนรัน</p>
+    <p class="mt-1.5 text-[12px] text-inkfaint">
+      ไม่มีไฟล์ถูกดาวน์โหลดเก็บไว้ในเครื่อง script รันจาก
+      <a id="stardew-repo-link" class="text-accentdeep underline" target="_blank" rel="noopener noreferrer" href="https://github.com/jarps9977/stardew-mods-builded">github.com/jarps9977/stardew-mods-builded</a>
+    </p>
+  </div>
+</section>
