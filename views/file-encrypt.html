@@ -13,12 +13,6 @@
     <h2 class="text-xl font-extrabold">เข้ารหัสไฟล์</h2>
   </div>
 
-  <p class="text-[12.5px] text-inksoft -mt-3 mb-4 leading-relaxed">
-    ใส่รหัสผ่านป้องกันไฟล์ — รองรับ <strong>PDF</strong> (มาตรฐานเข้ารหัสของ PDF เอง เปิดได้กับ Adobe Reader และโปรแกรมอ่าน PDF ทั่วไป)
-    และ <strong>ZIP</strong> (เข้ารหัสแบบ AES-256 เปิดได้กับ 7-Zip, WinRAR, macOS Archive Utility และโปรแกรมแตกไฟล์ ZIP ทั่วไป) เท่านั้น
-    ประมวลผลในเบราว์เซอร์ทั้งหมด ไม่มีการส่งไฟล์หรือรหัสผ่านออกนอกเครื่อง
-  </p>
-
   <div id="fileencrypt-dropzone" class="border-2 border-dashed border-line rounded-2xl bg-surface px-6 py-7 text-center cursor-pointer transition-colors duration-150" tabindex="0" role="button" aria-label="อัปโหลดไฟล์ PDF หรือ ZIP">
     <i class="bi bi-cloud-arrow-up text-2xl text-inkfaint mb-2 block"></i>
     <div><strong class="text-sm font-bold">ลากไฟล์ PDF หรือ ZIP มาวางที่นี่</strong></div>
@@ -58,17 +52,4 @@
     <div class="status-line mt-2.5 text-[12.5px] min-h-[16px]" id="fileencrypt-status"></div>
   </div>
 
-  <div class="mt-4 rounded-2xl border border-line bg-surface px-5 py-4" id="fileencrypt-unsupported-note">
-    <p class="text-[12.5px] font-bold text-ink flex items-center gap-1.5">
-      <i class="bi bi-info-circle text-sm leading-none text-inkfaint"></i>
-      ฟอร์แมตที่ยังไม่รองรับ (ข้ามไว้ก่อน)
-    </p>
-    <p class="text-[12px] text-inksoft mt-1.5 leading-relaxed">
-      <strong>Word (.docx) / Excel (.xlsx) / PowerPoint (.pptx)</strong> — ยังไม่มี library เข้ารหัสไฟล์กลุ่มนี้ที่ทำงานได้จริงในเบราว์เซอร์
-      (ตัวที่มีอยู่ยังรองรับเฉพาะฝั่งเซิร์ฟเวอร์/Node.js เท่านั้น)
-    </p>
-    <p class="text-[12px] text-inksoft mt-1.5 leading-relaxed">
-      <strong>WinRAR (.rar)</strong> — รูปแบบไฟล์ RAR เป็นกรรมสิทธิ์ปิดของ RARLAB ไม่มีตัวสร้างไฟล์ .rar ที่ทำได้แบบ client-side ถูกกฎหมาย
-    </p>
-  </div>
 </section>

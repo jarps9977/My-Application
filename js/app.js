@@ -1,7 +1,7 @@
 (function ($) {
   'use strict';
 
-  /* pdf.worker.min.js above registers window.pdfjsWorker, which pdf.js uses
+  /* pdf.worker.min.js (loaded by loadHeavyLibs) registers window.pdfjsWorker, which pdf.js uses
      as an in-page "fake worker" — a cross-origin `new Worker(url)` throws
      a SecurityError, so we deliberately skip GlobalWorkerOptions.workerSrc. */
 
@@ -51,7 +51,6 @@
   var $viewDbCompare = $(); // populated once views/db-compare.html is fetched and mounted
   var $viewBrickBreaker = $(); // populated once views/brick-breaker.html is fetched and mounted
   var $viewSpotDifference = $(); // populated once views/spot-difference.html is fetched and mounted
-  var $viewStardewMods = $(); // populated once views/stardew-mods.html is fetched and mounted
   var $viewImageCompress = $(); // populated once views/image-compress.html is fetched and mounted
   var $viewHtmlPreview = $(); // populated once views/html-preview.html is fetched and mounted
   var $viewConvertCase = $(); // populated once views/convert-case.html is fetched and mounted
@@ -76,7 +75,6 @@
     $viewDbCompare.attr('hidden', true);
     $viewBrickBreaker.attr('hidden', true);
     $viewSpotDifference.attr('hidden', true);
-    $viewStardewMods.attr('hidden', true);
     $viewImageCompress.attr('hidden', true);
     $viewHtmlPreview.attr('hidden', true);
     $viewConvertCase.attr('hidden', true);
@@ -89,17 +87,67 @@
       .toggleClass('app-full', $view.is($viewHtmlPreview) || $view.is($viewCodeFormat) || $view.is($viewJsonFormat) || $view.is($viewTextCompare) || $view.is($viewDbCompare) || $view.is($viewOcr) || $view.is($viewTextGen))
       .toggleClass('app-flush', $view.is($viewOcr) || $view.is($viewTextGen));
     $view.removeAttr('hidden');
+    loadHeavyLibs();
   }
   $('#btn-back').on('click', function () {
     $viewPdf.attr('hidden', true);
     $viewHome.removeAttr('hidden');
   });
 
+  // Views are fetched on first use (tile hover/click) instead of all at startup.
+  // Returns a jQuery-promise-compatible object: $.when() calls .promise(),
+  // which starts the request once; .done/.fail handlers are queued until then.
+  function lazyView(url) {
+    var doneFns = [], failFns = [], req = null;
+    var api = {
+      done: function (fn) { doneFns.push(fn); return api; },
+      fail: function (fn) { failFns.push(fn); return api; },
+      promise: function () {
+        if (!req) {
+          req = $.get(url);
+          doneFns.forEach(function (fn) { req.done(fn); });
+          failFns.forEach(function (fn) { req.fail(fn); });
+        }
+        return req.promise();
+      }
+    };
+    return api;
+  }
+
+  // Heavy third-party libs (pdf.js, pdf-lib, SheetJS, ...) are only needed
+  // inside tools, so they load when a tool is opened or hovered, not on the home page.
+  var HEAVY_LIBS = [
+    ['https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js', 'sha384-/1qUCSGwTur9vjf/z9lmu/eCUYbpOTgSjmpbMQZ1/CtX2v/WcAIKqRv+U1DUCG6e'],
+    ['https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js', 'sha384-SnzOobpRMLXZ52iJvZm/C0fYw0OQemTXzTjIsdsfMcrCtCEe9qgzxTd3RSklO5x2'],
+    ['https://cdn.jsdelivr.net/npm/@cantoo/pdf-lib@2.11.0/dist/pdf-lib.min.js', 'sha384-BcRbGROz3cx4LSKcOw2L5YxAxiJPWIEmXRMrYbXu87aSiU5uMQ4qB9v8FEjrBhhq'],
+    ['https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.2/jszip.min.js', 'sha384-DdGlNq+wVXAn83gXqwyeFHB7iyXy6L0rLrNzgDmhKWPjiJLg9vj6qosYmZmkMfQ+'],
+    // SheetJS stopped publishing to npm at 0.18.5; patched builds (CVE-2023-30533, CVE-2024-22363) are on cdn.sheetjs.com only.
+    ['https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js', 'sha384-EnyY0/GSHQGSxSgMwaIPzSESbqoOLSexfnSMN2AP+39Ckmn92stwABZynq1JyzdT'],
+    ['https://cdn.jsdelivr.net/npm/jspdf@3.0.2/dist/jspdf.umd.min.js', 'sha384-fvFW9AAfcCE7wIsK/ErPRGXVSLNry5/73SGUR99vWirWWKfgKuhavqMAqMVTSAnk'],
+    ['https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js', 'sha384-ZZ1pncU3bQe8y31yfZdMFdSpttDoPmOZg2wguVK9almUodir1PghgT0eY7Mrty8H']
+  ];
+  var heavyLibsPromise = null;
+  function loadHeavyLibs() {
+    if (heavyLibsPromise) return heavyLibsPromise;
+    heavyLibsPromise = Promise.all(HEAVY_LIBS.map(function (lib) {
+      return new Promise(function (resolve) {
+        var s = document.createElement('script');
+        s.src = lib[0];
+        s.integrity = lib[1];
+        s.crossOrigin = 'anonymous';
+        s.async = false; // keep execution order (pdf.js before its worker)
+        s.onload = s.onerror = function () { resolve(); };
+        document.head.appendChild(s);
+      });
+    }));
+    return heavyLibsPromise;
+  }
+
   // The "merge PDF" view's markup lives in views/merge.html instead of being
   // inlined in index.html — fetched once, mounted over #view-merge-mount,
   // then wired up (its elements don't exist until this resolves, so the
   // merge tile's click handler awaits this promise before opening the view).
-  var mergeViewReady = $.get('views/merge.html').done(function (html) {
+  var mergeViewReady = lazyView('views/merge.html').done(function (html) {
     $('#view-merge-mount').replaceWith(html);
     $viewMerge = $('#view-merge');
     $('#btn-merge-back').on('click', function () {
@@ -112,7 +160,7 @@
   });
 
   // Same fetch-and-mount pattern for the "split PDF" view (views/split.html).
-  var splitViewReady = $.get('views/split.html').done(function (html) {
+  var splitViewReady = lazyView('views/split.html').done(function (html) {
     $('#view-split-mount').replaceWith(html);
     $viewSplit = $('#view-split');
     $('#btn-split-back').on('click', function () {
@@ -127,7 +175,7 @@
   // Same fetch-and-mount pattern for the "convert files" view
   // (views/convert-files.html).
   var convertFilesViewApi = null;
-  var convertFilesViewReady = $.get('views/convert-files.html').done(function (html) {
+  var convertFilesViewReady = lazyView('views/convert-files.html').done(function (html) {
     $('#view-convert-files-mount').replaceWith(html);
     $viewConvertFiles = $('#view-convert-files');
     $('#btn-convert-files-back').on('click', function () {
@@ -141,7 +189,7 @@
 
   // Same fetch-and-mount pattern for the "text generator" view
   // (views/text-gen.html).
-  var textGenViewReady = $.get('views/text-gen.html').done(function (html) {
+  var textGenViewReady = lazyView('views/text-gen.html').done(function (html) {
     $('#view-text-gen-mount').replaceWith(html);
     $viewTextGen = $('#view-text-gen');
     $('#btn-text-gen-back').on('click', function () {
@@ -155,7 +203,7 @@
 
   // Same fetch-and-mount pattern for the "test file generator" view
   // (views/test-file.html).
-  var testFileViewReady = $.get('views/test-file.html').done(function (html) {
+  var testFileViewReady = lazyView('views/test-file.html').done(function (html) {
     $('#view-test-file-mount').replaceWith(html);
     $viewTestFile = $('#view-test-file');
     $('#btn-test-file-back').on('click', function () {
@@ -169,7 +217,7 @@
 
   // Same fetch-and-mount pattern for the "video convert" view
   // (views/video-convert.html).
-  var videoConvertViewReady = $.get('views/video-convert.html').done(function (html) {
+  var videoConvertViewReady = lazyView('views/video-convert.html').done(function (html) {
     $('#view-video-convert-mount').replaceWith(html);
     $viewVideoConvert = $('#view-video-convert');
     $('#btn-video-convert-back').on('click', function () {
@@ -183,7 +231,7 @@
 
   // Same fetch-and-mount pattern for the "video compress" view
   // (views/video-compress.html).
-  var videoCompressViewReady = $.get('views/video-compress.html').done(function (html) {
+  var videoCompressViewReady = lazyView('views/video-compress.html').done(function (html) {
     $('#view-video-compress-mount').replaceWith(html);
     $viewVideoCompress = $('#view-video-compress');
     $('#btn-video-compress-back').on('click', function () {
@@ -197,7 +245,7 @@
 
   // Same fetch-and-mount pattern for the "file resize" view
   // (views/file-resize.html).
-  var fileResizeViewReady = $.get('views/file-resize.html').done(function (html) {
+  var fileResizeViewReady = lazyView('views/file-resize.html').done(function (html) {
     $('#view-file-resize-mount').replaceWith(html);
     $viewFileResize = $('#view-file-resize');
     $('#btn-file-resize-back').on('click', function () {
@@ -211,7 +259,7 @@
 
   // Same fetch-and-mount pattern for the "file encrypt" view
   // (views/file-encrypt.html).
-  var fileEncryptViewReady = $.get('views/file-encrypt.html').done(function (html) {
+  var fileEncryptViewReady = lazyView('views/file-encrypt.html').done(function (html) {
     $('#view-file-encrypt-mount').replaceWith(html);
     $viewFileEncrypt = $('#view-file-encrypt');
     $('#btn-file-encrypt-back').on('click', function () {
@@ -225,7 +273,7 @@
 
   // Same fetch-and-mount pattern for the "file decrypt" view
   // (views/file-decrypt.html).
-  var fileDecryptViewReady = $.get('views/file-decrypt.html').done(function (html) {
+  var fileDecryptViewReady = lazyView('views/file-decrypt.html').done(function (html) {
     $('#view-file-decrypt-mount').replaceWith(html);
     $viewFileDecrypt = $('#view-file-decrypt');
     $('#btn-file-decrypt-back').on('click', function () {
@@ -238,7 +286,7 @@
   });
 
   // Same fetch-and-mount pattern for the "OCR" view (views/ocr.html).
-  var ocrViewReady = $.get('views/ocr.html').done(function (html) {
+  var ocrViewReady = lazyView('views/ocr.html').done(function (html) {
     $('#view-ocr-mount').replaceWith(html);
     $viewOcr = $('#view-ocr');
     $('#btn-ocr-back').on('click', function () {
@@ -252,7 +300,7 @@
 
   // Same fetch-and-mount pattern for the "text compare" view
   // (views/text-compare.html).
-  var textCompareViewReady = $.get('views/text-compare.html').done(function (html) {
+  var textCompareViewReady = lazyView('views/text-compare.html').done(function (html) {
     $('#view-text-compare-mount').replaceWith(html);
     $viewTextCompare = $('#view-text-compare');
     $('#btn-text-compare-back').on('click', function () {
@@ -266,7 +314,7 @@
 
   // Same fetch-and-mount pattern for the "database compare" view
   // (views/db-compare.html).
-  var dbCompareViewReady = $.get('views/db-compare.html').done(function (html) {
+  var dbCompareViewReady = lazyView('views/db-compare.html').done(function (html) {
     $('#view-db-compare-mount').replaceWith(html);
     $viewDbCompare = $('#view-db-compare');
     $('#btn-db-compare-back').on('click', function () {
@@ -280,7 +328,7 @@
 
   // Same fetch-and-mount pattern for the "brick breaker" game view
   // (views/brick-breaker.html).
-  var brickBreakerViewReady = $.get('views/brick-breaker.html').done(function (html) {
+  var brickBreakerViewReady = lazyView('views/brick-breaker.html').done(function (html) {
     $('#view-brick-breaker-mount').replaceWith(html);
     $viewBrickBreaker = $('#view-brick-breaker');
     $('#btn-brick-breaker-back').on('click', function () {
@@ -294,7 +342,7 @@
 
   // Same fetch-and-mount pattern for the "spot the difference" game view
   // (views/spot-difference.html).
-  var spotDifferenceViewReady = $.get('views/spot-difference.html').done(function (html) {
+  var spotDifferenceViewReady = lazyView('views/spot-difference.html').done(function (html) {
     $('#view-spot-difference-mount').replaceWith(html);
     $viewSpotDifference = $('#view-spot-difference');
     $('#btn-spot-difference-back').on('click', function () {
@@ -306,23 +354,9 @@
     console.error('ไม่สามารถโหลด views/spot-difference.html ได้');
   });
 
-  // Same fetch-and-mount pattern for the "Stardew Valley mods update" view
-  // (views/stardew-mods.html).
-  var stardewModsViewReady = $.get('views/stardew-mods.html').done(function (html) {
-    $('#view-stardew-mods-mount').replaceWith(html);
-    $viewStardewMods = $('#view-stardew-mods');
-    $('#btn-stardew-mods-back').on('click', function () {
-      $viewStardewMods.attr('hidden', true);
-      $viewHome.removeAttr('hidden');
-    });
-    initStardewModsView();
-  }).fail(function () {
-    console.error('ไม่สามารถโหลด views/stardew-mods.html ได้');
-  });
-
   // Same fetch-and-mount pattern for the "image compress" view
   // (views/image-compress.html).
-  var imageCompressViewReady = $.get('views/image-compress.html').done(function (html) {
+  var imageCompressViewReady = lazyView('views/image-compress.html').done(function (html) {
     $('#view-image-compress-mount').replaceWith(html);
     $viewImageCompress = $('#view-image-compress');
     $('#btn-image-compress-back').on('click', function () {
@@ -336,7 +370,7 @@
 
   // Same fetch-and-mount pattern for the "HTML preview" view
   // (views/html-preview.html).
-  var htmlPreviewViewReady = $.get('views/html-preview.html').done(function (html) {
+  var htmlPreviewViewReady = lazyView('views/html-preview.html').done(function (html) {
     $('#view-html-preview-mount').replaceWith(html);
     $viewHtmlPreview = $('#view-html-preview');
     $('#btn-html-preview-back').on('click', function () {
@@ -350,7 +384,7 @@
 
   // Same fetch-and-mount pattern for the "convert case" view
   // (views/convert-case.html).
-  var convertCaseViewReady = $.get('views/convert-case.html').done(function (html) {
+  var convertCaseViewReady = lazyView('views/convert-case.html').done(function (html) {
     $('#view-convert-case-mount').replaceWith(html);
     $viewConvertCase = $('#view-convert-case');
     $('#btn-convert-case-back').on('click', function () {
@@ -364,7 +398,7 @@
 
   // Same fetch-and-mount pattern for the "code format" view
   // (views/code-format.html).
-  var codeFormatViewReady = $.get('views/code-format.html').done(function (html) {
+  var codeFormatViewReady = lazyView('views/code-format.html').done(function (html) {
     $('#view-code-format-mount').replaceWith(html);
     $viewCodeFormat = $('#view-code-format');
     $('#btn-code-format-back').on('click', function () {
@@ -378,7 +412,7 @@
 
   // Same fetch-and-mount pattern for the "JSON formatter" view
   // (views/json-format.html).
-  var jsonFormatViewReady = $.get('views/json-format.html').done(function (html) {
+  var jsonFormatViewReady = lazyView('views/json-format.html').done(function (html) {
     $('#view-json-format-mount').replaceWith(html);
     $viewJsonFormat = $('#view-json-format');
     $('#btn-json-format-back').on('click', function () {
@@ -392,7 +426,7 @@
 
   // Same fetch-and-mount pattern for the "color picker" view
   // (views/color-picker.html).
-  var colorPickerViewReady = $.get('views/color-picker.html').done(function (html) {
+  var colorPickerViewReady = lazyView('views/color-picker.html').done(function (html) {
     $('#view-color-picker-mount').replaceWith(html);
     $viewColorPicker = $('#view-color-picker');
     $('#btn-color-picker-back').on('click', function () {
@@ -409,29 +443,28 @@
   // description, no status tag) — disabled tools are still distinguished
   // visually (dimmed, non-interactive).
   var TOOLS = [
-    { id: 'convert', label: 'แปลง PDF เป็นรูปภาพ', desc: 'แยกภาพจากไฟล์ PDF อย่างง่าย', enabled: true, img: 'assets/pdf-to-image.png', cats: ['pdf', 'image', 'convert'] },
-    { id: 'split', label: 'แยกไฟล์ PDF', desc: 'แยกหน้า PDF เป็นหลายไฟล์', enabled: true, img: 'assets/split-pdf.png', cats: ['pdf'] },
-    { id: 'merge', label: 'รวมไฟล์ PDF', desc: 'รวมหลายไฟล์เป็นไฟล์เดียว', enabled: true, img: 'assets/merge-pdf.png', cats: ['pdf'] },
-    { id: 'convert-files', label: 'แปลงไฟล์', desc: 'แปลงไฟล์ได้หลากหลายรูปแบบ', enabled: true, img: 'assets/convert-file.png', cats: ['convert'] },
-    { id: 'video-convert', label: 'แปลงวิดีโอ', desc: 'แปลงวิดีโอไปมาระหว่างฟอร์แมต', enabled: true, img: 'assets/convert-video.png', cats: ['convert'] },
-    { id: 'video-compress', label: 'ลดขนาดวิดีโอ', desc: 'บีบอัดวิดีโอให้เล็กลง ความละเอียดเท่าเดิม', enabled: true, img: 'assets/compress-video.png', cats: ['convert', 'file'] },
-    { id: 'text-gen', label: 'สร้างข้อความ', desc: 'สร้างและแก้ไขข้อความออนไลน์', enabled: true, img: 'assets/create-text.png', cats: ['text'] },
-    { id: 'convert-case', label: 'แปลงตัวพิมพ์', desc: 'เปลี่ยนตัวพิมพ์เล็ก/ใหญ่ เช่น UPPER, Title Case', enabled: true, img: 'assets/convert-case.png', cats: ['text'] },
-    { id: 'html-preview', label: 'พรีวิว HTML', desc: 'ดูผลลัพธ์ HTML ทันที พร้อมจัดรูปแบบโค้ด', enabled: true, img: 'assets/html-preview.png', cats: ['text'] },
-    { id: 'code-format', label: 'จัดรูปแบบโค้ด', desc: 'Beautify HTML, CSS, JavaScript, JSON และจัดรูปแบบ SQL', enabled: true, img: 'assets/format-code.png', cats: ['text'] },
-    { id: 'json-format', label: 'JSON Formatter', desc: 'Beautify / Minify JSON และแปลง JSON เป็นตาราง', enabled: true, img: 'assets/json-formatter.png', cats: ['text', 'convert'] },
-    { id: 'text-compare', label: 'เปรียบเทียบข้อความ', desc: 'หาจุดที่ต่างกันระหว่างข้อความสองชุด', enabled: true, img: 'assets/compare-text.png', cats: ['text'] },
-    { id: 'db-compare', label: 'เปรียบเทียบฐานข้อมูล For SQL Server', desc: 'หาตาราง/คอลัมน์ใหม่ แล้วสร้าง script CREATE / ALTER', enabled: true, img: 'assets/sql-compare.png', cats: ['text'] },
-    { id: 'test-file', label: 'สร้างไฟล์ทดสอบ', desc: 'สร้างไฟล์ตัวอย่างสำหรับทดสอบ', enabled: true, img: 'assets/create-test.png', cats: ['file'] },
-    { id: 'file-resize', label: 'ปรับขนาดไฟล์', desc: 'เพิ่มหรือลดขนาดไฟล์ตามที่กำหนด', enabled: true, img: 'assets/resize-file.png', cats: ['file'] },
-    { id: 'file-encrypt', label: 'เข้ารหัสไฟล์', desc: 'ใส่รหัสผ่านป้องกันไฟล์', enabled: true, img: 'assets/protect-file.png', cats: ['security'] },
-    { id: 'file-decrypt', label: 'ถอดรหัสไฟล์', desc: 'ปลดรหัสผ่านไฟล์ด้วยรหัสที่ถูกต้อง', enabled: true, img: 'assets/unlock-file.png', cats: ['security'] },
-    { id: 'compress', label: 'บีบอัดรูปภาพ', desc: 'ลดขนาดไฟล์รูปภาพ แบบไม่เสียคุณภาพ', enabled: true, img: 'assets/compress-image.png', cats: ['image'] },
-    { id: 'ocr', label: 'อ่านข้อความจากภาพ', desc: 'ดึงข้อความจากรูปภาพ (OCR)', enabled: true, img: 'assets/ocr.png', cats: ['image', 'text'] },
-    { id: 'color-picker', label: 'ดึงสีจากรูป', desc: 'ดูดสีและชุดสีหลักจากรูป ได้ค่า HEX, RGB, HSL', enabled: true, img: 'assets/pick-color.png', cats: ['image'] },
-    { id: 'brick-breaker', label: 'Brick Breaker', desc: 'เกมทุบอิฐ เก็บไอเทมเพิ่มลูกบอลให้เต็มจอ', enabled: true, img: 'assets/brick-breaker.png', cats: ['game'] },
-    { id: 'spot-difference', label: 'จับผิดภาพ', desc: 'หาจุดต่างระหว่างสองภาพ ยิ่งด่านสูงยิ่งยาก', enabled: true, img: 'assets/spot-difference.png', cats: ['game'] },
-    { id: 'stardew-mods', label: 'อัปเดต Mod Stardew Valley', desc: 'ติดตั้ง SMAPI และ Mod ล่าสุดผ่าน Win+R โดยไม่ต้องโหลดไฟล์', enabled: true, img: 'assets/stardew-mods.png', cats: ['game'] }
+    { id: 'convert', label: 'แปลง PDF เป็นรูปภาพ', desc: 'แยกภาพจากไฟล์ PDF อย่างง่าย', enabled: true, img: 'assets/pdf-to-image.webp', cats: ['pdf', 'image', 'convert'] },
+    { id: 'split', label: 'แยกไฟล์ PDF', desc: 'แยกหน้า PDF เป็นหลายไฟล์', enabled: true, img: 'assets/split-pdf.webp', cats: ['pdf'] },
+    { id: 'merge', label: 'รวมไฟล์ PDF', desc: 'รวมหลายไฟล์เป็นไฟล์เดียว', enabled: true, img: 'assets/merge-pdf.webp', cats: ['pdf'] },
+    { id: 'convert-files', label: 'แปลงไฟล์', desc: 'แปลงไฟล์ได้หลากหลายรูปแบบ', enabled: true, img: 'assets/convert-file.webp', cats: ['convert'] },
+    { id: 'video-convert', label: 'แปลงวิดีโอ', desc: 'แปลงวิดีโอไปมาระหว่างฟอร์แมต', enabled: true, img: 'assets/convert-video.webp', cats: ['convert'] },
+    { id: 'video-compress', label: 'ลดขนาดวิดีโอ', desc: 'บีบอัดวิดีโอให้เล็กลง ความละเอียดเท่าเดิม', enabled: true, img: 'assets/compress-video.webp', cats: ['convert', 'file'] },
+    { id: 'text-gen', label: 'สร้างข้อความ', desc: 'สร้างและแก้ไขข้อความออนไลน์', enabled: true, img: 'assets/create-text.webp', cats: ['text'] },
+    { id: 'convert-case', label: 'แปลงตัวพิมพ์', desc: 'เปลี่ยนตัวพิมพ์เล็ก/ใหญ่ เช่น UPPER, Title Case', enabled: true, img: 'assets/convert-case.webp', cats: ['text'] },
+    { id: 'html-preview', label: 'พรีวิว HTML', desc: 'ดูผลลัพธ์ HTML ทันที พร้อมจัดรูปแบบโค้ด', enabled: true, img: 'assets/html-preview.webp', cats: ['text'] },
+    { id: 'code-format', label: 'จัดรูปแบบโค้ด', desc: 'Beautify HTML, CSS, JavaScript, JSON และจัดรูปแบบ SQL', enabled: true, img: 'assets/format-code.webp', cats: ['text'] },
+    { id: 'json-format', label: 'JSON Formatter', desc: 'Beautify / Minify JSON และแปลง JSON เป็นตาราง', enabled: true, img: 'assets/json-formatter.webp', cats: ['text', 'convert'] },
+    { id: 'text-compare', label: 'เปรียบเทียบข้อความ', desc: 'หาจุดที่ต่างกันระหว่างข้อความสองชุด', enabled: true, img: 'assets/compare-text.webp', cats: ['text'] },
+    { id: 'db-compare', label: 'เปรียบเทียบฐานข้อมูล For SQL Server', desc: 'หาตาราง/คอลัมน์ใหม่ แล้วสร้าง script CREATE / ALTER', enabled: true, img: 'assets/sql-compare.webp', cats: ['text'] },
+    { id: 'test-file', label: 'สร้างไฟล์ทดสอบ', desc: 'สร้างไฟล์ตัวอย่างสำหรับทดสอบ', enabled: true, img: 'assets/create-test.webp', cats: ['file'] },
+    { id: 'file-resize', label: 'ปรับขนาดไฟล์', desc: 'เพิ่มหรือลดขนาดไฟล์ตามที่กำหนด', enabled: true, img: 'assets/resize-file.webp', cats: ['file'] },
+    { id: 'file-encrypt', label: 'เข้ารหัสไฟล์', desc: 'ใส่รหัสผ่านป้องกันไฟล์', enabled: true, img: 'assets/protect-file.webp', cats: ['security'] },
+    { id: 'file-decrypt', label: 'ถอดรหัสไฟล์', desc: 'ปลดรหัสผ่านไฟล์ด้วยรหัสที่ถูกต้อง', enabled: true, img: 'assets/unlock-file.webp', cats: ['security'] },
+    { id: 'compress', label: 'บีบอัดรูปภาพ', desc: 'ลดขนาดไฟล์รูปภาพ แบบไม่เสียคุณภาพ', enabled: true, img: 'assets/compress-image.webp', cats: ['image'] },
+    { id: 'ocr', label: 'อ่านข้อความจากภาพ', desc: 'ดึงข้อความจากรูปภาพ (OCR)', enabled: true, img: 'assets/ocr.webp', cats: ['image', 'text'] },
+    { id: 'color-picker', label: 'ดึงสีจากรูป', desc: 'ดูดสีและชุดสีหลักจากรูป ได้ค่า HEX, RGB, HSL', enabled: true, img: 'assets/pick-color.webp', cats: ['image'] },
+    { id: 'brick-breaker', label: 'Brick Breaker', desc: 'เกมทุบอิฐ เก็บไอเทมเพิ่มลูกบอลให้เต็มจอ', enabled: true, img: 'assets/brick-breaker.webp', cats: ['game'] },
+    { id: 'spot-difference', label: 'จับผิดภาพ', desc: 'หาจุดต่างระหว่างสองภาพ ยิ่งด่านสูงยิ่งยาก', enabled: true, img: 'assets/spot-difference.webp', cats: ['game'] }
   ];
   // Home-page category filter; a tool can sit in more than one category.
   var TOOL_CATEGORIES = [
@@ -539,6 +572,22 @@
     else if (themeMedia.addListener) themeMedia.addListener(onSchemeChange);
   }
 
+  var VIEW_READY = {
+    merge: mergeViewReady, split: splitViewReady, 'convert-files': convertFilesViewReady,
+    'video-convert': videoConvertViewReady, 'video-compress': videoCompressViewReady,
+    'text-gen': textGenViewReady, 'test-file': testFileViewReady, 'file-resize': fileResizeViewReady,
+    'file-encrypt': fileEncryptViewReady, 'file-decrypt': fileDecryptViewReady, ocr: ocrViewReady,
+    'text-compare': textCompareViewReady, 'db-compare': dbCompareViewReady, 'convert-case': convertCaseViewReady,
+    'html-preview': htmlPreviewViewReady, 'code-format': codeFormatViewReady, 'json-format': jsonFormatViewReady,
+    compress: imageCompressViewReady, 'color-picker': colorPickerViewReady,
+    'brick-breaker': brickBreakerViewReady, 'spot-difference': spotDifferenceViewReady
+  };
+  // Warm up a tool's view and libs while the pointer is on its tile, so the click opens instantly.
+  function prefetchTool(id) {
+    if (VIEW_READY[id]) VIEW_READY[id].promise();
+    loadHeavyLibs();
+  }
+
   function makeToolTile(tool, note) {
     // A div wrapper so the favorite button isn't nested inside another button;
     // the inner button keeps keyboard access and its click bubbles to $el.
@@ -569,8 +618,8 @@
     $text.append($title, $('<span>').addClass('block text-[12px] text-inksoft mt-0.5 leading-snug line-clamp-2').text(tool.desc));
     if (note) $text.append($('<span>').addClass('flex items-center gap-1 text-[11px] font-semibold text-accentdeep mt-0.5').append($('<i>').addClass('bi bi-clock-history leading-none'), $('<span>').text(note)));
     var $iconBox = $('<span>').addClass('flex h-11 w-11 flex-none items-center justify-center rounded-xl overflow-hidden bg-cardicon ring-1 ring-line shadow-sm')
-      .append($('<img>').attr({ src: tool.img, alt: '' }).addClass('h-full w-full object-cover'));
-    var $arrow = $('<img>').attr({ src: 'assets/icons/icon-right-click.png', alt: '', 'aria-hidden': 'true' })
+      .append($('<img>').attr({ src: tool.img, alt: '', width: 44, height: 44, decoding: 'async', loading: 'lazy' }).addClass('h-full w-full object-cover'));
+    var $arrow = $('<img>').attr({ src: 'assets/icons/icon-right-click.webp', alt: '', 'aria-hidden': 'true', width: 32, height: 32, decoding: 'async' })
       .addClass('h-8 w-8 flex-none object-contain drop-shadow-sm transition-transform duration-150')
       .addClass(tool.enabled ? 'group-hover:translate-x-0.5' : 'grayscale opacity-50');
     if (tool.enabled) {
@@ -593,6 +642,7 @@
         });
       $el.attr('data-tool', tool.id).append($main, $fav, $arrow);
       $el.on('click', function () { recordToolUse(tool.id); });
+      $el.one('pointerenter focusin touchstart', function () { prefetchTool(tool.id); });
     } else {
       $el.append($iconBox, $text, $arrow);
     }
@@ -684,10 +734,6 @@
     } else if (tool.id === 'spot-difference') {
       $el.on('click', function () {
         $.when(spotDifferenceViewReady).done(function () { openView($viewSpotDifference); });
-      });
-    } else if (tool.id === 'stardew-mods') {
-      $el.on('click', function () {
-        $.when(stardewModsViewReady).done(function () { openView($viewStardewMods); });
       });
     }
     return $el;
@@ -872,6 +918,8 @@
       .find('span').text(arranging ? 'เสร็จ' : 'จัดเรียง');
     $('#btn-arrange i').toggleClass('bi-arrows-move', !arranging).toggleClass('bi-check-lg', arranging);
     $('#btn-arrange-reset').css('display', arranging ? 'inline-flex' : 'none').prop('disabled', !toolOrder.length);
+    $('#btn-hide-all').css('display', hiding ? 'inline-flex' : 'none');
+    updateHideAllBtn();
     renderCategories();
   }
 
@@ -910,8 +958,24 @@
     var id = tile.getAttribute('data-hide-id');
     toggleHidden(id);
     renderHideCheck($(tile), isHidden(id));
+    updateHideAllBtn();
+  }
+  function allHidden() { return TOOLS.every(function (t) { return isHidden(t.id); }); }
+  function updateHideAllBtn() {
+    var all = allHidden();
+    $('#btn-hide-all').attr('aria-pressed', all ? 'true' : 'false')
+      .find('span').text(all ? 'ยกเลิกทั้งหมด' : 'เลือกทั้งหมด');
+    $('#btn-hide-all i').toggleClass('bi-check2-square', !all).toggleClass('bi-square', all);
   }
   $('#btn-hide').on('click', function () { setHiding(!hiding); });
+  $('#btn-hide-all').on('click', function () {
+    hiddenTools = allHidden() ? [] : TOOLS.map(function (t) { return t.id; });
+    storeSet(HIDDEN_KEY, hiddenTools.length ? JSON.stringify(hiddenTools) : null);
+    $categoryGrid.children('[data-hide-id]').each(function () {
+      renderHideCheck($(this), isHidden(this.getAttribute('data-hide-id')));
+    });
+    updateHideAllBtn();
+  });
 
   var gridEl = $categoryGrid[0];
   var drag = null;
@@ -2100,10 +2164,190 @@
   // jsPDF's native vector text, which only ships Latin fonts and would
   // break on Thai content. Routing everything through the browser's own
   // text rendering keeps Thai working everywhere without embedding a font.
+  // Styled replacement for a native <select>: the OS-drawn option popup can't
+  // be themed, so a listbox is rendered next to the (visually hidden) select,
+  // which stays the value source and still fires 'change'. Applied to every
+  // <select> automatically (see the observer below), so views need no wiring.
+  var enhancedSelectSeq = 0;
+  function enhanceSelect(selectEl) {
+    if (selectEl._enhancedSelect) return selectEl._enhancedSelect;
+    var $select = $(selectEl);
+    var uid = (selectEl.id || 'select-' + (++enhancedSelectSeq)) + '-dd';
+    // Full-width form fields keep the large size; inline toolbar selects get a compact one.
+    var full = $select.hasClass('w-full');
+    var passClasses = ($select.attr('class') || '').split(/\s+/).filter(function (c) { return /^(max-w-|min-w-|font-mono$)/.test(c); }).join(' ');
+
+    var $label = selectEl.id ? $('label[for="' + selectEl.id + '"]') : $();
+    if (!$label.length) $label = $select.closest('label');
+    var ariaLabel = $select.attr('aria-label');
+    var labelId = null;
+    if (!ariaLabel && $label.length) {
+      if (!$label.attr('id')) $label.attr('id', uid + '-label');
+      labelId = $label.attr('id');
+    }
+
+    var $wrap = $('<div>').addClass('relative ' + (full ? 'w-full' : 'inline-block min-w-0 ' + passClasses));
+    var $btn = $('<button>').attr({ type: 'button', id: uid + '-btn', 'aria-haspopup': 'listbox', 'aria-expanded': 'false', 'aria-controls': uid + '-list' })
+      .addClass('w-full flex items-center justify-between border border-line bg-surface text-ink font-semibold text-left cursor-pointer transition-colors duration-150 hover:border-accent focus:outline-none focus-visible:ring-4 focus-visible:ring-accentsoft focus-visible:border-accent disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:border-line')
+      .addClass(full ? 'gap-2 pl-3.5 pr-3 py-2.5 rounded-xl text-[13.5px] shadow-sm' : 'gap-1.5 pl-2.5 pr-2 py-1.5 rounded-lg text-[12.5px]')
+      .addClass(/font-mono/.test(passClasses) ? 'font-mono' : '');
+    if (ariaLabel) $btn.attr('aria-label', ariaLabel);
+    else if (labelId) $btn.attr('aria-labelledby', labelId + ' ' + uid + '-btn');
+    var $btnText = $('<span>').addClass('flex-1 min-w-0 truncate');
+    var $chev = $('<i>').addClass('bi bi-chevron-down text-[11px] leading-none text-inksoft transition-transform duration-150');
+    $btn.append($btnText, $chev);
+    var $list = $('<ul>').attr({ id: uid + '-list', role: 'listbox', tabindex: -1, hidden: true })
+      .addClass('absolute z-50 max-h-72 overflow-auto p-1.5 rounded-xl border border-line bg-surface shadow-xl animate-fade-in focus:outline-none whitespace-nowrap')
+      .addClass(full ? 'left-0 right-0' : 'min-w-full w-max max-w-[min(360px,90vw)]');
+    if (ariaLabel) $list.attr('aria-label', ariaLabel);
+    else if (labelId) $list.attr('aria-labelledby', labelId);
+    $wrap.append($btn, $list);
+    $select.addClass('sr-only').attr({ tabindex: -1, 'aria-hidden': 'true' }).after($wrap);
+
+    var activeIdx = -1;
+    function options() { return $select.children('option'); }
+
+    // "Excel (.xls, .xlsx)" -> main "Excel", sub ".xls, .xlsx" shown muted on the right.
+    function splitLabel(text) {
+      var m = /^(.*?)\s*\((.*)\)\s*$/.exec(text);
+      return m ? { main: m[1], sub: m[2] } : { main: text, sub: '' };
+    }
+
+    function setActive(i) {
+      var $items = $list.children('li');
+      if (!$items.length) return;
+      activeIdx = Math.max(0, Math.min(i, $items.length - 1));
+      $items.removeClass('bg-accentsoft').eq(activeIdx).addClass('bg-accentsoft');
+      $list.attr('aria-activedescendant', $items.eq(activeIdx).attr('id'));
+      var el = $items[activeIdx];
+      if (el.scrollIntoView) el.scrollIntoView({ block: 'nearest' });
+    }
+
+    function refresh() {
+      var val = $select.val();
+      $list.empty();
+      options().each(function (i) {
+        var parts = splitLabel($(this).text());
+        var selected = this.value === val;
+        var $li = $('<li>').attr({ id: uid + '-opt-' + i, role: 'option', 'aria-selected': selected ? 'true' : 'false', 'aria-disabled': this.disabled ? 'true' : null, 'data-value': this.value })
+          .addClass('flex items-center gap-2 rounded-lg select-none transition-colors duration-100')
+          .addClass(full ? 'px-3 py-2 text-[13px]' : 'px-2.5 py-1.5 text-[12.5px]')
+          .addClass(this.disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer')
+          .addClass(selected ? 'text-accentdeep font-bold' : 'text-ink font-semibold')
+          .append(
+            $('<i>').addClass('bi bi-check-lg text-sm leading-none w-4 flex-none ' + (selected ? '' : 'invisible')),
+            $('<span>').addClass('flex-1 min-w-0 truncate').text(parts.main),
+            parts.sub ? $('<span>').addClass('flex-none ml-3 text-[11.5px] font-medium text-inkfaint').text(parts.sub) : null
+          );
+        $list.append($li);
+      });
+      var $cur = options().filter(':selected');
+      var cur = splitLabel($cur.text());
+      $btnText.empty().append(
+        $('<span>').text(cur.main),
+        cur.sub ? $('<span>').addClass('ml-1.5 text-[11.5px] font-medium text-inkfaint').text(cur.sub) : null
+      );
+      $btn.prop('disabled', selectEl.disabled || !options().length);
+      if ($btn.prop('disabled')) close(false);
+    }
+
+    function isOpen() { return !$list.prop('hidden'); }
+    function open() {
+      if (isOpen()) return;
+      $(document).trigger('enhanced-select-open', [uid]);
+      $list.prop('hidden', false);
+      $btn.attr('aria-expanded', 'true');
+      $chev.addClass('rotate-180');
+      $btn.addClass('border-accent');
+      // Flip up / align right when the menu would run off the viewport.
+      $list.removeClass('bottom-full mb-1.5 right-0').addClass('top-full mt-1.5 left-0');
+      if (full) $list.addClass('right-0');
+      var r = $list[0].getBoundingClientRect();
+      var b = $btn[0].getBoundingClientRect();
+      if (r.bottom > window.innerHeight && b.top > window.innerHeight - b.bottom) $list.removeClass('top-full mt-1.5').addClass('bottom-full mb-1.5');
+      if (!full && r.right > window.innerWidth) $list.removeClass('left-0').addClass('right-0');
+      setActive(Math.max(0, options().index(options().filter(':selected'))));
+      $list.trigger('focus');
+    }
+    function close(refocus) {
+      if (!isOpen()) return;
+      $list.prop('hidden', true);
+      $btn.attr('aria-expanded', 'false');
+      $chev.removeClass('rotate-180');
+      $btn.removeClass('border-accent');
+      if (refocus) $btn.trigger('focus');
+    }
+    function choose(i) {
+      var $opt = options().eq(i);
+      if (!$opt.length || $opt.prop('disabled')) return;
+      var changed = $select.val() !== $opt.val();
+      $select.val($opt.val());
+      refresh();
+      close(true);
+      if (changed) $select.trigger('change');
+    }
+
+    $btn.on('click', function () { if (isOpen()) close(false); else open(); });
+    $btn.on('keydown', function (e) {
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp' || e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); }
+    });
+    // preventDefault stops a wrapping <label> from forwarding the click to the hidden select.
+    $btn.on('click', function (e) { e.preventDefault(); });
+    $list.on('click', function (e) { e.preventDefault(); });
+    $list.on('click', 'li', function () { choose($(this).index()); });
+    // Label clicks / programmatic focus land on the hidden select; hand focus to the button.
+    $select.on('focus', function () { if (!$btn.prop('disabled')) $btn.trigger('focus'); });
+    $list.on('mousemove', 'li', function () { if ($(this).index() !== activeIdx) setActive($(this).index()); });
+    $list.on('keydown', function (e) {
+      var n = $list.children('li').length;
+      if (e.key === 'ArrowDown') { e.preventDefault(); setActive(activeIdx + 1); }
+      else if (e.key === 'ArrowUp') { e.preventDefault(); setActive(activeIdx - 1); }
+      else if (e.key === 'Home') { e.preventDefault(); setActive(0); }
+      else if (e.key === 'End') { e.preventDefault(); setActive(n - 1); }
+      else if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); choose(activeIdx); }
+      else if (e.key === 'Escape') { e.preventDefault(); close(true); }
+      else if (e.key === 'Tab') { close(false); }
+    });
+    $(document).on('mousedown', function (e) { if (!$wrap[0].contains(e.target)) close(false); });
+    // Only one dropdown open at a time.
+    $(document).on('enhanced-select-open', function (e, openUid) { if (openUid !== uid) close(false); });
+    // Keep in sync when code replaces options or toggles disabled (.empty/.append/.prop).
+    new MutationObserver(refresh).observe(selectEl, { childList: true, subtree: true, attributes: true, attributeFilter: ['disabled'] });
+    $select.on('change', refresh);
+
+    refresh();
+    selectEl._enhancedSelect = { refresh: refresh };
+    return selectEl._enhancedSelect;
+  }
+
+  // Programmatic $select.val(x) fires no event, so refresh the styled dropdown from the valHook.
+  (function () {
+    var hook = $.valHooks.select;
+    var origSet = hook && hook.set;
+    if (!origSet) return;
+    hook.set = function (elem, value) {
+      var ret = origSet.call(this, elem, value);
+      if (elem._enhancedSelect) elem._enhancedSelect.refresh();
+      return ret;
+    };
+  })();
+
+  // Enhance selects already in the page and any that views mount later.
+  $('select').each(function () { enhanceSelect(this); });
+  new MutationObserver(function (records) {
+    records.forEach(function (rec) {
+      $(rec.addedNodes).each(function () {
+        if (this.nodeType !== 1) return;
+        if (this.tagName === 'SELECT') { enhanceSelect(this); return; }
+        var found = this.getElementsByTagName('select');
+        for (var i = 0; i < found.length; i++) enhanceSelect(found[i]);
+      });
+    });
+  }).observe(document.body, { childList: true, subtree: true });
+
   function initConvertFilesView() {
     var $fromSelect = $('#convert-from');
     var $toSelect = $('#convert-to');
-    var $note = $('#convert-stage-note');
     var $stage = $('#convert-stage');
     var $stageDisabled = $('#convert-stage-disabled');
     var $stageAlias = $('#convert-stage-alias');
@@ -3426,34 +3670,34 @@
       'powerpoint|pdf': { disabled: true },
       'image|pdf': {
         accept: IMAGE_ACCEPT, multiple: true, thumb: true, reorderable: true, icon: 'bi-filetype-jpg',
-        title: 'ลากรูปภาพมาวางที่นี่', hint: 'เลือกได้หลายไฟล์ — ลำดับรายการคือลำดับหน้าใน PDF',
+        title: 'ลากรูปภาพมาวางที่นี่', hint: 'เลือกได้หลายไฟล์',
         note: '', runLabel: 'รวมเป็น PDF', zipBaseName: 'images',
         validate: validateImageFile, run: runImageToPdf
       },
       'image|jpg': {
         accept: IMAGE_ACCEPT, multiple: true, thumb: true, icon: 'bi-filetype-jpg',
-        title: 'ลากรูปภาพมาวางที่นี่', hint: 'เลือกได้หลายไฟล์ — แปลงเป็น JPG ทีละไฟล์',
+        title: 'ลากรูปภาพมาวางที่นี่', hint: 'เลือกได้หลายไฟล์',
         note: 'พื้นหลังโปร่งใส (PNG/WebP) จะถูกเติมสีขาว เพราะ JPG ไม่รองรับความโปร่งใส · GIF เคลื่อนไหวจะแปลงเฉพาะเฟรมแรก',
         runLabel: 'แปลงเป็น JPG', zipBaseName: 'converted-jpg',
         validate: validateImageFile, run: makeImageConvertRunner('jpg')
       },
       'image|png': {
         accept: IMAGE_ACCEPT, multiple: true, thumb: true, icon: 'bi-filetype-png',
-        title: 'ลากรูปภาพมาวางที่นี่', hint: 'เลือกได้หลายไฟล์ — แปลงเป็น PNG ทีละไฟล์',
+        title: 'ลากรูปภาพมาวางที่นี่', hint: 'เลือกได้หลายไฟล์',
         note: 'GIF เคลื่อนไหวจะแปลงเฉพาะเฟรมแรก',
         runLabel: 'แปลงเป็น PNG', zipBaseName: 'converted-png',
         validate: validateImageFile, run: makeImageConvertRunner('png')
       },
       'image|webp': {
         accept: IMAGE_ACCEPT, multiple: true, thumb: true, icon: 'bi-file-earmark-image',
-        title: 'ลากรูปภาพมาวางที่นี่', hint: 'เลือกได้หลายไฟล์ — แปลงเป็น WebP ทีละไฟล์',
+        title: 'ลากรูปภาพมาวางที่นี่', hint: 'เลือกได้หลายไฟล์',
         note: 'GIF เคลื่อนไหวจะแปลงเฉพาะเฟรมแรก',
         runLabel: 'แปลงเป็น WebP', zipBaseName: 'converted-webp',
         validate: validateImageFile, run: makeImageConvertRunner('webp')
       },
       'html|pdf': {
         accept: '.html,.htm,text/html', multiple: false, icon: 'bi-filetype-html',
-        title: 'ลากไฟล์ HTML มาวางที่นี่', hint: 'รองรับไฟล์ HTML แบบสแตนด์อโลน (inline CSS) เท่านั้น',
+        title: 'ลากไฟล์ HTML มาวางที่นี่', hint: '',
         note: 'รูปภาพ/สไตล์ที่อ้างอิงจากไฟล์ภายนอกจะไม่ถูกโหลด เพราะไม่มีการเชื่อมต่อเซิร์ฟเวอร์',
         runLabel: 'แปลงเป็น PDF', zipBaseName: 'html-to-pdf',
         validate: function (file) { return /\.html?$/i.test(file.name) ? null : 'รองรับเฉพาะไฟล์ .html/.htm เท่านั้น'; },
@@ -3586,11 +3830,9 @@
       $stage.attr('hidden', true);
       $stageDisabled.attr('hidden', true);
       $stageAlias.attr('hidden', true);
-      $note.text('');
       if (!cfg) return;
       if (cfg.disabled) { $stageDisabled.removeAttr('hidden'); return; }
       if (cfg.alias) { $stageAlias.removeAttr('hidden'); return; }
-      $note.text(cfg.note || '');
       $dropzoneTitle.text(cfg.title);
       $dropzoneHint.html('หรือ <span class="text-accentdeep font-semibold underline underline-offset-2">เลือกไฟล์จากเครื่อง</span>' + (cfg.hint ? ' — ' + cfg.hint : ''));
       $fileInput.attr('accept', cfg.accept);
@@ -12422,50 +12664,4 @@
     newGame();
   }
 
-  // ---------- Stardew Valley mods update (views/stardew-mods.html) ----------
-  // Browsers cannot launch local processes, so the view hands the user a
-  // one-liner for Win+R that runs the installer from memory (irm | iex).
-  var STARDEW_SCRIPT_URL = 'https://raw.githubusercontent.com/jarps9977/stardew-mods-builded/main/pull-mods-lasted.ps1';
-  var STARDEW_COMMAND = 'powershell -NoProfile -ExecutionPolicy Bypass -Command "irm ' + STARDEW_SCRIPT_URL + ' | iex"';
-
-  function initStardewModsView() {
-    var $statusEl = $('#stardew-status');
-
-    function setStatus(msg, kind) {
-      $statusEl.text(msg || '');
-      $statusEl.removeClass('text-good text-bad text-inksoft');
-      if (kind === 'good') $statusEl.addClass('text-good');
-      else if (kind === 'bad') $statusEl.addClass('text-bad');
-      else $statusEl.addClass('text-inksoft');
-    }
-
-    async function copyCommand() {
-      try {
-        await navigator.clipboard.writeText(STARDEW_COMMAND);
-        setStatus('คัดลอกแล้ว — กด Win+R แล้ว Ctrl+V และ Enter', 'good');
-      } catch (err) {
-        // Command is never rendered on screen, so fall back to a throwaway
-        // off-screen textarea instead of selecting a visible field.
-        if (copyViaTempField()) setStatus('คัดลอกแล้ว — กด Win+R แล้ว Ctrl+V และ Enter', 'good');
-        else setStatus('ไม่สามารถคัดลอกได้ ลองใหม่อีกครั้ง', 'bad');
-      }
-    }
-
-    function copyViaTempField() {
-      var $tmp = $('<textarea>').val(STARDEW_COMMAND)
-        .css({ position: 'fixed', top: '-1000px', opacity: 0 })
-        .appendTo('body');
-      var ok = false;
-      try {
-        $tmp.trigger('focus').trigger('select');
-        ok = document.execCommand('copy');
-      } catch (err) {
-        ok = false;
-      }
-      $tmp.remove();
-      return ok;
-    }
-
-    $('#btn-stardew-copy, #btn-stardew-copy-main').on('click', copyCommand);
-  }
 })(jQuery);

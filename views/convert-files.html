@@ -16,7 +16,7 @@
   <div class="grid grid-cols-2 gap-2.5">
     <div>
       <label class="block text-[12px] font-semibold text-inksoft mb-1.5" for="convert-from">จากไฟล์</label>
-      <select id="convert-from" class="w-full px-2.5 py-2 rounded-lg border border-line bg-surface2 text-ink text-[13px] focus:outline focus:outline-2 focus:outline-accent focus:outline-offset-1">
+      <select id="convert-from" class="w-full">
         <option value="pdf">PDF</option>
         <option value="excel">Excel (.xls, .xlsx, .csv)</option>
         <option value="powerpoint">PowerPoint (.ppt, .pptx)</option>
@@ -27,11 +27,9 @@
     </div>
     <div>
       <label class="block text-[12px] font-semibold text-inksoft mb-1.5" for="convert-to">เป็นไฟล์</label>
-      <select id="convert-to" class="w-full px-2.5 py-2 rounded-lg border border-line bg-surface2 text-ink text-[13px] focus:outline focus:outline-2 focus:outline-accent focus:outline-offset-1"></select>
+      <select id="convert-to" class="w-full"></select>
     </div>
   </div>
-
-  <p id="convert-stage-note" class="text-[12px] text-inksoft mt-3 leading-relaxed"></p>
 
   <!-- Generic upload/convert panel — reused for every enabled from/to pair,
        reconfigured by JS (accept, hint text, single/multiple, run handler)
@@ -60,7 +58,7 @@
   <div id="convert-stage-disabled" class="mt-3 rounded-2xl border border-line bg-surface px-5 py-8 text-center" hidden>
     <i class="bi bi-hourglass-split text-2xl text-inkfaint mb-2 block"></i>
     <p class="text-sm font-bold">เร็วๆ นี้</p>
-    <p class="text-[12.5px] text-inksoft mt-1 max-w-[360px] mx-auto">การแปลงคู่นี้ต้องใช้เอนจินประมวลผลฝั่งเซิร์ฟเวอร์ (เช่น LibreOffice) ซึ่งขัดกับสถาปัตยกรรม client-side ล้วนๆ ของแอปนี้ ยังไม่รองรับในตอนนี้</p>
+    <p class="text-[12.5px] text-inksoft mt-1 max-w-[360px] mx-auto">ยังไม่รองรับการแปลงคู่นี้</p>
   </div>
 
   <!-- PDF -> JPG/PNG already exists as its own home-page tool; redirect

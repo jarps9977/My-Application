@@ -16,10 +16,16 @@
 
 <!-- Tailwind Play CDN: JIT-compiles utility classes in-browser, so the
      project keeps its "no build step" rule while using Tailwind. -->
+<link rel="preconnect" href="https://cdn.tailwindcss.com">
+<link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <script src="https://cdn.tailwindcss.com/3.4.17"></script>
 <script src="js/tailwind-config.js"></script>
 
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-icons/1.11.3/font/bootstrap-icons.min.css">
+<!-- Linked here, not @import-ed from styles.css, so the font CSS is fetched in parallel. -->
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap">
 <link rel="stylesheet" href="css/styles.css">
 <script src="js/theme-init.js"></script>
 </head>
@@ -110,7 +116,10 @@
         <button type="button" id="btn-arrange-reset" class="items-center gap-1.5 bg-surface border border-line text-inksoft text-[12.5px] font-bold px-3.5 py-1.5 rounded-full whitespace-nowrap cursor-pointer hover:border-bad hover:text-bad disabled:opacity-50 disabled:pointer-events-none" style="display:none;">
           <i class="bi bi-arrow-counterclockwise text-[13px] leading-none"></i> ค่าเริ่มต้น
         </button>
-        <button type="button" id="btn-arrange" aria-pressed="false" class="items-center gap-1.5 border text-[12.5px] font-bold px-3.5 py-1.5 rounded-full whitespace-nowrap cursor-pointer transition-colors duration-150 bg-surface border-line text-inksoft hover:border-accent hover:text-accentdeep">
+        <button type="button" id="btn-hide-all" aria-pressed="false" class="items-center gap-1.5 bg-surface border border-line text-inksoft text-[12.5px] font-bold px-3.5 py-1.5 rounded-full whitespace-nowrap cursor-pointer hover:border-accent hover:text-accentdeep" style="display:none;">
+          <i class="bi bi-check2-square text-[13px] leading-none"></i> <span>เลือกทั้งหมด</span>
+        </button>
+        <button type="button" id="btn-arrange"aria-pressed="false" class="items-center gap-1.5 border text-[12.5px] font-bold px-3.5 py-1.5 rounded-full whitespace-nowrap cursor-pointer transition-colors duration-150 bg-surface border-line text-inksoft hover:border-accent hover:text-accentdeep">
           <i class="bi bi-arrows-move text-[13px] leading-none"></i> <span>จัดเรียง</span>
         </button>
         <button type="button" id="btn-hide" aria-pressed="false" class="items-center gap-1.5 border text-[12.5px] font-bold px-3.5 py-1.5 rounded-full whitespace-nowrap cursor-pointer transition-colors duration-150 bg-surface border-line text-inksoft hover:border-accent hover:text-accentdeep">
@@ -163,7 +172,6 @@
         <i class="bi bi-arrow-counterclockwise text-sm leading-none"></i> <span>คืนลำดับเมนูเป็นค่าเริ่มต้น</span>
       </button>
     </div>
-    <p class="text-[11.5px] text-inkfaint mt-3">การตั้งค่า รายการโปรด ประวัติ และลำดับเมนู เก็บไว้ในเบราว์เซอร์เครื่องนี้เท่านั้น ไม่ได้ส่งไปที่ใด</p>
   </div>
 </div>
 
@@ -188,7 +196,7 @@
     <div id="dropzone" class="border-2 border-dashed border-line rounded-2xl bg-surface px-6 py-7 text-center cursor-pointer transition-colors duration-150" tabindex="0" role="button" aria-label="อัปโหลดไฟล์ PDF">
       <i class="bi bi-cloud-arrow-up text-2xl text-inkfaint mb-2 block"></i>
       <div><strong class="text-sm font-bold">ลากไฟล์ PDF มาวางที่นี่</strong></div>
-      <p class="text-[12.5px] text-inksoft mt-1">หรือ <span class="text-accentdeep font-semibold underline underline-offset-2">เลือกไฟล์จากเครื่อง</span> — ประมวลผลในเบราว์เซอร์ทั้งหมด</p>
+      <p class="text-[12.5px] text-inksoft mt-1">หรือ <span class="text-accentdeep font-semibold underline underline-offset-2">เลือกไฟล์จากเครื่อง</span></p>
       <div class="text-bad text-[12.5px] mt-2 text-center" id="upload-error"></div>
     </div>
     <input type="file" id="file-input" accept="application/pdf,.pdf" class="sr-only" />
@@ -335,11 +343,6 @@
        runtime by js/app.js, same pattern as views/merge.html. -->
   <div id="view-spot-difference-mount"></div>
 
-  <!-- ============ STARDEW MODS VIEW ============ -->
-  <!-- Markup lives in views/stardew-mods.html — fetched and mounted at
-       runtime by js/app.js, same pattern as views/merge.html. -->
-  <div id="view-stardew-mods-mount"></div>
-
   <!-- ============ IMAGE COMPRESS VIEW ============ -->
   <!-- Markup lives in views/image-compress.html — fetched and mounted at
        runtime by js/app.js, same pattern as views/merge.html. -->
@@ -412,14 +415,7 @@
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js" integrity="sha384-1H217gwSVyLSIfaLxHbE7dRb3v4mYCKbpQvzx0cegeju1MVsGrX5xXxAvs/HgeFs" crossorigin="anonymous"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js" integrity="sha384-/1qUCSGwTur9vjf/z9lmu/eCUYbpOTgSjmpbMQZ1/CtX2v/WcAIKqRv+U1DUCG6e" crossorigin="anonymous"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js" integrity="sha384-SnzOobpRMLXZ52iJvZm/C0fYw0OQemTXzTjIsdsfMcrCtCEe9qgzxTd3RSklO5x2" crossorigin="anonymous"></script>
-<script src="https://cdn.jsdelivr.net/npm/@cantoo/pdf-lib@2.11.0/dist/pdf-lib.min.js" integrity="sha384-BcRbGROz3cx4LSKcOw2L5YxAxiJPWIEmXRMrYbXu87aSiU5uMQ4qB9v8FEjrBhhq" crossorigin="anonymous"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.2/jszip.min.js" integrity="sha384-DdGlNq+wVXAn83gXqwyeFHB7iyXy6L0rLrNzgDmhKWPjiJLg9vj6qosYmZmkMfQ+" crossorigin="anonymous"></script>
-<!-- SheetJS stopped publishing to npm at 0.18.5; patched builds (CVE-2023-30533, CVE-2024-22363) are on cdn.sheetjs.com only. -->
-<script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js" integrity="sha384-EnyY0/GSHQGSxSgMwaIPzSESbqoOLSexfnSMN2AP+39Ckmn92stwABZynq1JyzdT" crossorigin="anonymous"></script>
-<script src="https://cdn.jsdelivr.net/npm/jspdf@3.0.2/dist/jspdf.umd.min.js" integrity="sha384-fvFW9AAfcCE7wIsK/ErPRGXVSLNry5/73SGUR99vWirWWKfgKuhavqMAqMVTSAnk" crossorigin="anonymous"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" integrity="sha384-ZZ1pncU3bQe8y31yfZdMFdSpttDoPmOZg2wguVK9almUodir1PghgT0eY7Mrty8H" crossorigin="anonymous"></script>
+<!-- Heavy libs (pdf.js, SheetJS, ...) are loaded on demand by js/app.js (loadHeavyLibs). -->
 <script src="js/app.js"></script>
 </body>
 </html>

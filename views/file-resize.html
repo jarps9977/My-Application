@@ -13,17 +13,10 @@
     <h2 class="text-xl font-extrabold">ปรับขนาดไฟล์</h2>
   </div>
 
-  <p class="text-[12.5px] text-inksoft -mt-3 mb-4 leading-relaxed">
-    อัปโหลดไฟล์อะไรก็ได้ แล้วระบุขนาดเป้าหมาย — ถ้าเป้าหมาย<strong>ใหญ่กว่า</strong>ไฟล์เดิม จะเติมข้อมูลว่างต่อท้ายไฟล์ให้ครบขนาด
-    (ปลอดภัยสำหรับไฟล์ทั่วไป รูปภาพ, PDF, ไฟล์ข้อความ — แต่ไฟล์ประเภท ZIP/Office/วิดีโออาจเปิดไม่ได้กับบางโปรแกรม)
-    ถ้าเป้าหมาย<strong>เล็กกว่า</strong>ไฟล์เดิม จะตัดท้ายไฟล์ทิ้ง ซึ่ง<strong class="text-bad">มีโอกาสสูงที่ไฟล์จะเสียหายเปิดไม่ได้</strong>
-    เพราะไฟล์ส่วนใหญ่เก็บโครงสร้างสำคัญไว้ท้ายไฟล์ — เหมาะสำหรับสร้างไฟล์ทดสอบ/จำลองขนาดไฟล์มากกว่าใช้กับไฟล์จริงที่ยังต้องเปิดได้
-  </p>
-
   <div id="fileresize-dropzone" class="border-2 border-dashed border-line rounded-2xl bg-surface px-6 py-7 text-center cursor-pointer transition-colors duration-150" tabindex="0" role="button" aria-label="อัปโหลดไฟล์">
     <i class="bi bi-cloud-arrow-up text-2xl text-inkfaint mb-2 block"></i>
     <div><strong class="text-sm font-bold">ลากไฟล์มาวางที่นี่</strong></div>
-    <p class="text-[12.5px] text-inksoft mt-1">หรือ <span class="text-accentdeep font-semibold underline underline-offset-2">เลือกไฟล์จากเครื่อง</span> — ไฟล์ประเภทใดก็ได้</p>
+    <p class="text-[12.5px] text-inksoft mt-1">หรือ <span class="text-accentdeep font-semibold underline underline-offset-2">เลือกไฟล์จากเครื่อง</span></p>
     <div class="text-bad text-[12.5px] mt-2 text-center" id="fileresize-upload-error"></div>
   </div>
   <input type="file" id="fileresize-file-input" class="sr-only" />
