@@ -63,6 +63,7 @@
   </div>
   <input type="file" id="dbcmp-file-input" accept=".sql,.xml,.json,.txt,text/*,application/json,application/xml,application/sql" class="sr-only" />
   <div class="status-line mt-2 text-[12.5px] min-h-[16px]" id="dbcmp-status"></div>
+  <div id="dbcmp-warnings" class="mt-2 bg-surface border border-line rounded-2xl shadow-sm px-4 py-2.5 text-[12px] leading-relaxed max-h-[160px] overflow-auto" hidden></div>
 
   <div class="flex items-center justify-between flex-wrap gap-2 mt-2 mb-2">
     <span class="text-[12px] text-inksoft">รันบน Target ตามลำดับ: 1 &rarr; 2 &rarr; 3 &rarr; 4</span>
@@ -94,8 +95,8 @@
     <div class="bg-surface border border-line rounded-2xl shadow-sm overflow-hidden flex flex-col min-w-0 h-[60vh] min-h-[360px]">
       <div class="flex items-center justify-between flex-wrap gap-2 px-4 py-2.5 border-b border-line">
         <span class="flex items-center gap-2 text-[13px] font-extrabold">
-          <input type="checkbox" class="dbcmp-check-all accent-accent w-[15px] h-[15px] cursor-pointer" data-kind="cols" aria-label="เลือกคอลัมน์ทั้งหมด" checked />
-          <span class="flex h-5 w-5 items-center justify-center rounded-full bg-accentsoft text-accentdeep text-[11px] font-bold">2</span> คอลัมน์ใหม่ (ในตารางเดิม)
+          <input type="checkbox" class="dbcmp-check-all accent-accent w-[15px] h-[15px] cursor-pointer" data-kind="cols" aria-label="เลือกการเปลี่ยนแปลงตารางเดิมทั้งหมด" checked />
+          <span class="flex h-5 w-5 items-center justify-center rounded-full bg-accentsoft text-accentdeep text-[11px] font-bold">2</span> แก้ไขตารางเดิม (คอลัมน์ / Index / Constraint)
           <span class="rounded-full bg-goodsoft text-good px-2 py-0.5 text-[11px] font-bold" id="dbcmp-new-cols-count">0</span>
         </span>
         <div class="flex items-center gap-2">

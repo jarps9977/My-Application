@@ -9627,7 +9627,8 @@
       var pk = cur.acceptW('PRIMARY');
       if (pk) cur.acceptW('KEY'); else cur.acceptW('UNIQUE');
       var kind = cur.acceptW('CLUSTERED') ? 'CLUSTERED' : cur.acceptW('NONCLUSTERED') ? 'NONCLUSTERED' : (pk ? 'CLUSTERED' : 'NONCLUSTERED');
-      tbl.indexes.push({ name: name || (pk ? 'PK' : 'UQ'), kind: kind, unique: true, pk: pk, uq: !pk, sys: sys, cols: dbcmpScriptKeyCols(cur, false) });
+      // SSMS leaves system-generated names out; '' makes the drop look the name up on the target.
+      tbl.indexes.push({ name: name || '', kind: kind, unique: true, pk: pk, uq: !pk, sys: sys, cols: dbcmpScriptKeyCols(cur, false) });
       return true;
     }
     if (cur.acceptW('INDEX')) {
@@ -9641,7 +9642,7 @@
       if (cur.acceptW('NOT')) { cur.acceptW('FOR'); cur.acceptW('REPLICATION'); }
       var g = cur.group();
       // SSMS writes CHECK ((expr)); the stored definition is the inner (expr).
-      if (g) tbl.checks.push({ name: name || 'CK', def: g.slice(1, -1).trim(), sys: sys });
+      if (g) tbl.checks.push({ name: name || '', def: g.slice(1, -1).trim(), sys: sys });
       return true;
     }
     if (cur.acceptW('FOREIGN')) {
@@ -9650,7 +9651,7 @@
       if (!cur.acceptW('REFERENCES')) return true;
       var ref = cur.name() || [];
       var refCols = cur.isP('(') ? dbcmpScriptKeyCols(cur, false) : [];
-      var fk = { name: name || 'FK', sys: sys, refSchema: ref.length > 1 ? ref[ref.length - 2] : 'dbo', refTable: ref[ref.length - 1],
+      var fk = { name: name || '', sys: sys, refSchema: ref.length > 1 ? ref[ref.length - 2] : 'dbo', refTable: ref[ref.length - 1],
         onDelete: 'NO_ACTION', onUpdate: 'NO_ACTION',
         cols: cols.map(function (c, k) { return { col: c.name, ref: refCols[k] ? refCols[k].name : c.name }; }) };
       dbcmpScriptFkAction(cur, fk);
@@ -9662,7 +9663,7 @@
       if (cur.acceptW('FOR')) {
         var colName = cur.ident();
         var col = tbl.columns.filter(function (c) { return dbcmpLower(c.name) === dbcmpLower(colName); })[0];
-        if (col && def) { col.dfDef = def; col.dfName = name || 'DF'; col.dfSys = sys; }
+        if (col && def) { col.dfDef = def; col.dfName = name || ''; col.dfSys = sys; }
       }
       return true;
     }
@@ -9702,7 +9703,7 @@
       else if (cur.acceptW('CONSTRAINT')) pending = cur.ident();
       else if (cur.acceptW('DEFAULT')) {
         col.dfDef = cur.group();
-        col.dfName = pending || 'DF';
+        col.dfName = pending || '';
         col.dfSys = !pending || dbcmpSysName(pending);
         pending = null;
       } else if (cur.isW('PRIMARY') || cur.isW('UNIQUE') || cur.isW('CHECK')) {
@@ -9715,7 +9716,7 @@
       } else if (cur.acceptW('REFERENCES')) {
         var ref = cur.name() || [];
         var refCols = cur.isP('(') ? dbcmpScriptKeyCols(cur, false) : [];
-        var fk = { name: pending || 'FK', sys: !pending || dbcmpSysName(pending), refSchema: ref.length > 1 ? ref[ref.length - 2] : 'dbo',
+        var fk = { name: pending || '', sys: !pending || dbcmpSysName(pending), refSchema: ref.length > 1 ? ref[ref.length - 2] : 'dbo',
           refTable: ref[ref.length - 1], onDelete: 'NO_ACTION', onUpdate: 'NO_ACTION', cols: [{ col: name, ref: refCols[0] ? refCols[0].name : name }] };
         dbcmpScriptFkAction(cur, fk);
         if (tbl.fks) tbl.fks.push(fk);
@@ -9957,9 +9958,24 @@
       }
     });
     // A script has no dependency catalog, so table type users are found by name.
+    // Each definition is split into words once instead of one regex scan per table type.
+    var wordRe = /[\w@#$ª-￿]+/g;
+    var byWord = dbcmpMap();
+    var odd = [];
     raw.tableTypes.forEach(function (tt) {
-      var re = new RegExp('(^|[^\\w@#$])' + tt.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '($|[^\\w@#$])', 'i');
-      raw.modules.forEach(function (m) { if (re.test(m.def)) tt.usedBy.push({ schema: m.schema, name: m.name }); });
+      if (/^[\w@#$ª-￿]+$/.test(tt.name)) (byWord[dbcmpLower(tt.name)] = byWord[dbcmpLower(tt.name)] || []).push(tt);
+      else odd.push({ tt: tt, re: new RegExp('(^|[^\\w@#$])' + tt.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '($|[^\\w@#$])', 'i') });
+    });
+    if (raw.tableTypes.length) raw.modules.forEach(function (m) {
+      var users = dbcmpMap();
+      var w;
+      wordRe.lastIndex = 0;
+      while ((w = wordRe.exec(m.def))) {
+        var list = byWord[dbcmpLower(w[0])];
+        if (list) list.forEach(function (tt) { users[dbcmpKey(tt.schema, tt.name)] = tt; });
+      }
+      odd.forEach(function (o) { if (o.re.test(m.def)) users[dbcmpKey(o.tt.schema, o.tt.name)] = o.tt; });
+      Object.keys(users).forEach(function (k) { users[k].usedBy.push({ schema: m.schema, name: m.name }); });
     });
     return raw;
   }
@@ -10088,7 +10104,9 @@
       dbcmpExpr(ix.filter)].join('|');
   }
   function dbcmpIxKey(ix) { return ix.pk ? 'pk' : dbcmpItemKey(ix, dbcmpIxSig(ix)); }
-  function dbcmpIxLabel(ix) { return (ix.pk ? 'Primary key ' : ix.uq ? 'Unique ' : 'Index ') + ix.name; }
+  function dbcmpIxLabel(ix) { return (ix.pk ? 'Primary key' : ix.uq ? 'Unique' : 'Index') + (ix.name ? ' ' + ix.name : ''); }
+  function dbcmpCkLabel(ck) { return 'Check' + (ck.name ? ' ' + ck.name : ''); }
+  function dbcmpFkLabel(fk) { return 'FK' + (fk.name ? ' ' + fk.name : ''); }
   function dbcmpIxCreate(tbl, ix) {
     var keys = dbcmpIxCols(ix, false).map(function (c) { return dbcmpQn(c.name) + (c.desc ? ' DESC' : ' ASC'); }).join(', ');
     var type = ix.kind === 'CLUSTERED' ? 'CLUSTERED' : 'NONCLUSTERED';
@@ -10124,40 +10142,100 @@
   }
   function dbcmpDropConstraint(tbl, name) { return 'ALTER TABLE ' + tbl + ' DROP CONSTRAINT ' + dbcmpQn(name); }
 
-  function dbcmpTouches(names, affected) {
-    return names.some(function (n) { return affected[dbcmpLower(n)]; });
+  function dbcmpLit(v) { return "N'" + String(v).replace(/'/g, "''") + "'"; }
+  function dbcmpObjId(tbl) { return 'OBJECT_ID(' + dbcmpLit(tbl) + ')'; }
+  function dbcmpListLit(names) { return dbcmpLit(names.map(function (n) { return n + ','; }).join('')); }
+  var DBCMP_XML_TEXT = " FOR XML PATH(''), TYPE).value('.', 'nvarchar(max)')";
+  // SSMS leaves system-generated constraint names out, so those are looked up on the target at run time.
+  function dbcmpDropLookup(tbl, lookup) {
+    return 'DECLARE @c sysname;\n' + lookup + ';\n' +
+      "IF @c IS NOT NULL EXEC (N'ALTER TABLE " + tbl.replace(/'/g, "''") + " DROP CONSTRAINT ' + QUOTENAME(@c));";
   }
-  function dbcmpCkTouches(ck, affected) {
-    if (ck.col) return !!affected[dbcmpLower(ck.col)];
-    var def = dbcmpLower(ck.def);
-    return Object.keys(affected).some(function (n) { return def.indexOf('[' + n + ']') !== -1; });
+  function dbcmpDfDrop(tbl, col) {
+    if (col.dfName) return dbcmpDropConstraint(tbl, col.dfName);
+    return dbcmpDropLookup(tbl, 'SELECT @c = dc.name FROM sys.default_constraints dc' +
+      ' JOIN sys.columns c ON c.object_id = dc.parent_object_id AND c.column_id = dc.parent_column_id' +
+      ' WHERE dc.parent_object_id = ' + dbcmpObjId(tbl) + ' AND c.name = ' + dbcmpLit(col.name));
+  }
+  function dbcmpIxDropSql(tbl, ix) {
+    if (ix.name || !(ix.pk || ix.uq)) return dbcmpIxDrop(tbl, ix);
+    var q = 'SELECT @c = k.name FROM sys.key_constraints k WHERE k.parent_object_id = ' + dbcmpObjId(tbl) + " AND k.type = '" + (ix.pk ? 'PK' : 'UQ') + "'";
+    if (ix.uq) {
+      q += " AND (SELECT c.name + N',' FROM sys.index_columns ic JOIN sys.columns c ON c.object_id = ic.object_id AND c.column_id = ic.column_id" +
+        ' WHERE ic.object_id = k.parent_object_id AND ic.index_id = k.unique_index_id AND ic.is_included_column = 0 ORDER BY ic.key_ordinal' +
+        DBCMP_XML_TEXT + ' = ' + dbcmpListLit(dbcmpIxCols(ix, false).map(function (c) { return c.name; }));
+    }
+    return dbcmpDropLookup(tbl, q);
+  }
+  function dbcmpCkDrop(tbl, ck) {
+    if (ck.name) return dbcmpDropConstraint(tbl, ck.name);
+    return dbcmpDropLookup(tbl, 'SELECT @c = ck.name FROM sys.check_constraints ck WHERE ck.parent_object_id = ' + dbcmpObjId(tbl) +
+      " AND REPLACE(REPLACE(REPLACE(REPLACE(ck.definition, N' ', N''), NCHAR(9), N''), NCHAR(13), N''), NCHAR(10), N'') = " + dbcmpLit(dbcmpExpr(ck.def)));
+  }
+  function dbcmpFkWhere(tbl, fk, byShape) {
+    var w = 'fk.parent_object_id = ' + dbcmpObjId(tbl);
+    if (fk.name && !byShape) return w + ' AND fk.name = ' + dbcmpLit(fk.name);
+    return w + ' AND fk.referenced_object_id = ' + dbcmpObjId(dbcmpFull(fk.refSchema, fk.refTable)) +
+      " AND (SELECT pc.name + N',' FROM sys.foreign_key_columns fkc" +
+      ' JOIN sys.columns pc ON pc.object_id = fkc.parent_object_id AND pc.column_id = fkc.parent_column_id' +
+      ' WHERE fkc.constraint_object_id = fk.object_id ORDER BY fkc.constraint_column_id' +
+      DBCMP_XML_TEXT + ' = ' + dbcmpListLit(fk.cols.map(function (c) { return c.col; }));
+  }
+  // FK drops and adds are guarded: a key rebuilt on another table drops and puts back the same FK.
+  function dbcmpFkDrop(tbl, fk) { return dbcmpDropLookup(tbl, 'SELECT @c = fk.name FROM sys.foreign_keys fk WHERE ' + dbcmpFkWhere(tbl, fk, false)); }
+  function dbcmpFkAdd(tbl, fk) {
+    return 'IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys fk WHERE ' + dbcmpFkWhere(tbl, fk, true) + ')\n    ' + dbcmpFkCreate(tbl, fk);
   }
 
   // Everything needed to turn table T (target) into table S (source).
-  // keyCols: columns whose keys/indexes get rebuilt, so FKs from other tables
-  // that reference them must be dropped first.
+  // entries: the changes the user can tick. steps: the SQL; a step is kept when
+  // any of its deps is ticked and all of its req (new columns it uses) are.
+  // Phases: 0 drop FKs, 1 drop defaults/checks/indexes, 3 columns, 4 add
+  // indexes/checks/defaults, 5 add FKs (-1 and 6 are FKs of other tables, see dbcmpCrossFks).
   function dbcmpTablePlan(S, T, opts) {
     var tbl = dbcmpFull(S.schema, S.name);
     var label = S.schema + '.' + S.name;
-    var p = { details: [], warnings: [], dropFks: [], dropCons: [], alter: [], addCons: [], addFks: [], keyCols: dbcmpMap(), colChanges: [] };
+    var tableKey = dbcmpKey(S.schema, S.name);
+    var p = { details: [], warnings: [], entries: [], steps: [] };
     var sCols = dbcmpMap();
     var tCols = dbcmpMap();
     S.columns.forEach(function (c) { sCols[dbcmpLower(c.name)] = c; });
     T.columns.forEach(function (c) { tCols[dbcmpLower(c.name)] = c; });
+    function entry(key, sign, name, desc, on) {
+      p.entries.push({ key: key, sign: sign, name: name, desc: desc || '', on: on });
+      p.details.push(sign + ' ' + name + (desc ? ' ' + desc : ''));
+    }
+    function step(phase, order, sql, deps, extra) {
+      if (deps.length) p.steps.push($.extend({ phase: phase, order: order, sql: sql, deps: deps }, extra));
+    }
+    var affected = dbcmpMap(); // existing columns that are altered, rebuilt or dropped
+    var added = dbcmpMap();
+    function colKeys(names, set) {
+      return names.map(dbcmpLower).filter(function (n) { return set[n]; }).map(function (n) { return 'col:' + n; });
+    }
+    function ckNames(ck) {
+      if (ck.col) return [ck.col];
+      var def = dbcmpLower(ck.def);
+      return Object.keys(sCols).concat(Object.keys(tCols)).filter(function (n) { return def.indexOf('[' + n + ']') !== -1; });
+    }
+    function ixNames(ix) { return ix.cols.map(function (c) { return c.name; }); }
+    function ixDesc(ix) { return '(' + dbcmpIxCols(ix, false).map(function (c) { return c.name; }).join(', ') + ')'; }
+    function fkNames(fk) { return fk.cols.map(function (c) { return c.col; }); }
+    function fkDesc(fk) { return '(' + fkNames(fk).join(', ') + ') → ' + fk.refSchema + '.' + fk.refTable; }
 
-    var affected = dbcmpMap();
-    var addCols = [];
-    var dropCols = [];
-    var alterCols = [];
-    var rebuildCols = [];
     S.columns.forEach(function (c) {
-      var t = tCols[dbcmpLower(c.name)];
+      var n = dbcmpLower(c.name);
+      var t = tCols[n];
       if (!t) {
-        addCols.push(c);
-        p.details.push('+ ' + c.name + ' ' + dbcmpColDesc(c, opts));
+        added[n] = true;
+        entry('col:' + n, '+', c.name, dbcmpColDesc(c, opts), true);
+        var note = '';
         if (!c.nullable && !c.dfDef && !c.computed && !c.identity) {
           p.warnings.push(label + '.' + c.name + ': เพิ่มคอลัมน์ NOT NULL ที่ไม่มี DEFAULT จะ error ถ้าตารางมีข้อมูลอยู่แล้ว');
+          note = '-- NOT NULL without a default: fails if the table already has rows\n';
         }
+        // Plain columns first: computed columns may reference the ones being added.
+        step(3, c.computed ? 4 : 3, note + 'ALTER TABLE ' + tbl + ' ADD ' + dbcmpColDef(c, opts, 'create'), ['col:' + n]);
         return;
       }
       if (dbcmpColSig(c, opts) === dbcmpColSig(t, opts)) return;
@@ -10166,28 +10244,25 @@
         p.warnings.push(label + '.' + c.name + ': เปลี่ยน IDENTITY ด้วย ALTER ไม่ได้ ต้องสร้างตารางใหม่เอง (ไม่ได้ใส่ใน script)');
         return;
       }
-      affected[dbcmpLower(c.name)] = true;
-      p.details.push('~ ' + c.name + ': ' + dbcmpColDesc(t, opts) + ' → ' + dbcmpColDesc(c, opts));
-      if (c.computed || t.computed) rebuildCols.push(c);
-      else {
-        alterCols.push(c);
-        var one = dbcmpMap();
-        one[dbcmpLower(c.name)] = true;
-        p.colChanges.push({ col: c, old: t, deps: !!t.dfDef ||
-          T.indexes.some(function (ix) { return dbcmpTouches(ix.cols.map(function (k) { return k.name; }), one); }) ||
-          T.checks.some(function (ck) { return dbcmpCkTouches(ck, one); }) ||
-          T.fks.some(function (fk) { return dbcmpTouches(fk.cols.map(function (k) { return k.col; }), one); }) });
+      affected[n] = true;
+      entry('col:' + n, '~', c.name, dbcmpColDesc(t, opts) + ' → ' + dbcmpColDesc(c, opts), true);
+      if (c.computed || t.computed) {
+        step(3, 1, 'ALTER TABLE ' + tbl + ' DROP COLUMN ' + dbcmpQn(c.name), ['col:' + n]);
+        // The default is added in phase 4 with the other defaults of existing columns.
+        step(3, c.computed ? 4 : 3, 'ALTER TABLE ' + tbl + ' ADD ' + dbcmpColDef($.extend({}, c, { dfDef: '' }), opts, 'create'), ['col:' + n]);
+      } else {
+        step(3, 2, '-- was: ' + dbcmpSafeComment(dbcmpColDesc(t, opts)) + '\nALTER TABLE ' + tbl + ' ALTER COLUMN ' + dbcmpColDef(c, opts, 'alter'), ['col:' + n]);
         if (t.nullable && !c.nullable) p.warnings.push(label + '.' + c.name + ': เปลี่ยนเป็น NOT NULL จะ error ถ้ามีข้อมูลที่เป็น NULL อยู่');
       }
     });
     T.columns.forEach(function (c) {
-      if (sCols[dbcmpLower(c.name)]) return;
-      dropCols.push(c);
-      affected[dbcmpLower(c.name)] = true;
-      p.details.push('- ' + c.name + ' ' + dbcmpColDesc(c, opts));
-      p.warnings.push(label + '.' + c.name + ': ลบคอลัมน์ ข้อมูลในคอลัมน์นี้จะหายไป');
+      var n = dbcmpLower(c.name);
+      if (sCols[n]) return;
+      affected[n] = true;
+      entry('col:' + n, '-', c.name, dbcmpColDesc(c, opts), false);
+      p.warnings.push(label + '.' + c.name + ': ลบคอลัมน์ ข้อมูลในคอลัมน์นี้จะหายไป (ค่าเริ่มต้นไม่ได้เลือก)');
+      step(3, 0, '-- Data in this column is lost\nALTER TABLE ' + tbl + ' DROP COLUMN ' + dbcmpQn(c.name), ['col:' + n]);
     });
-    Object.keys(affected).forEach(function (n) { p.keyCols[n] = true; });
 
     // Defaults of added columns go inline with ADD, so only existing columns are handled here.
     T.columns.forEach(function (t) {
@@ -10197,8 +10272,12 @@
       var differs = !s || !s.dfDef || dbcmpExpr(s.dfDef) !== dbcmpExpr(t.dfDef) ||
         (!s.dfSys && !t.dfSys && dbcmpLower(s.dfName) !== dbcmpLower(t.dfName));
       if (!differs && !affected[n]) return;
-      p.dropCons.push(dbcmpDropConstraint(tbl, t.dfName));
-      if (s && !affected[n]) p.details.push((s.dfDef ? '~ Default ' : '- Default ') + t.name);
+      var deps = affected[n] ? ['col:' + n] : [];
+      if (differs && s) {
+        deps.push('df:' + n);
+        entry('df:' + n, s.dfDef ? '~' : '-', 'Default ' + t.name, s.dfDef ? t.dfDef + ' → ' + s.dfDef : t.dfDef, !!s.dfDef);
+      }
+      step(1, 0, dbcmpDfDrop(tbl, t), deps);
     });
     S.columns.forEach(function (s) {
       if (!s.dfDef || s.computed) return;
@@ -10208,8 +10287,12 @@
       var differs = !t.dfDef || dbcmpExpr(s.dfDef) !== dbcmpExpr(t.dfDef) ||
         (!s.dfSys && !t.dfSys && dbcmpLower(s.dfName) !== dbcmpLower(t.dfName));
       if (!differs && !affected[n]) return;
-      p.addCons.push({ order: 3, sql: 'ALTER TABLE ' + tbl + ' ADD ' + (s.dfSys ? '' : 'CONSTRAINT ' + dbcmpQn(s.dfName) + ' ') + 'DEFAULT ' + s.dfDef + ' FOR ' + dbcmpQn(s.name) });
-      if (!t.dfDef && !affected[n]) p.details.push('+ Default ' + s.name);
+      var deps = affected[n] ? ['col:' + n] : [];
+      if (differs) {
+        deps.push('df:' + n);
+        if (!t.dfDef) entry('df:' + n, '+', 'Default ' + s.name, s.dfDef, true);
+      }
+      step(4, 3, 'ALTER TABLE ' + tbl + ' ADD ' + (s.dfSys ? '' : 'CONSTRAINT ' + dbcmpQn(s.dfName) + ' ') + 'DEFAULT ' + s.dfDef + ' FOR ' + dbcmpQn(s.name), deps);
     });
 
     var sIx = dbcmpMap();
@@ -10217,19 +10300,28 @@
     S.indexes.forEach(function (ix) { sIx[dbcmpIxKey(ix)] = ix; });
     T.indexes.forEach(function (ix) { tIx[dbcmpIxKey(ix)] = ix; });
     T.indexes.forEach(function (ix) {
+      var k = 'ix:' + dbcmpIxKey(ix);
       var s = sIx[dbcmpIxKey(ix)];
       var changed = !s || dbcmpIxSig(s) !== dbcmpIxSig(ix);
-      if (!changed && !dbcmpTouches(ix.cols.map(function (c) { return c.name; }), affected)) return;
-      p.dropCons.push({ order: ix.kind === 'CLUSTERED' ? 1 : 0, sql: dbcmpIxDrop(tbl, ix) });
-      if (ix.pk || ix.uq || ix.unique) ix.cols.forEach(function (c) { p.keyCols[dbcmpLower(c.name)] = true; });
-      if (changed) p.details.push((s ? '~ ' : '- ') + dbcmpIxLabel(ix));
+      var deps = colKeys(ixNames(ix), affected);
+      if (changed) {
+        deps.push(k);
+        if (!s) entry(k, '-', dbcmpIxLabel(ix), ixDesc(ix), false);
+      }
+      // Nonclustered first: dropping the clustered index first would rebuild them all.
+      step(1, ix.kind === 'CLUSTERED' ? 1 : 0, dbcmpIxDropSql(tbl, ix), deps,
+        ix.pk || ix.uq || ix.unique ? { keyDrop: ixNames(ix).map(dbcmpLower) } : null);
     });
     S.indexes.forEach(function (ix) {
+      var k = 'ix:' + dbcmpIxKey(ix);
       var t = tIx[dbcmpIxKey(ix)];
       var changed = !t || dbcmpIxSig(t) !== dbcmpIxSig(ix);
-      if (!changed && !dbcmpTouches(ix.cols.map(function (c) { return c.name; }), affected)) return;
-      p.addCons.push({ order: ix.kind === 'CLUSTERED' ? 0 : 1, sql: dbcmpIxCreate(tbl, ix) });
-      if (!t) p.details.push('+ ' + dbcmpIxLabel(ix));
+      var deps = colKeys(ixNames(ix), affected);
+      if (changed) {
+        deps.push(k);
+        entry(k, t ? '~' : '+', dbcmpIxLabel(ix), ixDesc(ix), true);
+      }
+      step(4, ix.kind === 'CLUSTERED' ? 0 : 1, dbcmpIxCreate(tbl, ix), deps, { req: colKeys(ixNames(ix), added) });
     });
 
     var sCk = dbcmpMap();
@@ -10237,53 +10329,103 @@
     S.checks.forEach(function (ck) { sCk[dbcmpCkKey(ck)] = ck; });
     T.checks.forEach(function (ck) { tCk[dbcmpCkKey(ck)] = ck; });
     T.checks.forEach(function (ck) {
+      var k = 'ck:' + dbcmpCkKey(ck);
       var s = sCk[dbcmpCkKey(ck)];
       var changed = !s || dbcmpExpr(s.def) !== dbcmpExpr(ck.def);
-      if (!changed && !dbcmpCkTouches(ck, affected)) return;
-      p.dropCons.push(dbcmpDropConstraint(tbl, ck.name));
-      if (changed) p.details.push((s ? '~ Check ' : '- Check ') + ck.name);
+      var deps = colKeys(ckNames(ck), affected);
+      if (changed) {
+        deps.push(k);
+        if (!s) entry(k, '-', dbcmpCkLabel(ck), ck.def, false);
+      }
+      step(1, 0, dbcmpCkDrop(tbl, ck), deps);
     });
     S.checks.forEach(function (ck) {
+      var k = 'ck:' + dbcmpCkKey(ck);
       var t = tCk[dbcmpCkKey(ck)];
       var changed = !t || dbcmpExpr(t.def) !== dbcmpExpr(ck.def);
-      if (!changed && !dbcmpCkTouches(ck, affected)) return;
-      p.addCons.push({ order: 2, sql: dbcmpCkCreate(tbl, ck) });
-      if (!t) p.details.push('+ Check ' + ck.name);
+      var deps = colKeys(ckNames(ck), affected);
+      if (changed) {
+        deps.push(k);
+        entry(k, t ? '~' : '+', dbcmpCkLabel(ck), ck.def, true);
+      }
+      step(4, 2, dbcmpCkCreate(tbl, ck), deps, { req: colKeys(ckNames(ck), added) });
     });
 
-    var tableKey = dbcmpKey(S.schema, S.name);
     var sFk = dbcmpMap();
     var tFk = dbcmpMap();
     S.fks.forEach(function (fk) { sFk[dbcmpFkKey(tableKey, fk)] = fk; });
     T.fks.forEach(function (fk) { tFk[dbcmpFkKey(tableKey, fk)] = fk; });
     T.fks.forEach(function (fk) {
-      var key = dbcmpFkKey(tableKey, fk);
-      var s = sFk[key];
+      var k = dbcmpFkKey(tableKey, fk);
+      var s = sFk[k];
       var changed = !s || dbcmpFkSig(s) !== dbcmpFkSig(fk);
-      if (!changed && !dbcmpTouches(fk.cols.map(function (c) { return c.col; }), affected)) return;
-      p.dropFks.push({ key: key, sql: dbcmpDropConstraint(tbl, fk.name) });
-      if (changed) p.details.push((s ? '~ FK ' : '- FK ') + fk.name);
+      var deps = colKeys(fkNames(fk), affected);
+      if (changed) {
+        deps.push(k);
+        if (!s) entry(k, '-', dbcmpFkLabel(fk), fkDesc(fk), false);
+      }
+      step(0, 0, dbcmpFkDrop(tbl, fk), deps);
     });
     S.fks.forEach(function (fk) {
-      var key = dbcmpFkKey(tableKey, fk);
-      var t = tFk[key];
+      var k = dbcmpFkKey(tableKey, fk);
+      var t = tFk[k];
       var changed = !t || dbcmpFkSig(t) !== dbcmpFkSig(fk);
-      if (!changed && !dbcmpTouches(fk.cols.map(function (c) { return c.col; }), affected)) return;
-      p.addFks.push({ key: key, sql: dbcmpFkCreate(tbl, fk) });
-      if (!t) p.details.push('+ FK ' + fk.name);
+      var deps = colKeys(fkNames(fk), affected);
+      if (changed) {
+        deps.push(k);
+        entry(k, t ? '~' : '+', dbcmpFkLabel(fk), fkDesc(fk), true);
+      }
+      step(5, 0, dbcmpFkAdd(tbl, fk), deps, { req: colKeys(fkNames(fk), added) });
     });
 
-    dropCols.forEach(function (c) { p.alter.push('ALTER TABLE ' + tbl + ' DROP COLUMN ' + dbcmpQn(c.name)); });
-    rebuildCols.forEach(function (c) { p.alter.push('ALTER TABLE ' + tbl + ' DROP COLUMN ' + dbcmpQn(c.name)); });
-    alterCols.forEach(function (c) { p.alter.push('ALTER TABLE ' + tbl + ' ALTER COLUMN ' + dbcmpColDef(c, opts, 'alter')); });
-    // Plain columns first: computed columns may reference the ones being added.
-    addCols.concat(rebuildCols).sort(function (a, b) { return !!a.computed - !!b.computed; }).forEach(function (c) {
-      p.alter.push('ALTER TABLE ' + tbl + ' ADD ' + dbcmpColDef(c, opts, 'create'));
-    });
-
-    p.dropCons = p.dropCons.map(function (x) { return typeof x === 'string' ? { order: 0, sql: x } : x; });
-    p.changed = !!(p.dropFks.length || p.dropCons.length || p.alter.length || p.addCons.length || p.addFks.length || p.warnings.length);
+    p.changed = !!(p.entries.length || p.warnings.length);
     return p;
+  }
+
+  // FKs of other tables (and self references) that point at a key this plan
+  // drops: they are dropped first and the source version is put back last.
+  function dbcmpCrossFks(tableKey, plan, src, tgt) {
+    var keyDrops = plan.steps.filter(function (st) { return st.keyDrop; });
+    if (!keyDrops.length) return;
+    var allDeps = [];
+    keyDrops.forEach(function (st) { allDeps = allDeps.concat(st.deps); });
+    function refsMe(fk) { return dbcmpKey(fk.refSchema, fk.refTable) === tableKey; }
+    function depsFor(fk) {
+      var refs = fk.cols.map(function (c) { return dbcmpLower(c.ref); });
+      var deps = [];
+      keyDrops.forEach(function (st) {
+        if (refs.some(function (r) { return st.keyDrop.indexOf(r) !== -1; })) deps = deps.concat(st.deps);
+      });
+      return deps;
+    }
+    // Tables only in the source are created by file 1, so they exist by the time file 2 runs.
+    Object.keys(tgt.tables).concat(Object.keys(src.tables).filter(function (k) { return !tgt.tables[k]; })).forEach(function (k) {
+      var T2 = tgt.tables[k];
+      var S2 = src.tables[k];
+      var owner = T2 || S2;
+      var otbl = dbcmpFull(owner.schema, owner.name);
+      owner.fks.forEach(function (fk) {
+        if (!refsMe(fk)) return;
+        var deps = depsFor(fk);
+        if (deps.length) plan.steps.push({ phase: -1, order: 0, sql: dbcmpFkDrop(otbl, fk), deps: deps });
+      });
+      // Put back whenever any key is rebuilt; the guard skips FKs that were never dropped.
+      if (S2) S2.fks.forEach(function (fk) {
+        if (refsMe(fk)) plan.steps.push({ phase: 6, order: 0, sql: dbcmpFkAdd(dbcmpFull(S2.schema, S2.name), fk), deps: allDeps });
+      });
+    });
+  }
+
+  // Script of the ticked changes of one plan, in phase order, each statement in its own batch.
+  function dbcmpPlanScript(plan, isOn) {
+    var seen = dbcmpMap();
+    var steps = plan.steps.filter(function (st) {
+      if (!st.deps.some(isOn) || (st.req && !st.req.every(isOn)) || seen[st.sql]) return false;
+      seen[st.sql] = true;
+      return true;
+    });
+    steps.sort(function (a, b) { return (a.phase - b.phase) || (a.order - b.order); });
+    return steps.length ? steps.map(function (st) { return st.sql; }).join('\nGO\n') + '\nGO\n' : '';
   }
 
   function dbcmpModNorm(def, ignoreSpace) {
@@ -10585,10 +10727,8 @@
         items.push($.extend(base, { status: 'drop', checked: false, details: [], warnings: ['ตาราง ' + t.schema + '.' + t.name + ': ลบตาราง ข้อมูลทั้งหมดจะหายไป'] }));
       } else {
         var plan = dbcmpTablePlan(s, t, opts);
-        var tNames = dbcmpMap();
-        t.columns.forEach(function (c) { tNames[dbcmpLower(c.name)] = true; });
-        var newCols = s.columns.filter(function (c) { return !tNames[dbcmpLower(c.name)]; });
-        if (plan.changed) items.push($.extend(base, { status: 'change', checked: true, details: plan.details, warnings: plan.warnings, plan: plan, newCols: newCols, colChanges: plan.colChanges }));
+        dbcmpCrossFks(k, plan, src, tgt);
+        if (plan.changed) items.push($.extend(base, { status: 'change', checked: true, details: plan.details, warnings: plan.warnings, plan: plan }));
       }
     });
 
@@ -10612,7 +10752,8 @@
       }
       item.def = def;
       // The object's text as it is in the source file, header and SET batches included.
-      item.script = s && typeof s.script === 'string' ? dbcmpApplyDbMap(s.script, opts.dbMap) : null;
+      // Only new objects are scripted from it, so the others skip the rewrite.
+      item.script = item.status === 'add' && typeof s.script === 'string' ? dbcmpApplyDbMap(s.script, opts.dbMap) : null;
       item.unmapped = s ? unknownDbs(def) : [];
       if (item.unmapped.length) {
         item.warnings.push(m.schema + '.' + m.name + ': อ้างอิงฐานข้อมูล ' + item.unmapped.join(', ') + ' ซึ่งฝั่งปลายทางไม่ได้ใช้');
@@ -10627,31 +10768,18 @@
     return items;
   }
 
-  // Full CREATE script of one table: columns, then keys/indexes, checks and foreign keys.
+  // CREATE script of one table: columns, then keys/indexes and checks. Foreign
+  // keys are returned apart so the file adds them after every new table exists.
   function dbcmpTableScript(S, opts) {
     var tbl = dbcmpFull(S.schema, S.name);
     var out = ['CREATE TABLE ' + tbl + ' (\n    ' + S.columns.map(function (c) { return dbcmpColDef(c, opts, 'create'); }).join(',\n    ') + '\n)'];
     S.indexes.slice().sort(function (a, b) { return (b.kind === 'CLUSTERED') - (a.kind === 'CLUSTERED'); })
       .forEach(function (ix) { out.push(dbcmpIxCreate(tbl, ix)); });
     S.checks.forEach(function (ck) { out.push(dbcmpCkCreate(tbl, ck)); });
-    S.fks.forEach(function (fk) { out.push(dbcmpFkCreate(tbl, fk)); });
-    return out.join('\nGO\n') + '\nGO\n';
-  }
-
-  // ALTER script of one existing table: new columns, then type/size/nullability changes.
-  function dbcmpColumnsScript(it, opts) {
-    var tbl = dbcmpFull(it.schema, it.name);
-    var out = [];
-    it.newCols.forEach(function (c) {
-      var note = !c.nullable && !c.dfDef && !c.computed && !c.identity ? '-- NOT NULL without a default: fails if the table already has rows\n' : '';
-      out.push(note + 'ALTER TABLE ' + tbl + ' ADD ' + dbcmpColDef(c, opts, 'create'));
-    });
-    it.colChanges.forEach(function (x) {
-      var note = '-- was: ' + dbcmpSafeComment(dbcmpColDesc(x.old, opts)) + '\n';
-      if (x.deps) note += '-- Used by an index/constraint: if this fails, drop that first and create it again after\n';
-      out.push(note + 'ALTER TABLE ' + tbl + ' ALTER COLUMN ' + dbcmpColDef(x.col, opts, 'alter'));
-    });
-    return out.join('\nGO\n') + '\nGO\n';
+    return {
+      create: out.join('\nGO\n') + '\nGO\n',
+      fks: S.fks.map(function (fk) { return dbcmpFkCreate(tbl, fk) + '\nGO\n'; }).join('')
+    };
   }
 
   function initDbCompareView() {
@@ -10672,8 +10800,10 @@
     var OPTS = { ignoreSpace: true, ignoreCollation: true };
     // Only the parsed schema is kept per side; the file text is dropped after parsing.
     var sides = { source: null, target: null }; // { file, db, error }
-    var scripts = { tables: [], cols: [], newmods: [] };
-    // Unticked rows, kept across re-runs: table key, and 'table key|column' for columns.
+    var scripts = { tables: [], tableFks: [], cols: [], newmods: [] };
+    var $warnings = $('#dbcmp-warnings');
+    // Unticked rows, kept across re-runs: object key, and 'object key|change' for card 2
+    // (cols holds true = unticked, false = ticked, so changes that start unticked can be ticked).
     var skipped = { tables: dbcmpMap(), cols: dbcmpMap(), newmods: dbcmpMap() };
     var tableRows = []; // { key, sql, $check, $head }
     var newmodRows = []; // { key, sql, $check, $head }
@@ -10701,7 +10831,8 @@
     }
     function reset() {
       last = null;
-      scripts = { tables: [], cols: [], newmods: [] };
+      scripts = { tables: [], tableFks: [], cols: [], newmods: [] };
+      $warnings.empty().attr('hidden', true);
       tableRows = [];
       colRows = [];
       newmodRows = [];
@@ -10737,7 +10868,7 @@
     }
     var KINDS = {
       tables: { title: 'New tables', file: '1_new_table_' },
-      cols: { title: 'New / changed columns', file: '2_new_field_' },
+      cols: { title: 'Changes to existing tables and sequences', file: '2_new_field_' },
       newmods: { title: 'New views / procedures / functions', file: '3_new_view_sp_' },
       mods: { title: '', file: '4_view_sp_' }
     };
@@ -10755,7 +10886,10 @@
       }
       var head = '/*\n  ' + KINDS[kind].title + '\n  Source : ' + dbcmpSafeComment(last.src.name) +
         '\n  Target : ' + dbcmpSafeComment(last.tgt.name) + '\n  Run against the TARGET database.\n*/\n';
-      return (head + scripts[kind].join('\n')).replace(/\r?\n/g, '\r\n');
+      var body = scripts[kind];
+      // A new table may reference another new table, so every FK goes after all CREATE TABLE batches.
+      if (kind === 'tables' && scripts.tableFks.length) body = body.concat(['-- Foreign keys of the new tables'], scripts.tableFks);
+      return (head + body.join('\n')).replace(/\r?\n/g, '\r\n');
     }
     // Separate files, not a zip: each one is run on its own, in file-name order.
     async function saveFiles(kinds, report) {
@@ -10861,8 +10995,8 @@
       $mapRows.empty();
       if (modFile && modFile.text) {
         var saved = loadSavedMap();
-        // First pass without a map only collects the database names in the file.
-        var found = dbcmpConvertScript(modFile.text, { mode: 'both', map: null, exists: null }).stats.dbs;
+        // First pass without a map only collects the database names in the file; it depends on the source text only.
+        var found = modFile.found || (modFile.found = dbcmpConvertScript(modFile.text, { mode: 'both', map: null, exists: null }).stats.dbs);
         dbcmpSuggestDbMap(found, targetDb()).forEach(function (r) {
           var sv = Object.prototype.hasOwnProperty.call(saved, r.key) ? saved[r.key] : null;
           r.value = typeof sv === 'string' ? sv : r.suggest;
@@ -10910,7 +11044,8 @@
     // script may be a function when the row's script depends on its checkboxes.
     function makeEntry($head, script, $check) {
       function text() { return typeof script === 'function' ? script() : script; }
-      var $pre = $('<pre>').addClass('m-0 px-4 py-3 bg-surface2 border-b border-line font-mono text-[12px] leading-relaxed whitespace-pre overflow-auto max-h-[420px]').attr('hidden', true).text(text());
+      // Filled on first open: hundreds of hidden full scripts make the DOM heavy.
+      var $pre = $('<pre>').addClass('m-0 px-4 py-3 bg-surface2 border-b border-line font-mono text-[12px] leading-relaxed whitespace-pre overflow-auto max-h-[420px]').attr('hidden', true);
       var $caret = $('<i>').addClass('bi bi-chevron-right flex-none text-inkfaint leading-none');
       var $copy = $('<button type="button">').addClass('flex-none flex items-center gap-1 bg-surface border border-line text-ink text-[11.5px] font-bold px-2 py-0.5 rounded-lg cursor-pointer hover:border-accent hover:text-accentdeep')
         .append($('<i>').addClass('bi bi-clipboard leading-none'), $('<span>').text('คัดลอก'))
@@ -10920,6 +11055,7 @@
         .append($check || [], $caret, $head, $copy);
       function toggle() {
         var open = $pre.is('[hidden]');
+        if (open) $pre.text(text());
         $pre.attr('hidden', !open);
         $row.attr('aria-expanded', open ? 'true' : 'false');
         $caret.toggleClass('bi-chevron-right', !open).toggleClass('bi-chevron-down', open);
@@ -10963,7 +11099,7 @@
     }
 
     function render(items, dbNotes) {
-      scripts = { tables: [], cols: [], newmods: [] };
+      scripts = { tables: [], tableFks: [], cols: [], newmods: [] };
       $tables.empty();
       $cols.empty();
       $newMods.empty();
@@ -10999,79 +11135,95 @@
         .forEach(function (it) { addNewMod(it, it.script !== null ? it.script : it.def + '\nGO\n'); });
       if (!newmodRows.length) $newMods.append($('<div>').addClass('px-4 py-2.5 text-inkfaint').text('ไม่มี View / Procedure / Function ใหม่'));
       else if (dbNotes.length) $newMods.prepend($('<div>').addClass('px-4 py-2 border-b border-line text-[11.5px] text-inksoft break-all').text('ชื่อ DB: ' + dbNotes.join(' · ')));
-      items.forEach(function (it) {
-        if (it.kind !== 'table') return;
+      var SIGN_CLS = { '+': 'text-good', '~': 'text-accentdeep', '-': 'text-bad' };
+      // Card 2 row: one tickable line per change; the script is built from the ticked ones.
+      function addPlanRow(it, plan) {
         var name = it.schema + '.' + it.name;
-        if (it.status === 'add') {
-          var create = dbcmpTableScript(it.src, OPTS);
-          var tr = { key: it.key, sql: create, $check: makeCheck(!skipped.tables[it.key], 'เลือกตาราง ' + name) };
-          tr.$head = $('<span>').addClass('flex flex-1 min-w-0 items-center justify-between gap-3').append(
-            $('<span>').addClass('font-mono font-semibold text-good break-all').text(name),
-            $('<span>').addClass('flex-none text-inksoft').text(it.src.columns.length + ' คอลัมน์')
-          );
-          tr.$check.on('change', function () {
-            if (this.checked) delete skipped.tables[it.key]; else skipped.tables[it.key] = true;
-            syncScripts();
-          });
-          tableRows.push(tr);
-          $tables.append(makeEntry(tr.$head, create, tr.$check));
-          return;
+        var defaults = dbcmpMap();
+        function fullKey(k) { return it.kind + ':' + it.key + '|' + k; }
+        function isOn(k) {
+          var v = skipped.cols[fullKey(k)];
+          return v === undefined ? !!defaults[fullKey(k)] : !v;
         }
-        if (it.status !== 'change' || !(it.newCols.length + it.colChanges.length)) return;
-        var cr = { cols: [], $check: makeCheck(true, 'เลือกทุกคอลัมน์ของ ' + name) };
-        function colKey(colName) { return it.key + '|' + dbcmpLower(colName); }
-        function on(colName) { return !skipped.cols[colKey(colName)]; }
+        plan.entries.forEach(function (e) { defaults[fullKey(e.key)] = e.on; });
+        var cr = { cols: [], $check: makeCheck(true, 'เลือกทั้งหมดของ ' + name) };
+        // syncScripts asks every row on each tick, so the script is rebuilt only when this row's ticks change.
         cr.script = function () {
-          var part = $.extend({}, it, {
-            newCols: it.newCols.filter(function (c) { return on(c.name); }),
-            colChanges: it.colChanges.filter(function (x) { return on(x.col.name); })
-          });
-          return part.newCols.length + part.colChanges.length ? dbcmpColumnsScript(part, OPTS) : '';
+          var sig = plan.entries.map(function (e) { return isOn(e.key) ? '1' : '0'; }).join('');
+          if (sig !== cr.sig) { cr.sig = sig; cr.sql = dbcmpPlanScript(plan, isOn); }
+          return cr.sql;
         };
+        var counts = { '+': 0, '~': 0, '-': 0 };
+        plan.entries.forEach(function (e) { counts[e.sign]++; });
         var summary = [];
-        if (it.newCols.length) summary.push('เพิ่ม ' + it.newCols.length);
-        if (it.colChanges.length) summary.push('แก้ไข ' + it.colChanges.length);
+        if (counts['+']) summary.push('เพิ่ม ' + counts['+']);
+        if (counts['~']) summary.push('แก้ไข ' + counts['~']);
+        if (counts['-']) summary.push('ลบ ' + counts['-']);
         cr.$head = $('<span>').addClass('flex flex-1 min-w-0 items-center justify-between gap-3').append(
           $('<span>').addClass('font-mono font-semibold text-ink break-all').text(name),
-          $('<span>').addClass('flex-none text-inksoft').text(summary.join(' · '))
+          $('<span>').addClass('flex-none text-inksoft').text(it.kind === 'sequence' ? 'Sequence' : summary.join(' · '))
         );
         var entry = makeEntry(cr.$head, cr.script, cr.$check);
         cr.$pre = entry[1];
         $cols.append(entry);
         var $ul = $('<ul>').addClass('m-0 list-none px-4 py-1.5 pl-[42px] border-b border-line font-mono text-[11.5px] leading-relaxed');
-        function addCol(colName, $parts) {
-          var c = { key: colKey(colName), $check: makeCheck(on(colName), 'เลือกคอลัมน์ ' + name + '.' + colName) };
-          c.$li = $('<li>').addClass('flex items-start gap-2 break-all').append(c.$check.addClass('mt-0.5'), $('<span>').addClass('min-w-0').append($parts));
+        plan.entries.forEach(function (e) {
+          var c = { key: fullKey(e.key), on: function () { return isOn(e.key); } };
+          c.$check = makeCheck(c.on(), 'เลือก ' + name + ' ' + e.name);
+          c.$li = $('<li>').addClass('flex items-start gap-2 break-all').append(c.$check.addClass('mt-0.5'), $('<span>').addClass('min-w-0').append(
+            $('<span>').addClass('font-semibold ' + SIGN_CLS[e.sign]).text(e.sign + ' ' + e.name + ' '),
+            $('<span>').addClass('text-inksoft').text(e.desc)
+          ));
           c.$check.on('change', function () {
-            if (this.checked) delete skipped.cols[c.key]; else skipped.cols[c.key] = true;
+            skipped.cols[c.key] = !this.checked;
             syncScripts();
           });
           cr.cols.push(c);
           $ul.append(c.$li);
-        }
-        it.newCols.forEach(function (c) {
-          addCol(c.name, [
-            $('<span>').addClass('font-semibold text-good').text('+ ' + c.name + ' '),
-            $('<span>').addClass('text-inksoft').text(dbcmpColDesc(c, OPTS))
-          ]);
         });
-        it.colChanges.forEach(function (x) {
-          addCol(x.col.name, [
-            $('<span>').addClass('font-semibold text-accentdeep').text('~ ' + x.col.name + ' '),
-            $('<span>').addClass('text-inksoft').text(dbcmpColDesc(x.old, OPTS) + ' → ' + dbcmpColDesc(x.col, OPTS))
-          ]);
-        });
-        // The table box drives all of its columns.
+        (plan.warnings || []).forEach(function (w) { $ul.append($('<li>').addClass('text-bad break-all').text('! ' + w)); });
+        // The table box drives all of its changes.
         cr.$check.on('change', function () {
           var checked = this.checked;
-          cr.cols.forEach(function (c) { if (checked) delete skipped.cols[c.key]; else skipped.cols[c.key] = true; });
+          cr.cols.forEach(function (c) { skipped.cols[c.key] = !checked; });
           syncScripts();
         });
         colRows.push(cr);
         $cols.append($ul);
+      }
+      items.forEach(function (it) {
+        if (it.kind !== 'table' && it.kind !== 'sequence') return;
+        var name = it.schema + '.' + it.name;
+        if (it.status === 'add') {
+          // Sequences sort first, so a new table whose default uses one comes after it.
+          var isSeq = it.kind === 'sequence';
+          var parts = isSeq ? { create: dbcmpSeqCreate(it.src) + '\nGO\n', fks: '' } : dbcmpTableScript(it.src, OPTS);
+          var key = it.kind + ':' + it.key;
+          var tr = { key: key, sql: parts.create, fk: parts.fks, $check: makeCheck(!skipped.tables[key], 'เลือก ' + name) };
+          tr.$head = $('<span>').addClass('flex flex-1 min-w-0 items-center justify-between gap-3').append(
+            $('<span>').addClass('font-mono font-semibold text-good break-all').text(name),
+            $('<span>').addClass('flex-none text-inksoft').text(isSeq ? 'Sequence' : it.src.columns.length + ' คอลัมน์')
+          );
+          tr.$check.on('change', function () {
+            if (this.checked) delete skipped.tables[key]; else skipped.tables[key] = true;
+            syncScripts();
+          });
+          tableRows.push(tr);
+          $tables.append(makeEntry(tr.$head, parts.create + parts.fks, tr.$check));
+          return;
+        }
+        if (it.status !== 'change') return;
+        if (it.kind === 'table') addPlanRow(it, it.plan);
+        else if (it.plan.sql) {
+          addPlanRow(it, {
+            entries: [{ key: 'seq', sign: '~', name: 'Sequence', desc: it.details.join(' · '), on: true }],
+            steps: [{ phase: 0, order: 0, sql: it.plan.sql, deps: ['seq'] }],
+            warnings: []
+          });
+        }
       });
       if (!tableRows.length) $tables.append($('<div>').addClass('px-4 py-2.5 text-inkfaint').text('ไม่มีตารางใหม่'));
-      if (!colRows.length) $cols.append($('<div>').addClass('px-4 py-2.5 text-inkfaint').text('ไม่มีคอลัมน์ใหม่หรือคอลัมน์ที่แก้ไข'));
+      if (!colRows.length) $cols.append($('<div>').addClass('px-4 py-2.5 text-inkfaint').text('ไม่มีการเปลี่ยนแปลงในตารางเดิม'));
       return syncScripts();
     }
 
@@ -11082,10 +11234,13 @@
       }
       function countText(n, total) { return n === total ? total.toLocaleString() : n.toLocaleString() + '/' + total.toLocaleString(); }
       scripts.tables = [];
+      scripts.tableFks = [];
       tableRows.forEach(function (r) {
         var checked = r.$check.prop('checked');
         r.$head.toggleClass('opacity-50', !checked);
-        if (checked) scripts.tables.push(r.sql);
+        if (!checked) return;
+        scripts.tables.push(r.sql);
+        if (r.fk) scripts.tableFks.push(r.fk);
       });
       scripts.newmods = [];
       newmodRows.forEach(function (r) {
@@ -11102,7 +11257,7 @@
       colRows.forEach(function (r) {
         var n = 0;
         r.cols.forEach(function (c) {
-          var checked = !skipped.cols[c.key];
+          var checked = c.on();
           c.$check.prop('checked', checked);
           c.$li.toggleClass('opacity-50', !checked);
           if (checked) n++;
@@ -11110,7 +11265,7 @@
         boxState(r.$check, n, r.cols.length);
         r.$head.toggleClass('opacity-50', !n);
         var sql = r.script();
-        r.$pre.text(sql);
+        if (!r.$pre.is('[hidden]')) r.$pre.text(sql);
         if (sql) scripts.cols.push(sql);
         colCount += n;
         colTotal += r.cols.length;
@@ -11127,7 +11282,7 @@
       var kind = $(this).data('kind');
       if (kind === 'cols') {
         colRows.forEach(function (r) {
-          r.cols.forEach(function (c) { if (checked) delete skipped.cols[c.key]; else skipped.cols[c.key] = true; });
+          r.cols.forEach(function (c) { skipped.cols[c.key] = !checked; });
         });
       } else if (kind === 'newmods') {
         newmodRows.forEach(function (r) { if (checked) delete skipped.newmods[r.key]; else skipped.newmods[r.key] = true; });
@@ -11147,8 +11302,21 @@
       if (!src.db || !tgt.db) { setStatus(src.error || tgt.error ? 'ไฟล์ที่เลือกอ่านไม่ได้' : 'กำลังอ่านไฟล์ รอสักครู่', 'bad'); return; }
       last = { src: src.db, tgt: tgt.db };
       var dbMap = newModsMap(src.db, tgt.db);
-      var colCount = render(dbcmpCompare(src.db, tgt.db, $.extend({}, OPTS, { dbMap: dbMap.map })), dbMap.notes);
-      setStatus('ตารางใหม่ ' + scripts.tables.length.toLocaleString() + ' ตาราง · คอลัมน์ใหม่/แก้ไข ' + colCount.toLocaleString() + ' คอลัมน์ · View/SP ใหม่ ' + scripts.newmods.length.toLocaleString() + ' ตัว', 'good');
+      var items = dbcmpCompare(src.db, tgt.db, $.extend({}, OPTS, { dbMap: dbMap.map }));
+      var colCount = render(items, dbMap.notes);
+      renderWarnings(items);
+      setStatus('ตาราง/Sequence ใหม่ ' + scripts.tables.length.toLocaleString() + ' · แก้ไขตารางเดิม ' + colCount.toLocaleString() + ' รายการ · View/SP ใหม่ ' + scripts.newmods.length.toLocaleString() + ' ตัว', 'good');
+    }
+    // Warnings of objects not listed in card 2 (table warnings are shown in their rows); drops are not scripted.
+    function renderWarnings(items) {
+      var list = [];
+      items.forEach(function (it) {
+        if (it.kind !== 'table' && it.status !== 'drop' && it.warnings) list = list.concat(it.warnings);
+      });
+      $warnings.empty().attr('hidden', !list.length);
+      if (!list.length) return;
+      $warnings.append($('<div>').addClass('font-bold text-bad mb-1').text('คำเตือน ' + list.length.toLocaleString() + ' รายการ (ไม่ได้อยู่ใน script ต้องตรวจ/ทำเอง)'));
+      list.forEach(function (w) { $warnings.append($('<div>').addClass('break-all text-inksoft').text('! ' + w)); });
     }
 
     $('#btn-dbcmp-run').on('click', run);
